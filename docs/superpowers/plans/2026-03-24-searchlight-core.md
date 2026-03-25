@@ -2167,44 +2167,32 @@ git add -A && git commit -m "chore: finalize barrel exports and cleanup"
 
 ## Summary & Completion Status
 
-Updated: 2026-03-25
+Updated: 2026-03-25 — ALL PHASES COMPLETE
 
-| Phase | Tasks | Slices Covered | Status |
-|-------|-------|---------------|--------|
-| 1. Foundation | 1–8 | Scaffolding, DocId, exceptions, schema, Document/types, DB lifecycle, CRUD, batch, replace/patch | **DONE** (76 tests) |
-| 2. Text & Search | 9–15 | Tokenizer, stemmer, inverted index, BM25, search engine, fuzzy, radix tree, threshold/prefix | **DONE** (93 tests) |
-| 3. Filtering | 16–21 | Filter DSL, numeric, boolean, enum/facets, arrays, nested, compound filters | **DONE** (integrated into Phase 2 implementation) |
-| 4. Sort/Group/Geo | 22–25 | Sorting, grouping, boosting, geosearch | **DONE** (integrated into Phase 2 implementation) |
-| 5. Highlighting | 26–27 | Standalone highlighter, pipeline-aware, SearchHit.highlights | **DONE** (12 tests) |
-| 6. Alt Algorithms | 28–30 | QPS, PT15, reindex migration | **NOT STARTED** |
-| 7. Persistence | 31–33 | JSON, CBOR, storage interface | **NOT STARTED** |
-| 8. Advanced | 34–37 | Multi-language, isolates, edge cases, DocumentAdapter, cleanup | **NOT STARTED** |
+| Phase | Tasks | Slices Covered | Status | Audit |
+|-------|-------|---------------|--------|-------|
+| 1. Foundation | 1–8 | Scaffolding, DocId, exceptions, schema, Document/types, DB lifecycle, CRUD, batch, replace/patch | **DONE** | 19 fixes |
+| 2. Text & Search | 9–15 | Tokenizer, stemmer, inverted index, BM25, search engine, fuzzy, radix tree, threshold/prefix | **DONE** | 20 fixes |
+| 3. Filtering | 16–21 | Filter DSL, numeric, boolean, enum/facets, arrays, nested, compound filters | **DONE** | (with Phase 2) |
+| 4. Sort/Group/Geo | 22–25 | Sorting, grouping, boosting, geosearch | **DONE** | (with Phase 2) |
+| 5. Highlighting | 26–27 | Standalone highlighter, pipeline-aware, SearchHit.highlights | **DONE** | (with Phase 2) |
+| 6. Alt Algorithms | 28–30 | QPS, PT15, reindex migration | **DONE** | 5 fixes |
+| 7. Persistence | 31–33 | JSON, CBOR, storage interface | **DONE** | 9 fixes |
+| 8. Advanced | 34–37 | Multi-language stop words, edge cases, DocumentAdapter, cleanup | **DONE** | 3 fixes |
 
-### Implementation Notes
+### Final Stats
+- **365 tests**, all passing
+- **Zero `dart analyze` issues** (production and test code)
+- **5 Orama cross-reference audits** performed
+- **56 divergences identified and fixed** across all audits
+- **~92% Orama core functionality coverage** (vector search, answer sessions, pinning intentionally excluded)
+- **30 language stop word lists** ported from Orama
+- **3 scoring algorithms**: BM25, QPS, PT15
 
-Phases 1-5 were completed with two Orama cross-reference audits:
-- Phase 1 audit: 19 MUST FIX items found and resolved
-- Phase 2 audit: 6 MUST FIX + 14 NEEDS REVIEW items found and ALL resolved
-- Total: 269 tests, zero `dart analyze` issues, all behavior matching Orama
-
-### What Remains
-
-**Phase 6: Alt Algorithms (QPS, PT15, reindex)**
-- Tasks 28-30 from the plan
-- QPS (Quantum Proximity Scoring) — Orama plugin at `reference/orama/packages/plugin-qps/`
-- PT15 (Positional Token 15) — Orama plugin at `reference/orama/packages/plugin-pt15/`
-- `reindex()` method for algorithm migration
-
-**Phase 7: Persistence (JSON, CBOR, storage)**
-- Tasks 31-33 from the plan
-- JSON serialization with format versioning
-- CBOR binary serialization
-- SearchlightStorage interface + FileStorage
-
-**Phase 8: Advanced (multi-lang, isolates, edge cases, cleanup)**
-- Tasks 34-37 from the plan
-- Multi-language stop words (29 languages)
-- Isolate support for background index building
-- Edge case tests
-- DocumentAdapter interface
-- Barrel file finalization
+### Intentionally Not Implemented
+- Vector search / hybrid search (out of scope per design spec)
+- Answer sessions / RAG pipeline (out of scope)
+- Pinning / merchandising (deferred to v2)
+- Upsert (Searchlight has update + patch instead)
+- Isolate support (deferred — architecture supports it but not wired)
+- Plugin/hook system (not needed for v1; Dart mixins/interfaces suffice)
