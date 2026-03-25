@@ -55,5 +55,14 @@ void main() {
         throwsA(isA<DocumentValidationException>()),
       );
     });
+
+    test('insert allows missing fields (treated as null/absent)', () {
+      final id = db.insert({'title': 'Partial'});
+      expect(db.count, 1);
+      final doc = db.getById(id);
+      expect(doc, isNotNull);
+      expect(doc!.getString('title'), 'Partial');
+      expect(doc.tryGetNumber('price'), isNull);
+    });
   });
 }
