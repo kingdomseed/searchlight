@@ -83,5 +83,14 @@ void main() {
       db.remove(const DocId(999));
       expect(db.count, 1);
     });
+
+    test('removeMultiple removes multiple documents', () {
+      final id1 = db.insert({'title': 'A', 'price': 1});
+      final id2 = db.insert({'title': 'B', 'price': 2});
+      db.insert({'title': 'C', 'price': 3});
+      expect(db.count, 3);
+      db.removeMultiple([id1, id2]);
+      expect(db.count, 1);
+    });
   });
 }

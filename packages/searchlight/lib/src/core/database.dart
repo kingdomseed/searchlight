@@ -145,6 +145,15 @@ final class Searchlight {
     _documents.remove(id);
   }
 
+  /// Removes all documents with the given [ids].
+  ///
+  /// Silently ignores IDs that are not found.
+  void removeMultiple(List<DocId> ids) {
+    for (final id in ids) {
+      _documents.remove(id);
+    }
+  }
+
   /// Releases resources. Flushes pending writes if applicable.
   Future<void> dispose() async {
     // Will be expanded when persistence/isolates are added
