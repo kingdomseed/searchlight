@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:searchlight/src/core/doc_id.dart';
+import 'package:searchlight/src/core/document.dart';
 import 'package:searchlight/src/core/schema.dart';
 
 /// The search algorithm used for scoring.
@@ -51,11 +53,23 @@ final class Searchlight {
   /// The language for tokenization and stemming.
   final String language;
 
+  final Map<DocId, Document> _documents = {};
+  int _nextId = 0;
+
   /// Total number of indexed documents.
-  int get count => 0; // Will be backed by document store in Task 6
+  int get count => _documents.length;
 
   /// Whether the database has no documents.
   bool get isEmpty => count == 0;
+
+  /// Inserts a document into the database.
+  ///
+  /// Returns the auto-generated [DocId] for the new document.
+  DocId insert(Map<String, Object?> data) {
+    final id = DocId(_nextId++);
+    _documents[id] = Document(data);
+    return id;
+  }
 
   /// Releases resources. Flushes pending writes if applicable.
   Future<void> dispose() async {
