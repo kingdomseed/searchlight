@@ -33,8 +33,25 @@ void main() {
       expect(words, isEmpty);
     });
 
-    test('Tokenizer with language german auto-filters stop words', () {
+    test('default Tokenizer does NOT auto-apply stop words (matches Orama)',
+        () {
+      // Orama's tokenizer defaults to NO stop word filtering.
+      // Stop words must be explicitly opted in.
       final tokenizer = Tokenizer(language: 'german');
+      final tokens = tokenizer.tokenize('der hund die katze');
+      // All tokens preserved — no auto-filtering
+      expect(tokens, contains('der'));
+      expect(tokens, contains('die'));
+      expect(tokens, contains('hund'));
+      expect(tokens, contains('katze'));
+    });
+
+    test('Tokenizer with useDefaultStopWords: true auto-filters stop words',
+        () {
+      final tokenizer = Tokenizer(
+        language: 'german',
+        useDefaultStopWords: true,
+      );
       // 'der' and 'die' are German stop words, should be filtered
       final tokens = tokenizer.tokenize('der hund die katze');
       expect(tokens, isNot(contains('der')));
@@ -58,7 +75,7 @@ void main() {
       expect(tokens, contains('katze'));
     });
 
-    test('all 30 language sets are non-empty', () {
+    test('all 28 tokenizer-supported language sets are non-empty', () {
       const languages = [
         'armenian',
         'arabic',
@@ -75,7 +92,6 @@ void main() {
         'irish',
         'indian',
         'italian',
-        'japanese',
         'lithuanian',
         'dutch',
         'norwegian',
@@ -89,13 +105,24 @@ void main() {
         'tamil',
         'turkish',
         'ukrainian',
-        'chinese',
       ];
-      expect(languages, hasLength(30));
+      expect(languages, hasLength(28));
       for (final lang in languages) {
         final words = stopWordsForLanguage(lang);
         expect(words, isNotEmpty, reason: '$lang should have stop words');
       }
     });
+
+    test(
+      'japanese and chinese are not in the lookup map '
+      '(no tokenizer support)',
+      () {
+        // These languages have const stop word sets available directly
+        // but are not auto-resolved via stopWordsForLanguage because
+        // the tokenizer does not support them.
+        expect(stopWordsForLanguage('japanese'), isEmpty);
+        expect(stopWordsForLanguage('chinese'), isEmpty);
+      },
+    );
   });
 }

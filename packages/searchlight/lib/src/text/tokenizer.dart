@@ -8,6 +8,25 @@ import 'package:searchlight/src/text/stop_words.dart';
 /// Pipeline: lowercase -> split on language regex -> normalizeToken each ->
 /// filter empty -> trim leading/trailing empty -> optionally deduplicate.
 ///
+/// **Stop words:** By default, NO stop word filtering is applied (matching
+/// Orama's tokenizer default). To opt in:
+///
+/// ```dart
+/// // Convenience — use the built-in list for the language:
+/// Tokenizer(language: 'english', useDefaultStopWords: true)
+///
+/// // Explicit — pass your own list:
+/// Tokenizer(stopWords: ['the', 'is', 'a'])
+///
+/// // Or use the built-in helper directly:
+/// Tokenizer(stopWords: stopWordsForLanguage('english').toList())
+/// ```
+///
+/// Built-in stop word lists for 28 languages are available via
+/// [stopWordsForLanguage]. Japanese and Chinese lists are available as
+/// [japaneseStopWords] and [chineseStopWords] constants (not auto-resolved
+/// because the tokenizer has no splitter for those languages).
+///
 /// **Searchlight enhancement (Item 8/20):** Orama only has a built-in English
 /// stemmer and throws `MISSING_STEMMER` for non-English languages without a
 /// custom stemmer. Searchlight provides broader stemmer coverage via the
@@ -21,9 +40,11 @@ final class Tokenizer {
   /// When [stemming] is `true` and no custom [stemmer] is provided, a
   /// snowball stemmer for [language] is used automatically.
   ///
-  /// When [stopWords] is not provided, the built-in stop word list for
-  /// [language] is used automatically (matching Orama's `@orama/stopwords`).
-  /// Pass an empty list to disable stop word filtering.
+  /// Stop words are NOT applied by default (matching Orama). To enable:
+  /// - Pass [useDefaultStopWords] as `true` to use the built-in list for
+  ///   [language].
+  /// - Pass an explicit [stopWords] list.
+  /// - Pass an empty list to explicitly disable stop word filtering.
   Tokenizer({
     this.language = 'english',
     bool stemming = false,
@@ -66,11 +87,13 @@ final class Tokenizer {
       if (explicit.isEmpty) return null; // empty list = disabled
       return explicit.toSet();
     }
-    // If useDefault is explicitly false, disable
-    if (useDefault == false) return null;
-    // Default: use built-in stop words for the language
-    final builtIn = stopWordsForLanguage(language);
-    return builtIn.isNotEmpty ? builtIn : null;
+    // Only auto-resolve built-in stop words if explicitly opted in.
+    // Matches Orama's default: NO stop word filtering unless configured.
+    if (useDefault == true) {
+      final builtIn = stopWordsForLanguage(language);
+      return builtIn.isNotEmpty ? builtIn : null;
+    }
+    return null;
   }
 
   /// Whether to allow duplicate tokens in the output.

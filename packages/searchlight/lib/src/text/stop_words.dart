@@ -2,6 +2,12 @@
 ///
 /// Each language has a `const Set<String>` of stop words for O(1) lookup.
 /// Use [stopWordsForLanguage] to get the stop word set for a given language.
+///
+/// **Note:** Japanese and Chinese stop word sets are available as
+/// [japaneseStopWords] and [chineseStopWords] constants but are NOT included
+/// in the [stopWordsForLanguage] lookup map because the tokenizer does not
+/// support these languages (no splitter regex). They can be passed directly
+/// via the `stopWords` parameter if needed.
 library;
 
 /// Returns the built-in stop word set for [language].
@@ -11,6 +17,16 @@ library;
 Set<String> stopWordsForLanguage(String language) {
   return _stopWords[language] ?? const <String>{};
 }
+
+/// Japanese stop words (not auto-resolved — no tokenizer support).
+///
+/// Pass directly: `Tokenizer(stopWords: japaneseStopWords.toList())`.
+const Set<String> japaneseStopWords = _japanese;
+
+/// Chinese stop words (not auto-resolved — no tokenizer support).
+///
+/// Pass directly: `Tokenizer(stopWords: chineseStopWords.toList())`.
+const Set<String> chineseStopWords = _chinese;
 
 /// Common English stop words.
 ///
@@ -94,7 +110,6 @@ const _stopWords = <String, Set<String>>{
   'irish': _irish,
   'indian': _indian,
   'italian': _italian,
-  'japanese': _japanese,
   'lithuanian': _lithuanian,
   'dutch': _dutch,
   'norwegian': _norwegian,
@@ -108,7 +123,6 @@ const _stopWords = <String, Set<String>>{
   'tamil': _tamil,
   'turkish': _turkish,
   'ukrainian': _ukrainian,
-  'chinese': _chinese,
 };
 
 // armenian (am.js) - 45 words
