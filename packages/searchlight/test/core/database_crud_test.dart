@@ -100,5 +100,13 @@ void main() {
       db.clear();
       expect(db.count, 0);
     });
+
+    test('isEmpty returns true after clear, false after insert', () {
+      expect(db.isEmpty, isTrue);
+      db.insert({'title': 'A', 'price': 1});
+      expect(db.isEmpty, isFalse);
+      db.clear();
+      expect(db.isEmpty, isTrue);
+    });
   });
 }
