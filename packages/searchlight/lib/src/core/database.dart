@@ -7,6 +7,9 @@ import 'package:searchlight/src/core/document.dart';
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/types.dart';
+import 'package:searchlight/src/indexing/index_manager.dart';
+import 'package:searchlight/src/scoring/bm25.dart';
+import 'package:searchlight/src/text/tokenizer.dart';
 
 /// The search algorithm used for scoring.
 enum SearchAlgorithm {
@@ -26,7 +29,10 @@ final class Searchlight {
     required this.schema,
     required this.algorithm,
     required this.language,
-  });
+    required SearchIndex index,
+    required Tokenizer tokenizer,
+  })  : _index = index,
+        _tokenizer = tokenizer;
 
   /// Creates a new Searchlight database.
   ///
@@ -39,10 +45,34 @@ final class Searchlight {
     SearchAlgorithm algorithm = SearchAlgorithm.bm25,
     String language = 'en',
   }) {
+    // Map short language codes to full names for the tokenizer
+    const languageMap = <String, String>{
+      'en': 'english',
+      'de': 'german',
+      'fi': 'finnish',
+      'fr': 'french',
+      'it': 'italian',
+      'nl': 'dutch',
+      'no': 'norwegian',
+      'pt': 'portuguese',
+      'ru': 'russian',
+      'es': 'spanish',
+      'sv': 'swedish',
+    };
+    final tokenizerLanguage = languageMap[language] ?? language;
+
+    final tokenizer = Tokenizer(
+      language: tokenizerLanguage,
+      stemming: tokenizerLanguage == 'english',
+    );
+    final index = SearchIndex.create(schema: schema);
+
     return Searchlight._(
       schema: schema,
       algorithm: algorithm,
       language: language,
+      index: index,
+      tokenizer: tokenizer,
     );
   }
 
@@ -54,6 +84,12 @@ final class Searchlight {
 
   /// The language for tokenization and stemming.
   final String language;
+
+  /// The search index managing per-field trees and BM25 scoring data.
+  final SearchIndex _index;
+
+  /// The tokenizer for splitting text into normalized tokens.
+  final Tokenizer _tokenizer;
 
   // ---------------------------------------------------------------------------
   // Internal document storage
@@ -116,6 +152,15 @@ final class Searchlight {
     _internalToExternal[internalId] = externalId;
 
     _documents[internalId] = Document(data);
+
+    // Index the document for search
+    _index.insertDocument(
+      docId: internalId.id,
+      data: data,
+      tokenizer: _tokenizer,
+      language: language,
+    );
+
     return externalId;
   }
 
@@ -250,6 +295,17 @@ final class Searchlight {
     final internalId = _externalToInternal[id];
     if (internalId == null) return false;
 
+    final doc = _documents[internalId];
+    if (doc != null) {
+      // Un-index the document before removing
+      _index.removeDocument(
+        docId: internalId.id,
+        data: doc.toMap(),
+        tokenizer: _tokenizer,
+        language: language,
+      );
+    }
+
     _documents.remove(internalId);
     _externalToInternal.remove(id);
     _internalToExternal.remove(internalId);
@@ -357,6 +413,114 @@ final class Searchlight {
     // Remove old, insert merged
     remove(id);
     return insert(merged);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Search (matching Orama's fullTextSearch flow)
+  // ---------------------------------------------------------------------------
+
+  /// Searches the database for documents matching [term].
+  ///
+  /// Matches Orama's `fullTextSearch` from `search-fulltext.ts`.
+  ///
+  /// Parameters:
+  /// - [term]: The search query string. Empty returns all documents.
+  /// - [properties]: Which string fields to search
+  ///   (default: all string fields).
+  /// - [exact]: If true, only exact word matches are returned.
+  /// - [tolerance]: Levenshtein distance for fuzzy matching.
+  /// - [boost]: Per-property score multipliers.
+  /// - [threshold]: 1.0 = any term (OR), 0.0 = all terms (AND).
+  /// - [limit]: Maximum number of hits to return per page.
+  /// - [offset]: Number of results to skip (pagination).
+  ///
+  /// Throws [QueryException] if a requested property is not a string field.
+  SearchResult search({
+    String term = '',
+    List<String>? properties,
+    bool exact = false,
+    int tolerance = 0,
+    Map<String, double>? boost,
+    double threshold = 1.0,
+    int limit = 10,
+    int offset = 0,
+  }) {
+    final stopwatch = Stopwatch()..start();
+
+    // 1. Resolve properties: default = all string fields in the schema
+    final stringFields = schema.fieldPathsOfType(SchemaType.string);
+    List<String> propertiesToSearch;
+
+    if (properties != null) {
+      // Validate that requested properties are string type
+      for (final prop in properties) {
+        if (!stringFields.contains(prop)) {
+          throw QueryException(
+            "Property '$prop' is not a searchable string field. "
+            'Available: ${stringFields.join(', ')}',
+          );
+        }
+      }
+      propertiesToSearch = properties;
+    } else {
+      propertiesToSearch = stringFields;
+    }
+
+    // 2. Search or return all docs
+    List<TokenScore> uniqueDocsArray;
+
+    if (term.isNotEmpty) {
+      // Call SearchIndex.search matching Orama's innerFullTextSearch
+      uniqueDocsArray = _index.search(
+        term: term,
+        tokenizer: _tokenizer,
+        propertiesToSearch: propertiesToSearch,
+        relevance: const BM25Params(),
+        exact: exact,
+        tolerance: tolerance,
+        boost: boost ?? const {},
+        threshold: threshold,
+        language: language,
+      );
+    } else {
+      // No term: return all documents with score 0
+      uniqueDocsArray =
+          _documents.keys.map<TokenScore>((docId) => (docId.id, 0.0)).toList();
+    }
+
+    // 3. Sort by score descending (already sorted from SearchIndex.search,
+    //    but for no-term case we need consistency)
+    if (term.isEmpty) {
+      uniqueDocsArray.sort((a, b) => b.$2.compareTo(a.$2));
+    }
+
+    // 4. Total count before pagination
+    final totalCount = uniqueDocsArray.length;
+
+    // 5. Paginate
+    final end = (offset + limit).clamp(0, uniqueDocsArray.length);
+    final start = offset.clamp(0, uniqueDocsArray.length);
+    final page = uniqueDocsArray.sublist(start, end);
+
+    // 6. Fetch documents for the result page
+    final hits = <SearchHit>[];
+    for (final (docId, score) in page) {
+      final internalId = DocId(docId);
+      final externalId = _internalToExternal[internalId];
+      if (externalId == null) continue;
+      final doc = _documents[internalId];
+      if (doc == null) continue;
+
+      hits.add(SearchHit(id: externalId, score: score, document: doc));
+    }
+
+    stopwatch.stop();
+
+    return SearchResult(
+      hits: hits,
+      count: totalCount,
+      elapsed: stopwatch.elapsed,
+    );
   }
 
   /// Removes all documents from the database.
