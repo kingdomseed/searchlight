@@ -138,6 +138,13 @@ final class Searchlight {
   /// Returns the document with the given [id], or `null` if not found.
   Document? getById(DocId id) => _documents[id];
 
+  /// Removes the document with the given [id].
+  ///
+  /// Does nothing if the [id] is not found.
+  void remove(DocId id) {
+    _documents.remove(id);
+  }
+
   /// Releases resources. Flushes pending writes if applicable.
   Future<void> dispose() async {
     // Will be expanded when persistence/isolates are added

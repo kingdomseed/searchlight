@@ -64,5 +64,12 @@ void main() {
       expect(doc!.getString('title'), 'Partial');
       expect(doc.tryGetNumber('price'), isNull);
     });
+
+    test('remove decrements count', () {
+      final id = db.insert({'title': 'Hello', 'price': 9.99});
+      expect(db.count, 1);
+      db.remove(id);
+      expect(db.count, 0);
+    });
   });
 }
