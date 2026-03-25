@@ -1,4 +1,4 @@
-import 'package:searchlight/searchlight.dart';
+import 'package:searchlight/src/text/diacritics.dart';
 import 'package:test/test.dart';
 
 void main() {

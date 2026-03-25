@@ -72,7 +72,10 @@ void main() {
           'puts first token in highest bucket (14), last in lowest '
           'for short docs', () {
         final storage = createPositionsStorage();
-        final tokenizer = Tokenizer(allowDuplicates: true);
+        final tokenizer = Tokenizer(
+          allowDuplicates: true,
+          useDefaultStopWords: false,
+        );
 
         // "the quick brown" -> 3 tokens (< 15)
         // Token 0 ("the"): bucket = 15 - 0 - 1 = 14

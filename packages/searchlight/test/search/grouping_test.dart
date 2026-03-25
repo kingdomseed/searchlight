@@ -4,6 +4,7 @@
 
 import 'package:searchlight/searchlight.dart';
 import 'package:searchlight/src/indexing/index_manager.dart' show TokenScore;
+import 'package:searchlight/src/search/grouping.dart';
 import 'package:test/test.dart';
 
 void main() {

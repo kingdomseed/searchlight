@@ -212,7 +212,10 @@ void main() {
           'title': const TypedField(SchemaType.string),
         });
         final index = SearchIndex.create(schema: schema);
-        final tokenizer = Tokenizer(allowDuplicates: true);
+        final tokenizer = Tokenizer(
+          allowDuplicates: true,
+          useDefaultStopWords: false,
+        );
 
         // Doc 1: 2 tokens, Doc 2: 4 tokens => avg = 3
         index

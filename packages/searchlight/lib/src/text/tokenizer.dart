@@ -1,6 +1,7 @@
 import 'package:searchlight/src/text/diacritics.dart';
 import 'package:searchlight/src/text/languages.dart';
 import 'package:searchlight/src/text/stemmer.dart';
+import 'package:searchlight/src/text/stop_words.dart';
 
 /// Tokenizer matching Orama's DefaultTokenizer pipeline.
 ///
@@ -19,11 +20,16 @@ final class Tokenizer {
   ///
   /// When [stemming] is `true` and no custom [stemmer] is provided, a
   /// snowball stemmer for [language] is used automatically.
+  ///
+  /// When [stopWords] is not provided, the built-in stop word list for
+  /// [language] is used automatically (matching Orama's `@orama/stopwords`).
+  /// Pass an empty list to disable stop word filtering.
   Tokenizer({
     this.language = 'english',
     bool stemming = false,
     String Function(String)? stemmer,
-    this.stopWords,
+    List<String>? stopWords,
+    bool? useDefaultStopWords,
     this.allowDuplicates = false,
     this.tokenizeSkipProperties = const {},
     this.stemmerSkipProperties = const {},
@@ -31,7 +37,12 @@ final class Tokenizer {
           splitters.containsKey(language),
           'Unsupported language: $language',
         ),
-        _stemmer = stemmer ?? (stemming ? createStemmer(language) : null);
+        _stemmer = stemmer ?? (stemming ? createStemmer(language) : null),
+        _stopWords = _resolveStopWords(
+          stopWords,
+          useDefaultStopWords,
+          language,
+        );
 
   /// The language used for splitting text into tokens.
   final String language;
@@ -39,8 +50,28 @@ final class Tokenizer {
   /// The resolved stemmer function (null if stemming is disabled).
   final String Function(String)? _stemmer;
 
-  /// Optional list of stop words to filter out during normalization.
-  final List<String>? stopWords;
+  /// The resolved stop words set (null if stop words are disabled).
+  final Set<String>? _stopWords;
+
+  /// Returns the stop words in use (for inspection/testing).
+  List<String>? get stopWords => _stopWords?.toList();
+
+  static Set<String>? _resolveStopWords(
+    List<String>? explicit,
+    bool? useDefault,
+    String language,
+  ) {
+    // If explicit stop words provided, use them
+    if (explicit != null) {
+      if (explicit.isEmpty) return null; // empty list = disabled
+      return explicit.toSet();
+    }
+    // If useDefault is explicitly false, disable
+    if (useDefault == false) return null;
+    // Default: use built-in stop words for the language
+    final builtIn = stopWordsForLanguage(language);
+    return builtIn.isNotEmpty ? builtIn : null;
+  }
 
   /// Whether to allow duplicate tokens in the output.
   final bool allowDuplicates;
@@ -109,7 +140,7 @@ final class Tokenizer {
     }
 
     // Remove stop words
-    if (stopWords != null && stopWords!.contains(token)) {
+    if (_stopWords != null && _stopWords.contains(token)) {
       if (withCache) {
         _normalizationCache[key] = '';
       }

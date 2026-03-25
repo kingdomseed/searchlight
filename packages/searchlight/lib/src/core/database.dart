@@ -950,9 +950,9 @@ final class Searchlight {
 
   /// Removes all documents from the database.
   void clear() {
-    _documents.clear();
-    _externalToInternal.clear();
-    _internalToExternal.clear();
+    // Remove each document through the normal remove path to ensure
+    // the search index and sort index are properly updated.
+    _externalToInternal.keys.toList().forEach(remove);
   }
 
   // ---------------------------------------------------------------------------
