@@ -110,5 +110,22 @@ void main() {
         equals(['run']),
       );
     });
+
+    // Item 7: Language validation in tokenize()
+    test('throws when language parameter mismatches tokenizer language', () {
+      final tokenizer = Tokenizer(language: 'english');
+      expect(
+        () => tokenizer.tokenize('hello', language: 'french'),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('does not throw when language matches tokenizer language', () {
+      final tokenizer = Tokenizer(language: 'english');
+      expect(
+        tokenizer.tokenize('hello', language: 'english'),
+        equals(['hello']),
+      );
+    });
   });
 }

@@ -128,8 +128,17 @@ void main() {
   group('GroupBy', () {
     test('holds field and limit', () {
       const group = GroupBy(field: 'category', limit: 3);
-      expect(group.field, 'category');
+      expect(group.effectiveProperties, ['category']);
       expect(group.limit, 3);
+    });
+
+    test('multi-property constructor holds properties', () {
+      const group = GroupBy.properties(
+        properties: ['category', 'status'],
+        limit: 5,
+      );
+      expect(group.effectiveProperties, ['category', 'status']);
+      expect(group.limit, 5);
     });
   });
 

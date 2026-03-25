@@ -183,6 +183,127 @@ void main() {
       expect(boolFacet.values['true'], 3);
       expect(boolFacet.values['false'], 2);
     });
+
+    // Item 3: Facet offset/limit -- match Orama's slice(offset, limit)
+    test('string facet with offset and limit uses slice semantics', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+        'category': const TypedField(SchemaType.string),
+      });
+
+      final db = Searchlight.create(schema: schema);
+      // Insert docs with 5 different categories
+      db
+        ..insert({'id': 'd1', 'title': 'A', 'category': 'alpha'})
+        ..insert({'id': 'd2', 'title': 'B', 'category': 'alpha'})
+        ..insert({'id': 'd3', 'title': 'C', 'category': 'alpha'})
+        ..insert({'id': 'd4', 'title': 'D', 'category': 'beta'})
+        ..insert({'id': 'd5', 'title': 'E', 'category': 'beta'})
+        ..insert({'id': 'd6', 'title': 'F', 'category': 'gamma'})
+        ..insert({'id': 'd7', 'title': 'G', 'category': 'delta'})
+        ..insert({'id': 'd8', 'title': 'H', 'category': 'epsilon'});
+
+      final results = <TokenScore>[
+        (1, 1.0),
+        (2, 0.9),
+        (3, 0.8),
+        (4, 0.7),
+        (5, 0.6),
+        (6, 0.5),
+        (7, 0.4),
+        (8, 0.3),
+      ];
+
+      // Orama: slice(offset=1, limit=3) => items at indices 1, 2
+      // (3 items from index 1..2, not 3 items starting at 1)
+      final facets = getFacets(
+        documents: db.documentsForFacets,
+        results: results,
+        facetsConfig: {
+          'category': const FacetConfig(offset: 1, limit: 3),
+        },
+        propertiesWithTypes: db.propertiesWithTypes,
+      );
+
+      final categoryFacet = facets['category']!;
+      // Orama's slice(1, 3) returns items at index 1 and 2 (2 items)
+      expect(categoryFacet.values.length, 2);
+    });
+
+    // Item 4: Array facet dedup -- alreadyInsertedValues per doc
+    test('array facet does not double-count duplicate values', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+        'tags': const TypedField(SchemaType.stringArray),
+      });
+
+      final db = Searchlight.create(schema: schema);
+      db
+        ..insert({
+          'id': 'doc1',
+          'title': 'A',
+          'tags': ['dart', 'dart', 'flutter'],
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'B',
+          'tags': ['dart', 'go'],
+        });
+
+      final results = <TokenScore>[(1, 1.0), (2, 0.9)];
+
+      final facets = getFacets(
+        documents: db.documentsForFacets,
+        results: results,
+        facetsConfig: {
+          'tags': const FacetConfig(),
+        },
+        propertiesWithTypes: db.propertiesWithTypes,
+      );
+
+      final tagsFacet = facets['tags']!;
+      // "dart" appears in doc1 (twice) and doc2 => should count as 2, not 3
+      expect(tagsFacet.values['dart'], 2);
+      expect(tagsFacet.values['flutter'], 1);
+      expect(tagsFacet.values['go'], 1);
+    });
+
+    // Item 14: Number facet ranges pre-initialized with 0 counts
+    test('number facet pre-initializes all range buckets with 0', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+        'price': const TypedField(SchemaType.number),
+      });
+
+      final db = Searchlight.create(schema: schema);
+      db.insert({'id': 'doc1', 'title': 'A', 'price': 5});
+
+      final results = <TokenScore>[(1, 1.0)];
+
+      final facets = getFacets(
+        documents: db.documentsForFacets,
+        results: results,
+        facetsConfig: {
+          'price': FacetConfig(
+            ranges: [
+              const NumberFacetRange(from: 0, to: 10),
+              const NumberFacetRange(from: 10, to: 50),
+              const NumberFacetRange(from: 50, to: 100),
+            ],
+          ),
+        },
+        propertiesWithTypes: db.propertiesWithTypes,
+      );
+
+      final priceFacet = facets['price']!;
+      // All 3 ranges should exist, even empty ones
+      expect(priceFacet.values.containsKey('0-10'), isTrue);
+      expect(priceFacet.values.containsKey('10-50'), isTrue);
+      expect(priceFacet.values.containsKey('50-100'), isTrue);
+      expect(priceFacet.values['0-10'], 1);
+      expect(priceFacet.values['10-50'], 0);
+      expect(priceFacet.values['50-100'], 0);
+    });
   });
 
   group('Searchlight.search() with facets', () {

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:math' as math;
+
 import 'package:searchlight/src/core/doc_id.dart';
 import 'package:searchlight/src/core/document.dart';
 import 'package:searchlight/src/core/exceptions.dart';
@@ -14,6 +16,7 @@ import 'package:searchlight/src/search/facets.dart' as facets_lib;
 import 'package:searchlight/src/search/filters.dart';
 import 'package:searchlight/src/search/grouping.dart' as grouping_lib;
 import 'package:searchlight/src/text/tokenizer.dart';
+import 'package:searchlight/src/trees/bkd_tree.dart';
 
 /// The search algorithm used for scoring.
 enum SearchAlgorithm {
@@ -35,8 +38,10 @@ final class Searchlight {
     required this.language,
     required SearchIndex index,
     required Tokenizer tokenizer,
+    required SortIndex sortIndex,
   })  : _index = index,
-        _tokenizer = tokenizer;
+        _tokenizer = tokenizer,
+        _sortIndex = sortIndex;
 
   /// Creates a new Searchlight database.
   ///
@@ -77,6 +82,7 @@ final class Searchlight {
       language: language,
       index: index,
       tokenizer: tokenizer,
+      sortIndex: SortIndex(language: tokenizerLanguage),
     );
   }
 
@@ -99,7 +105,7 @@ final class Searchlight {
   ///
   /// Populated during insert/remove, used during search when sortBy is
   /// provided. Matches Orama's `Sorter`.
-  final SortIndex _sortIndex = SortIndex();
+  final SortIndex _sortIndex;
 
   // ---------------------------------------------------------------------------
   // Internal document storage
@@ -549,13 +555,17 @@ final class Searchlight {
         _index,
         where,
         totalDocs: _nextInternalId - 1,
+        tokenizer: _tokenizer,
+        language: language,
       );
     }
 
     // 3. Search or return all/filtered docs
+    // Item 6: Orama checks `if (term || properties)` — when properties
+    // is specified (even without a term), the search path is taken.
     List<TokenScore> uniqueDocsArray;
 
-    if (term.isNotEmpty) {
+    if (term.isNotEmpty || properties != null) {
       // Call SearchIndex.search matching Orama's innerFullTextSearch
       uniqueDocsArray = _index.search(
         term: term,
@@ -569,12 +579,43 @@ final class Searchlight {
         language: language,
         whereFiltersIDs: whereFiltersIDs,
       );
+      // Item 19: Exact-term post-filtering. Orama checks
+      // `if (params.exact && term)` after scoring, filtering to docs where
+      // the original text contains the exact search terms as whole words.
+      if (exact && term.isNotEmpty) {
+        final searchTerms = term.trim().split(RegExp(r'\s+'));
+        uniqueDocsArray = uniqueDocsArray.where((tokenScore) {
+          final internalId = DocId(tokenScore.$1);
+          final doc = _documents[internalId];
+          if (doc == null) return false;
+
+          for (final prop in propertiesToSearch) {
+            final propValue = SearchIndex.resolveValue(doc.toMap(), prop);
+            if (propValue is String) {
+              final hasAllTerms = searchTerms.every((searchTerm) {
+                final regex = RegExp(
+                  '\\b${RegExp.escape(searchTerm)}\\b',
+                );
+                return regex.hasMatch(propValue);
+              });
+              if (hasAllTerms) return true;
+            }
+          }
+          return false;
+        }).toList();
+      }
     } else {
-      // No term — matching Orama: if filters, return filtered IDs with
-      // score 0; otherwise return all documents with score 0.
+      // No term and no properties — matching Orama: if filters, check for
+      // geo-only query first, else return filtered IDs with score 0.
       if (hasFilters) {
-        final docIds = whereFiltersIDs ?? <int>{};
-        uniqueDocsArray = docIds.map<TokenScore>((id) => (id, 0.0)).toList();
+        // Item 18: Check if this is a geo-only query for distance scoring
+        final geoResults = _searchByGeoWhereClause(where);
+        if (geoResults != null) {
+          uniqueDocsArray = geoResults;
+        } else {
+          final docIds = whereFiltersIDs ?? <int>{};
+          uniqueDocsArray = docIds.map<TokenScore>((id) => (id, 0.0)).toList();
+        }
       } else {
         uniqueDocsArray = _documents.keys
             .map<TokenScore>((docId) => (docId.id, 0.0))
@@ -635,6 +676,7 @@ final class Searchlight {
         externalIds: externalIdsMap,
         results: uniqueDocsArray,
         groupBy: groupBy,
+        schemaProperties: propertiesWithTypes,
       );
     }
 
@@ -647,6 +689,90 @@ final class Searchlight {
       facets: facetResults,
       groups: groupResults,
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Item 18: Geo-only distance scoring
+  // Matches Orama's searchByGeoWhereClause + isGeosearchOnlyQuery
+  // ---------------------------------------------------------------------------
+
+  /// Checks if the where clause is a geo-only query (single BKD filter)
+  /// and returns distance-scored results if so.
+  List<TokenScore>? _searchByGeoWhereClause(Map<String, Filter> filters) {
+    if (filters.length != 1) return null;
+
+    final param = filters.keys.first;
+    final operation = filters.values.first;
+
+    final indexTree = _index.indexes[param];
+    if (indexTree == null || indexTree.type != TreeType.bkd) return null;
+
+    if (operation is! GeoRadiusFilter && operation is! GeoPolygonFilter) {
+      return null;
+    }
+
+    final bkdNode = indexTree.node as BKDTree;
+
+    if (operation is GeoRadiusFilter) {
+      final center = GeoPoint(lat: operation.lat, lon: operation.lon);
+      final distanceInMeters =
+          BKDTree.convertDistanceToMeters(operation.radius, operation.unit);
+      final results = bkdNode.searchByRadius(
+        center,
+        distanceInMeters,
+        inclusive: operation.inside,
+        sort: SortOrder.asc,
+        highPrecision: operation.highPrecision,
+      );
+      return _createGeoTokenScores(results, center, operation.highPrecision);
+    }
+
+    if (operation is GeoPolygonFilter) {
+      final polygon = operation.coordinates
+          .map((c) => GeoPoint(lat: c.lat, lon: c.lon))
+          .toList();
+      final results = bkdNode.searchByPolygon(
+        polygon,
+        inclusive: operation.inside,
+        sort: SortOrder.asc,
+        highPrecision: operation.highPrecision,
+      );
+      final centroid = BKDTree.calculatePolygonCentroid(polygon);
+      return _createGeoTokenScores(results, centroid, operation.highPrecision);
+    }
+
+    return null;
+  }
+
+  /// Creates scored results from geo results using inverse distance scoring.
+  ///
+  /// Matches Orama's `createGeoTokenScores`.
+  static List<TokenScore> _createGeoTokenScores(
+    List<GeoSearchResult> results,
+    GeoPoint centerPoint,
+    bool highPrecision,
+  ) {
+    final distanceFn =
+        highPrecision ? BKDTree.vincentyDistance : BKDTree.haversineDistance;
+
+    final distances = <double>[];
+    for (final r in results) {
+      distances.add(distanceFn(centerPoint, r.point));
+    }
+    final maxDistance = distances.isEmpty ? 0.0 : distances.reduce(math.max);
+
+    final scored = <TokenScore>[];
+    for (var i = 0; i < results.length; i++) {
+      final distance = distances[i];
+      // Inverse score: closer points get higher scores
+      final score = maxDistance - distance + 1;
+      for (final docID in results[i].docIDs) {
+        scored.add((docID, score));
+      }
+    }
+
+    scored.sort((a, b) => b.$2.compareTo(a.$2));
+    return scored;
   }
 
   /// Removes all documents from the database.

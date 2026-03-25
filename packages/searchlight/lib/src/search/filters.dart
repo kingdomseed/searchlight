@@ -5,10 +5,12 @@
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
+import 'package:searchlight/src/text/tokenizer.dart';
 import 'package:searchlight/src/trees/avl_tree.dart';
 import 'package:searchlight/src/trees/bkd_tree.dart';
 import 'package:searchlight/src/trees/bool_node.dart';
 import 'package:searchlight/src/trees/flat_tree.dart';
+import 'package:searchlight/src/trees/radix_tree.dart';
 
 // ---------------------------------------------------------------------------
 // Filter sealed hierarchy
@@ -280,6 +282,8 @@ Set<int> searchByWhereClause(
   SearchIndex index,
   Map<String, Filter> filters, {
   required int totalDocs,
+  Tokenizer? tokenizer,
+  String? language,
 }) {
   final filtersMap = <String, Set<int>>{};
 
@@ -291,7 +295,15 @@ Set<int> searchByWhereClause(
     if (operation is AndFilter) {
       if (operation.filters.isEmpty) return {};
       final results = operation.filters
-          .map((f) => searchByWhereClause(index, f, totalDocs: totalDocs))
+          .map(
+            (f) => searchByWhereClause(
+              index,
+              f,
+              totalDocs: totalDocs,
+              tokenizer: tokenizer,
+              language: language,
+            ),
+          )
           .toList();
       return _setIntersection(results);
     }
@@ -299,7 +311,15 @@ Set<int> searchByWhereClause(
     if (operation is OrFilter) {
       if (operation.filters.isEmpty) return {};
       final results = operation.filters
-          .map((f) => searchByWhereClause(index, f, totalDocs: totalDocs))
+          .map(
+            (f) => searchByWhereClause(
+              index,
+              f,
+              totalDocs: totalDocs,
+              tokenizer: tokenizer,
+              language: language,
+            ),
+          )
           .toList();
       return results.reduce((acc, s) => acc.union(s));
     }
@@ -309,8 +329,13 @@ Set<int> searchByWhereClause(
       for (var i = 1; i <= totalDocs; i++) {
         allDocs.add(i);
       }
-      final notResult =
-          searchByWhereClause(index, operation.filter, totalDocs: totalDocs);
+      final notResult = searchByWhereClause(
+        index,
+        operation.filter,
+        totalDocs: totalDocs,
+        tokenizer: tokenizer,
+        language: language,
+      );
       return allDocs.difference(notResult);
     }
 
@@ -443,12 +468,31 @@ Set<int> searchByWhereClause(
         filtersMap[param] = filtersMap[param]!.union(geoIDs);
 
       case TreeType.radix:
-        // Radix (string) filtering is not typically used in where clauses
-        // Orama tokenizes the filter value and finds exact matches
-        throw QueryException(
-          'String fields cannot be used in where filters. '
-          "Use search term instead for field '$param'.",
-        );
+        // Item 2: Orama supports string/array where-clause filters on Radix
+        // fields by tokenizing the filter value and performing exact find.
+        // Matches Orama's index.ts:699-708.
+        if (operation is EqFilter && operation.value is String) {
+          final node = indexTree.node as RadixTree;
+          if (tokenizer == null) {
+            throw QueryException(
+              'Tokenizer required for string field filter on '
+              "'$param'.",
+            );
+          }
+          final raw = operation.value as String;
+          final terms = tokenizer.tokenize(raw, property: param);
+          for (final t in terms) {
+            final foundResult = node.find(term: t, exact: true);
+            for (final ids in foundResult.values) {
+              filtersMap[param] = filtersMap[param]!.union(ids.toSet());
+            }
+          }
+        } else {
+          throw QueryException(
+            'Invalid filter operation for string field '
+            "'$param'. Use EqFilter with a String value.",
+          );
+        }
     }
   }
 

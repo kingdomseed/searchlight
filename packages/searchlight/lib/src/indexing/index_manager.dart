@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/scoring/bm25.dart';
@@ -166,9 +167,11 @@ final class SearchIndex {
       final indexTree = indexes[prop];
       if (indexTree == null) continue;
 
-      final schemaType = searchablePropertiesWithTypes[prop]!;
       final isArray = indexTree.isArray;
 
+      // Orama: insertScalarBuilder is called per element, and each call
+      // to the Radix case calls insertDocumentScoreParameters. So for
+      // arrays, scoring is done per element (last element overwrites).
       if (isArray && value is List) {
         for (final element in value) {
           _insertScalar(
@@ -182,20 +185,6 @@ final class SearchIndex {
         }
       } else {
         _insertScalar(prop, docId, value, indexTree, tokenizer, language);
-      }
-
-      // For array string types, handle scoring at the array level
-      if (isArray && schemaType == SchemaType.stringArray && value is List) {
-        final allTokens = <String>[];
-        for (final element in value) {
-          allTokens.addAll(
-            tokenizer.tokenize(element as String, property: prop),
-          );
-        }
-        _insertDocumentScoreParameters(prop, docId, allTokens);
-        for (final token in allTokens.toSet()) {
-          _insertTokenScoreParameters(prop, docId, allTokens, token);
-        }
       }
     }
   }
@@ -217,23 +206,20 @@ final class SearchIndex {
         node.insert(value as num, docId);
       case TreeType.radix:
         final node = indexTree.node as RadixTree;
+        // Item 10: Orama passes withCache=false during insert tokenization
         final tokens = tokenizer.tokenize(
           value as String,
           property: prop,
+          withCache: false,
         );
 
-        if (!indexTree.isArray) {
-          _insertDocumentScoreParameters(prop, docId, tokens);
-          for (final token in tokens) {
-            _insertTokenScoreParameters(prop, docId, tokens, token);
-            node.insert(token, docId);
-          }
-        } else {
-          // For array types, just insert into tree
-          // (scoring handled at array level)
-          for (final token in tokens) {
-            node.insert(token, docId);
-          }
+        // Item 9: Orama's insertScalarBuilder calls
+        // insertDocumentScoreParameters for EVERY element (including array
+        // elements). For arrays, the last element's tokens overwrite.
+        _insertDocumentScoreParameters(prop, docId, tokens);
+        for (final token in tokens) {
+          _insertTokenScoreParameters(prop, docId, tokens, token);
+          node.insert(token, docId);
         }
       case TreeType.flat:
         final node = indexTree.node as FlatTree;
@@ -361,7 +347,9 @@ final class SearchIndex {
               (fieldLengths[prop]![docId] ?? 0)) /
           (_docsCount - 1);
     } else {
-      avgFieldLength[prop] = 0;
+      // Item 11: Orama sets avgFieldLength[prop] = undefined, which
+      // becomes NaN in subsequent calculations. Match that behavior.
+      avgFieldLength[prop] = double.nan;
     }
     fieldLengths[prop]!.remove(docId);
     frequencies[prop]!.remove(docId);
@@ -417,9 +405,22 @@ final class SearchIndex {
       if (!indexes.containsKey(prop)) continue;
 
       final tree = indexes[prop]!;
-      if (tree.type != TreeType.radix) continue;
+      // Item 13: Orama throws WRONG_SEARCH_PROPERTY_TYPE for non-Radix
+      if (tree.type != TreeType.radix) {
+        throw QueryException(
+          "Property '$prop' is not a searchable string field "
+          '(type: ${tree.type})',
+        );
+      }
 
       final boostPerProperty = boost[prop] ?? 1.0;
+      // Item 12: Orama throws INVALID_BOOST_VALUE for boost <= 0
+      if (boostPerProperty <= 0) {
+        throw QueryException(
+          'Invalid boost value: $boostPerProperty. '
+          'Boost must be greater than 0.',
+        );
+      }
       final node = tree.node as RadixTree;
 
       // If the tokenizer returns an empty list, search for empty string
@@ -611,9 +612,10 @@ final class SearchIndex {
               tokenOccurrences[path] = {};
               fieldLengths[path] = {};
             case SchemaType.number || SchemaType.numberArray:
+              // Orama: new AVLTree<number, InternalDocumentID>(0, [])
               indexes[path] = IndexTree(
                 type: TreeType.avl,
-                node: AVLTree<num, int>(),
+                node: AVLTree<num, int>(key: 0, values: []),
                 isArray: isArray,
               );
             case SchemaType.boolean || SchemaType.booleanArray:

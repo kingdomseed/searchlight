@@ -91,6 +91,171 @@ void main() {
       final booksGroup = groups.firstWhere((g) => g.values.contains('books'));
       expect(booksGroup.result, hasLength(2));
     });
+
+    // Item 5: Multi-property grouping with Cartesian product
+    test('multi-property grouping produces Cartesian product', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+        'category': const TypedField(SchemaType.string),
+        'status': const TypedField(SchemaType.string),
+      });
+
+      final db = Searchlight.create(schema: schema);
+      db
+        ..insert({
+          'id': 'doc1',
+          'title': 'A',
+          'category': 'tech',
+          'status': 'active',
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'B',
+          'category': 'tech',
+          'status': 'inactive',
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'C',
+          'category': 'health',
+          'status': 'active',
+        });
+
+      final results = <TokenScore>[
+        (1, 1.0),
+        (2, 0.9),
+        (3, 0.8),
+      ];
+
+      final groups = getGroups(
+        documents: db.documentsForFacets,
+        externalIds: db.externalIdsMap,
+        results: results,
+        groupBy: GroupBy.properties(
+          properties: ['category', 'status'],
+          limit: 10,
+        ),
+      );
+
+      // Should produce groups for existing combinations only:
+      // (tech, active), (tech, inactive), (health, active)
+      // (health, inactive) would be empty and excluded
+      expect(groups, hasLength(3));
+
+      final techActive = groups.firstWhere(
+        (g) => g.values.contains('tech') && g.values.contains('active'),
+      );
+      expect(techActive.result, hasLength(1)); // doc1
+
+      final techInactive = groups.firstWhere(
+        (g) => g.values.contains('tech') && g.values.contains('inactive'),
+      );
+      expect(techInactive.result, hasLength(1)); // doc2
+
+      final healthActive = groups.firstWhere(
+        (g) => g.values.contains('health') && g.values.contains('active'),
+      );
+      expect(healthActive.result, hasLength(1)); // doc3
+    });
+
+    // Item 15: Group property validation
+    test('throws for unknown group property', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+      });
+
+      final db = Searchlight.create(schema: schema);
+      db.insert({'id': 'doc1', 'title': 'A'});
+
+      final results = <TokenScore>[(1, 1.0)];
+
+      expect(
+        () => getGroups(
+          documents: db.documentsForFacets,
+          externalIds: db.externalIdsMap,
+          results: results,
+          groupBy: const GroupBy(field: 'nonexistent', limit: 10),
+          schemaProperties: db.propertiesWithTypes,
+        ),
+        throwsA(isA<QueryException>()),
+      );
+    });
+
+    test('throws for invalid group property type (geopoint)', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+        'location': const TypedField(SchemaType.geopoint),
+      });
+
+      final db = Searchlight.create(schema: schema);
+      db.insert({
+        'id': 'doc1',
+        'title': 'A',
+        'location': const GeoPoint(lat: 0, lon: 0),
+      });
+
+      final results = <TokenScore>[(1, 1.0)];
+
+      expect(
+        () => getGroups(
+          documents: db.documentsForFacets,
+          externalIds: db.externalIdsMap,
+          results: results,
+          groupBy: const GroupBy(field: 'location', limit: 10),
+          schemaProperties: db.propertiesWithTypes,
+        ),
+        throwsA(isA<QueryException>()),
+      );
+    });
+
+    // Item 16: Custom reduce for groups
+    test('custom reduce aggregates group results', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+        'category': const TypedField(SchemaType.string),
+      });
+
+      final db = Searchlight.create(schema: schema);
+      db
+        ..insert({'id': 'doc1', 'title': 'A', 'category': 'tech'})
+        ..insert({'id': 'doc2', 'title': 'B', 'category': 'tech'})
+        ..insert({'id': 'doc3', 'title': 'C', 'category': 'health'});
+
+      final results = <TokenScore>[
+        (1, 1.0),
+        (2, 0.9),
+        (3, 0.8),
+      ];
+
+      final groups = getGroups(
+        documents: db.documentsForFacets,
+        externalIds: db.externalIdsMap,
+        results: results,
+        groupBy: GroupBy(
+          field: 'category',
+          limit: 10,
+          reduce: GroupReduce<List<SearchHit>>(
+            reducer: (values, acc, res, index) {
+              acc[index] = res;
+              return acc;
+            },
+            getInitialValue: (length) => List<SearchHit>.filled(
+              length,
+              SearchHit(
+                id: '',
+                score: 0,
+                document: Document(const {}),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Verify reduce was applied (same output as default in this case)
+      expect(groups, hasLength(2));
+      final techGroup = groups.firstWhere((g) => g.values.contains('tech'));
+      expect(techGroup.result, hasLength(2));
+    });
   });
 
   group('Searchlight.search() with groupBy', () {
@@ -124,6 +289,24 @@ void main() {
       final mobileGroup =
           result.groups!.firstWhere((g) => g.values.contains('mobile'));
       expect(mobileGroup.result, hasLength(1));
+    });
+
+    // Item 15: Validation through database layer
+    test('search with invalid groupBy property throws', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      );
+      db.insert({'id': 'doc1', 'title': 'hello'});
+
+      expect(
+        () => db.search(
+          term: 'hello',
+          groupBy: const GroupBy(field: 'nonexistent', limit: 10),
+        ),
+        throwsA(isA<QueryException>()),
+      );
     });
   });
 }

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:math' as math;
+
 import 'package:searchlight/src/core/document.dart';
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/types.dart';
@@ -28,8 +30,16 @@ Map<String, FacetResult> getFacets({
     final config = entry.value;
     final propertyType = propertiesWithTypes[facetField];
 
-    // Build raw value counts
+    // Item 14: Pre-initialize number range buckets with 0 counts
+    // Matches Orama: values = Object.fromEntries(ranges.map(r => ['from-to', 0]))
     final values = <String, int>{};
+    if ((propertyType == SchemaType.number ||
+            propertyType == SchemaType.numberArray) &&
+        config.ranges != null) {
+      for (final range in config.ranges!) {
+        values['${range.from}-${range.to}'] = 0;
+      }
+    }
 
     for (final docId in allIDs) {
       final doc = documents[docId];
@@ -47,28 +57,48 @@ Map<String, FacetResult> getFacets({
           _countNumberValue(values, rawValue as num, config.ranges ?? []);
         case SchemaType.enumType:
           _countStringValue(values, rawValue.toString());
+        // Item 4: Array types use alreadyInsertedValues Set per document
+        // to prevent double-counting. Matches Orama's pattern.
         case SchemaType.stringArray:
           if (rawValue is List) {
+            final alreadyInserted = <String>{};
             for (final v in rawValue) {
-              _countStringValue(values, v as String);
+              final sv = v as String;
+              if (alreadyInserted.contains(sv)) continue;
+              _countStringValue(values, sv);
+              alreadyInserted.add(sv);
             }
           }
         case SchemaType.numberArray:
           if (rawValue is List) {
+            final alreadyInserted = <String>{};
             for (final v in rawValue) {
-              _countNumberValue(values, v as num, config.ranges ?? []);
+              _countNumberValueWithDedup(
+                values,
+                v as num,
+                config.ranges ?? [],
+                alreadyInserted,
+              );
             }
           }
         case SchemaType.booleanArray:
           if (rawValue is List) {
+            final alreadyInserted = <String>{};
             for (final v in rawValue) {
-              _countStringValue(values, v.toString());
+              final sv = v.toString();
+              if (alreadyInserted.contains(sv)) continue;
+              _countStringValue(values, sv);
+              alreadyInserted.add(sv);
             }
           }
         case SchemaType.enumArray:
           if (rawValue is List) {
+            final alreadyInserted = <String>{};
             for (final v in rawValue) {
-              _countStringValue(values, v.toString());
+              final sv = v.toString();
+              if (alreadyInserted.contains(sv)) continue;
+              _countStringValue(values, sv);
+              alreadyInserted.add(sv);
             }
           }
         case SchemaType.geopoint || null:
@@ -88,9 +118,14 @@ Map<String, FacetResult> getFacets({
       } else {
         sorted.sort((a, b) => b.value.compareTo(a.value));
       }
+      // Item 3: Match Orama's slice(offset, limit) semantics.
+      // Orama: Object.entries(values).sort(pred).slice(offset, limit)
+      // JS slice(start, end) returns items from start up to (not including) end.
       final offset = config.offset;
       final limit = config.limit;
-      final sliced = sorted.skip(offset).take(limit).toList();
+      final end = math.min(limit, sorted.length);
+      final start = math.min(offset, sorted.length);
+      final sliced = sorted.sublist(start, end);
       finalValues = Map.fromEntries(sliced);
     } else {
       finalValues = values;
@@ -115,6 +150,25 @@ void _countNumberValue(
     final key = '${range.from}-${range.to}';
     if (value >= range.from && value <= range.to) {
       values[key] = (values[key] ?? 0) + 1;
+    }
+  }
+}
+
+/// Number facet counting with per-document deduplication.
+///
+/// Matches Orama's `calculateNumberFacetBuilder` with `alreadyInsertedValues`.
+void _countNumberValueWithDedup(
+  Map<String, int> values,
+  num value,
+  List<NumberFacetRange> ranges,
+  Set<String> alreadyInserted,
+) {
+  for (final range in ranges) {
+    final key = '${range.from}-${range.to}';
+    if (alreadyInserted.contains(key)) continue;
+    if (value >= range.from && value <= range.to) {
+      values[key] = (values[key] ?? 0) + 1;
+      alreadyInserted.add(key);
     }
   }
 }

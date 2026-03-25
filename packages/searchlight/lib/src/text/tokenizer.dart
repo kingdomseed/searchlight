@@ -6,6 +6,14 @@ import 'package:searchlight/src/text/stemmer.dart';
 ///
 /// Pipeline: lowercase -> split on language regex -> normalizeToken each ->
 /// filter empty -> trim leading/trailing empty -> optionally deduplicate.
+///
+/// **Searchlight enhancement (Item 8/20):** Orama only has a built-in English
+/// stemmer and throws `MISSING_STEMMER` for non-English languages without a
+/// custom stemmer. Searchlight provides broader stemmer coverage via the
+/// `snowball_stemmer` package, supporting 29 languages out of the box. This
+/// means Searchlight can produce stemmed tokens for non-English languages
+/// where Orama would error. This is an intentional enhancement, not a
+/// divergence.
 final class Tokenizer {
   /// Creates a tokenizer with the given configuration.
   ///
@@ -53,14 +61,23 @@ final class Tokenizer {
     String input, {
     String? property,
     bool withCache = true,
+    String? language,
   }) {
+    // Item 7: Orama validates language && language !== this.language
+    if (language != null && language != this.language) {
+      throw ArgumentError(
+        'Language mismatch: tokenizer language is "${this.language}", '
+        'but tokenize was called with "$language".',
+      );
+    }
+
     final prop = property ?? '';
 
     List<String> tokens;
     if (property != null && tokenizeSkipProperties.contains(property)) {
       tokens = [normalizeToken(prop, input, withCache: withCache)];
     } else {
-      final splitRule = splitters[language]!;
+      final splitRule = splitters[this.language]!;
       tokens = input
           .toLowerCase()
           .split(splitRule)

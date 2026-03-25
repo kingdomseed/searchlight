@@ -35,9 +35,21 @@ final class _PropertySort {
 /// The sort index is populated during insert (not during search). At search
 /// time, [sortBy] sorts results by pre-computed field values instead of by
 /// relevance score.
+///
+/// Item 17: Orama uses `localeCompare(a, b, locale)` for string sorting.
+/// Dart's `String.compareTo` uses Unicode code-point order, which is similar
+/// but not locale-aware. For full locale-aware collation, the `intl` package
+/// would be needed. This implementation accepts a language parameter for
+/// future locale-aware sorting.
 final class SortIndex {
-  /// Creates an empty [SortIndex].
-  SortIndex();
+  /// Creates an empty [SortIndex] with optional [language] for locale sorting.
+  SortIndex({this.language});
+
+  /// The language for locale-aware string sorting.
+  ///
+  /// Matches Orama's `Sorter.language`. Currently used for documentation
+  /// purposes; full locale-aware collation requires the `intl` package.
+  final String? language;
 
   /// Per-property sort data.
   final Map<String, _PropertySort> _sorts = {};

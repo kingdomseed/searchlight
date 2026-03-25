@@ -62,16 +62,64 @@ final class SortBy {
   final SortOrder order;
 }
 
-/// A grouping specification for search results.
-final class GroupBy {
-  /// Creates a [GroupBy] on [field] with the given [limit] per group.
-  const GroupBy({required this.field, required this.limit});
+/// A custom reduce function for group aggregation.
+///
+/// Matches Orama's `Reduce` type from `types.ts`.
+/// The [reducer] takes the group values, accumulator, current result, and index,
+/// and returns the new accumulator value.
+/// The [getInitialValue] creates the initial accumulator for a given result count.
+final class GroupReduce<T> {
+  /// Creates a [GroupReduce] with the given [reducer] and [getInitialValue].
+  const GroupReduce({required this.reducer, required this.getInitialValue});
 
-  /// The field to group on.
-  final String field;
+  /// Reduces a list of search hits into a custom aggregation.
+  final T Function(List<Object> values, T acc, SearchHit res, int index)
+      reducer;
+
+  /// Returns the initial accumulator value for a group of the given [length].
+  final T Function(int length) getInitialValue;
+}
+
+/// A grouping specification for search results.
+///
+/// Supports multi-property grouping with Cartesian product, matching Orama's
+/// `GroupByParams` which accepts `properties: string[]`.
+final class GroupBy {
+  /// Creates a [GroupBy] on a single [field] with the given [limit] per group.
+  ///
+  /// This is the backward-compatible constructor. For multi-property grouping,
+  /// use [GroupBy.properties].
+  const GroupBy({required String field, required this.limit, this.reduce})
+      : properties = null,
+        _field = field;
+
+  /// Creates a [GroupBy] on multiple [properties] with the given [limit].
+  ///
+  /// Matches Orama's multi-property grouping with Cartesian product
+  /// combinations.
+  const GroupBy.properties({
+    required this.properties,
+    required this.limit,
+    this.reduce,
+  }) : _field = null;
+
+  /// Single field (backward-compatible).
+  final String? _field;
+
+  /// Multiple properties for Cartesian product grouping.
+  /// Matches Orama's `properties: string[]`.
+  final List<String>? properties;
 
   /// Maximum number of hits per group.
   final int limit;
+
+  /// Optional custom reduce function for group aggregation.
+  /// Matches Orama's `reduce` parameter.
+  final GroupReduce<List<SearchHit>>? reduce;
+
+  /// Returns the effective list of properties to group by.
+  List<String> get effectiveProperties =>
+      properties ?? (_field != null ? [_field] : []);
 }
 
 /// Sort direction for facet value ordering.

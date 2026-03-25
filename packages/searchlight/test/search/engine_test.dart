@@ -300,6 +300,59 @@ void main() {
       expect(after.hits, isEmpty);
     });
 
+    // Item 19: Exact-term post-filtering
+    test('exact search filters to docs containing whole-word matches', () {
+      db
+        ..insert({
+          'id': 'a',
+          'title': 'hello world',
+          'body': 'greetings',
+          'price': 1,
+        })
+        ..insert({
+          'id': 'b',
+          'title': 'helloworld together',
+          'body': 'no space',
+          'price': 2,
+        })
+        ..insert({
+          'id': 'c',
+          'title': 'say hello now',
+          'body': 'greeting again',
+          'price': 3,
+        });
+
+      final result = db.search(term: 'hello', exact: true);
+
+      // Both 'a' and 'c' have 'hello' as a whole word in title
+      // 'b' has 'helloworld' which is not a whole word match for 'hello'
+      final ids = result.hits.map((h) => h.id).toSet();
+      expect(ids, contains('a'));
+      expect(ids, contains('c'));
+      // 'b' should be excluded by exact post-filtering
+      expect(ids, isNot(contains('b')));
+    });
+
+    // Item 6: Empty term + properties triggers search path
+    test('empty term with properties triggers search (returns all docs)', () {
+      db
+        ..insert(
+          {'id': 'a', 'title': 'hello world', 'body': 'foo', 'price': 1},
+        )
+        ..insert(
+          {'id': 'b', 'title': 'goodbye moon', 'body': 'bar', 'price': 2},
+        );
+
+      // In Orama: term='' + properties=['title'] triggers index.search()
+      // which pushes '' token and returns all docs that have the property
+      final result = db.search(term: '', properties: ['title']);
+
+      // Should trigger the search path and find all docs with 'title'
+      expect(result.count, 2);
+      final ids = result.hits.map((h) => h.id).toSet();
+      expect(ids, containsAll(['a', 'b']));
+    });
+
     test('after update, search finds the new document content', () {
       db
         ..insert(

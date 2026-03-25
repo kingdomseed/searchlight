@@ -235,6 +235,78 @@ void main() {
       );
     });
 
+    // Item 2: String field where-clause filtering (Radix)
+    test('filter by string field (Radix) using EqFilter', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'author': const TypedField(SchemaType.string),
+        }),
+      );
+
+      db
+        ..insert({'id': 'doc1', 'title': 'Dart Guide', 'author': 'John'})
+        ..insert({'id': 'doc2', 'title': 'Flutter Book', 'author': 'Jane'})
+        ..insert({'id': 'doc3', 'title': 'Go Handbook', 'author': 'John'});
+
+      // Filter on string field 'author' with value 'John'
+      final result = db.search(where: {'author': eq('John')});
+
+      expect(result.count, 2);
+      final ids = result.hits.map((h) => h.id).toSet();
+      expect(ids, containsAll(['doc1', 'doc3']));
+    });
+
+    // Item 18: Geo-only distance scoring
+    test('geo-only filter returns results with distance-based scores', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'name': const TypedField(SchemaType.string),
+          'location': const TypedField(SchemaType.geopoint),
+        }),
+      );
+
+      db
+        ..insert({
+          'id': 'nyc',
+          'name': 'New York',
+          'location': const GeoPoint(lat: 40.7128, lon: -74.0060),
+        })
+        ..insert({
+          'id': 'nj',
+          'name': 'Newark NJ',
+          'location': const GeoPoint(lat: 40.7357, lon: -74.1724),
+        })
+        ..insert({
+          'id': 'la',
+          'name': 'Los Angeles',
+          'location': const GeoPoint(lat: 34.0522, lon: -118.2437),
+        });
+
+      // Geo-only filter (no search term): single geo filter triggers
+      // distance-based scoring
+      final result = db.search(
+        where: {
+          'location': geoRadius(
+            lat: 40.7128,
+            lon: -74.0060,
+            radius: 4000000, // 4000km to include LA
+          ),
+        },
+      );
+
+      // All 3 docs should be returned
+      expect(result.count, 3);
+      // Scores should be > 0 (distance-based, not 0)
+      for (final hit in result.hits) {
+        expect(hit.score, greaterThan(0));
+      }
+      // NYC should have highest score (closest to center)
+      final nyc = result.hits.firstWhere((h) => h.id == 'nyc');
+      final la = result.hits.firstWhere((h) => h.id == 'la');
+      expect(nyc.score, greaterThan(la.score));
+    });
+
     test('geoRadius filter returns nearby docs', () {
       final db = Searchlight.create(
         schema: Schema({
