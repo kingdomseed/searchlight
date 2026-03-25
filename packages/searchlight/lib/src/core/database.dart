@@ -317,6 +317,48 @@ final class Searchlight {
     return insertMultiple(newDocs, batchSize: batchSize);
   }
 
+  // ---------------------------------------------------------------------------
+  // Patch (Searchlight addition)
+  // ---------------------------------------------------------------------------
+
+  /// Patches (partially updates) a document by merging [fields] into the
+  /// existing document.
+  ///
+  /// **Note:** This is a Searchlight-specific addition. Orama does not have
+  /// a patch/merge operation — only full replacement via [update].
+  ///
+  /// Behavior:
+  /// 1. Looks up the existing document by external [id].
+  /// 2. Performs a shallow merge of [fields] into the existing data.
+  /// 3. Validates the merged result against the schema.
+  /// 4. Removes the old document and inserts the merged document.
+  ///
+  /// Returns the external [String] ID.
+  ///
+  /// Throws [DocumentNotFoundException] if [id] does not exist.
+  /// Throws [DocumentValidationException] if the merged document does not
+  /// conform to the schema.
+  String patch(String id, Map<String, Object?> fields) {
+    final existing = getById(id);
+    if (existing == null) {
+      throw DocumentNotFoundException(id);
+    }
+
+    // Shallow merge: existing data + new fields (new fields overwrite)
+    final merged = <String, Object?>{
+      ...existing.toMap(),
+      ...fields,
+      'id': id,
+    };
+
+    // Validate merged result BEFORE modifying state
+    _validateDocument(merged, schema.fields, '');
+
+    // Remove old, insert merged
+    remove(id);
+    return insert(merged);
+  }
+
   /// Removes all documents from the database.
   void clear() {
     _documents.clear();
