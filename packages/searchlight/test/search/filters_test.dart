@@ -354,6 +354,145 @@ void main() {
       },
     );
 
+    // Phase 6 audit D2: Radix exact find uses specific token key lookup
+    test('Radix string filter exact lookup does not include prefix matches',
+        () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'tag': const TypedField(SchemaType.string),
+        }),
+      )
+        ..insert({
+          'id': 'doc1',
+          'title': 'A',
+          'tag': 'go',
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'B',
+          'tag': 'golang',
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'C',
+          'tag': 'go',
+        });
+
+      // Exact string filter for 'go' should NOT include 'golang'
+      final result = db.search(where: {'tag': eq('go')});
+
+      expect(result.count, 2);
+      final ids = result.hits.map((h) => h.id).toSet();
+      expect(ids, containsAll(['doc1', 'doc3']));
+      expect(
+        ids,
+        isNot(contains('doc2')),
+        reason: 'golang should not match exact filter for go',
+      );
+    });
+
+    // Phase 6 audit D3: Mixed string + non-string filters intersect correctly
+    test('mixed string + non-string filters produce correct intersection', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'author': const TypedField(SchemaType.string),
+          'price': const TypedField(SchemaType.number),
+          'active': const TypedField(SchemaType.boolean),
+        }),
+      )
+        ..insert({
+          'id': 'doc1',
+          'title': 'Dart Guide',
+          'author': 'John',
+          'price': 30,
+          'active': true,
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'Flutter Book',
+          'author': 'Jane',
+          'price': 50,
+          'active': true,
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'Go Handbook',
+          'author': 'John',
+          'price': 10,
+          'active': false,
+        })
+        ..insert({
+          'id': 'doc4',
+          'title': 'Rust Manual',
+          'author': 'John',
+          'price': 40,
+          'active': true,
+        });
+
+      // Mixed: string filter (author == 'John') AND number filter (price > 20)
+      // AND boolean filter (active == true)
+      final result = db.search(
+        where: {
+          'author': eq('John'),
+          'price': gt(20),
+          'active': eq(true),
+        },
+      );
+
+      // Only doc1 (John, 30, true) and doc4 (John, 40, true) match all three
+      // doc3 (John, 10, false) fails price > 20 and active == true
+      expect(result.count, 2);
+      final ids = result.hits.map((h) => h.id).toSet();
+      expect(ids, containsAll(['doc1', 'doc4']));
+      expect(ids, isNot(contains('doc2')));
+      expect(ids, isNot(contains('doc3')));
+    });
+
+    // Phase 6 audit D1: InFilter on string (Radix) fields
+    test('filter by string field (Radix) using InFilter with array of values',
+        () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'author': const TypedField(SchemaType.string),
+        }),
+      )
+        ..insert({
+          'id': 'doc1',
+          'title': 'Dart Guide',
+          'author': 'John',
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'Flutter Book',
+          'author': 'Jane',
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'Go Handbook',
+          'author': 'John',
+        })
+        ..insert({
+          'id': 'doc4',
+          'title': 'Rust Manual',
+          'author': 'Alice',
+        });
+
+      // InFilter on string field 'author' with multiple values
+      final result = db.search(
+        where: {
+          'author': const InFilter(['John', 'Jane']),
+        },
+      );
+
+      expect(result.count, 3);
+      final ids = result.hits.map((h) => h.id).toSet();
+      expect(ids, containsAll(['doc1', 'doc2', 'doc3']));
+      expect(ids, isNot(contains('doc4')));
+    });
+
     test('geoRadius filter returns nearby docs', () {
       final db = Searchlight.create(
         schema: Schema({

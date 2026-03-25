@@ -13,9 +13,7 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'body': const TypedField(SchemaType.string),
         }),
-      );
-
-      db.insert({'id': 'doc1', 'title': 'hello world', 'body': 'foo bar'});
+      )..insert({'id': 'doc1', 'title': 'hello world', 'body': 'foo bar'});
 
       final result = db.search(term: 'hello');
       expect(result.count, 1);
@@ -33,16 +31,15 @@ void main() {
           'body': const TypedField(SchemaType.string),
         }),
         algorithm: SearchAlgorithm.qps,
-      );
-
-      db.insert({
-        'id': 'doc1',
-        'body': 'The quick brown fox jumps over the lazy dog.',
-      });
-      db.insert({
-        'id': 'doc2',
-        'body': 'A lazy cat sleeps on the mat.',
-      });
+      )
+        ..insert({
+          'id': 'doc1',
+          'body': 'The quick brown fox jumps over the lazy dog.',
+        })
+        ..insert({
+          'id': 'doc2',
+          'body': 'A lazy cat sleeps on the mat.',
+        });
 
       // Basic search must work with QPS
       final result = db.search(term: 'quick brown');
@@ -61,18 +58,17 @@ void main() {
           'body': const TypedField(SchemaType.string),
         }),
         algorithm: SearchAlgorithm.qps,
-      );
-
-      // "brown" and "fox" in the same sentence
-      db.insert({
-        'id': 'close',
-        'body': 'The quick brown fox jumps over the lazy dog.',
-      });
-      // "brown" and "fox" in different sentences
-      db.insert({
-        'id': 'far',
-        'body': 'The brown bear sleeps. A fox runs through the forest.',
-      });
+      )
+        // "brown" and "fox" in the same sentence
+        ..insert({
+          'id': 'close',
+          'body': 'The quick brown fox jumps over the lazy dog.',
+        })
+        // "brown" and "fox" in different sentences
+        ..insert({
+          'id': 'far',
+          'body': 'The brown bear sleeps. A fox runs through the forest.',
+        });
 
       final result = db.search(term: 'brown fox');
       expect(result.count, 2);
@@ -90,10 +86,9 @@ void main() {
           'body': const TypedField(SchemaType.string),
         }),
         algorithm: SearchAlgorithm.pt15,
-      );
-
-      db.insert({'id': 'doc1', 'title': 'hello world', 'body': 'foo bar'});
-      db.insert({'id': 'doc2', 'title': 'goodbye moon', 'body': 'baz qux'});
+      )
+        ..insert({'id': 'doc1', 'title': 'hello world', 'body': 'foo bar'})
+        ..insert({'id': 'doc2', 'title': 'goodbye moon', 'body': 'baz qux'});
 
       final result = db.search(term: 'hello');
       expect(result.count, 1);
@@ -109,20 +104,19 @@ void main() {
           'body': const TypedField(SchemaType.string),
         }),
         algorithm: SearchAlgorithm.pt15,
-      );
-
-      // "hello" at the start of a longer document
-      db.insert({
-        'id': 'start',
-        'body':
-            'hello world this is a document with many words to fill up space',
-      });
-      // "hello" at the end of a longer document
-      db.insert({
-        'id': 'end',
-        'body':
-            'this is a document with many words to fill up space hello world',
-      });
+      )
+        // "hello" at the start of a longer document
+        ..insert({
+          'id': 'start',
+          'body':
+              'hello world this is a document with many words to fill up space',
+        })
+        // "hello" at the end of a longer document
+        ..insert({
+          'id': 'end',
+          'body':
+              'this is a document with many words to fill up space hello world',
+        });
 
       final result = db.search(term: 'hello');
       expect(result.count, 2);
@@ -137,10 +131,9 @@ void main() {
           'title': const TypedField(SchemaType.string),
         }),
         algorithm: SearchAlgorithm.pt15,
-      );
-
-      db.insert({'id': 'doc1', 'title': 'hello world'});
-      db.insert({'id': 'doc2', 'title': 'goodbye moon'});
+      )
+        ..insert({'id': 'doc1', 'title': 'hello world'})
+        ..insert({'id': 'doc2', 'title': 'goodbye moon'});
 
       // PT15 stores all prefixes, so "hel" should find "hello"
       final result = db.search(term: 'hel');
@@ -158,45 +151,53 @@ void main() {
             'category': const TypedField(SchemaType.enumType),
           }),
           algorithm: algo,
-        );
-
-        db.insert({
-          'id': 'doc1',
-          'title': 'hello world',
-          'price': 10,
-          'active': true,
-          'category': 'books',
-        });
-        db.insert({
-          'id': 'doc2',
-          'title': 'goodbye moon',
-          'price': 20,
-          'active': false,
-          'category': 'movies',
-        });
+        )
+          ..insert({
+            'id': 'doc1',
+            'title': 'hello world',
+            'price': 10,
+            'active': true,
+            'category': 'books',
+          })
+          ..insert({
+            'id': 'doc2',
+            'title': 'goodbye moon',
+            'price': 20,
+            'active': false,
+            'category': 'movies',
+          });
 
         // Number filter
         final priceResult = db.search(
           where: {'price': const GtFilter(15)},
         );
-        expect(priceResult.count, 1,
-            reason: '$algo: number filter should work');
+        expect(
+          priceResult.count,
+          1,
+          reason: '$algo: number filter should work',
+        );
         expect(priceResult.hits.first.id, 'doc2');
 
         // Boolean filter
         final activeResult = db.search(
           where: {'active': const EqFilter(true)},
         );
-        expect(activeResult.count, 1,
-            reason: '$algo: boolean filter should work');
+        expect(
+          activeResult.count,
+          1,
+          reason: '$algo: boolean filter should work',
+        );
         expect(activeResult.hits.first.id, 'doc1');
 
         // Enum filter
         final categoryResult = db.search(
           where: {'category': const EqFilter('movies')},
         );
-        expect(categoryResult.count, 1,
-            reason: '$algo: enum filter should work');
+        expect(
+          categoryResult.count,
+          1,
+          reason: '$algo: enum filter should work',
+        );
         expect(categoryResult.hits.first.id, 'doc2');
       }
     });
@@ -207,9 +208,7 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'body': const TypedField(SchemaType.string),
         }),
-      );
-
-      bm25
+      )
         ..insert({'id': 'doc1', 'title': 'hello world', 'body': 'foo bar'})
         ..insert({
           'id': 'doc2',
@@ -235,9 +234,7 @@ void main() {
           'title': const TypedField(SchemaType.string),
         }),
         algorithm: SearchAlgorithm.qps,
-      );
-
-      qps
+      )
         ..insert({'id': 'doc1', 'title': 'hello world'})
         ..insert({'id': 'doc2', 'title': 'goodbye moon'});
 
@@ -260,9 +257,7 @@ void main() {
           'price': const TypedField(SchemaType.number),
           'active': const TypedField(SchemaType.boolean),
         }),
-      );
-
-      db
+      )
         ..insert({
           'id': 'doc1',
           'title': 'hello',
@@ -297,6 +292,36 @@ void main() {
         where: {'price': const GtFilter(15)},
       );
       expect(priceResult.count, 2);
+    });
+  });
+
+  group('PT15 parameter validation (Phase 6 audit F1/F2)', () {
+    test('PT15 search with tolerance > 0 throws QueryException', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        algorithm: SearchAlgorithm.pt15,
+      )..insert({'id': 'doc1', 'title': 'hello world'});
+
+      expect(
+        () => db.search(term: 'hello', tolerance: 2),
+        throwsA(isA<QueryException>()),
+      );
+    });
+
+    test('PT15 search with exact: true throws QueryException', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        algorithm: SearchAlgorithm.pt15,
+      )..insert({'id': 'doc1', 'title': 'hello world'});
+
+      expect(
+        () => db.search(term: 'hello', exact: true),
+        throwsA(isA<QueryException>()),
+      );
     });
   });
 }

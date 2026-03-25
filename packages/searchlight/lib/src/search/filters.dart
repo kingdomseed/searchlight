@@ -471,26 +471,44 @@ Set<int> searchByWhereClause(
         // Item 2: Orama supports string/array where-clause filters on Radix
         // fields by tokenizing the filter value and performing exact find.
         // Matches Orama's index.ts:699-708.
+        final node = indexTree.node as RadixTree;
+        if (tokenizer == null) {
+          throw QueryException(
+            'Tokenizer required for string field filter on '
+            "'$param'.",
+          );
+        }
+
         if (operation is EqFilter && operation.value is String) {
-          final node = indexTree.node as RadixTree;
-          if (tokenizer == null) {
-            throw QueryException(
-              'Tokenizer required for string field filter on '
-              "'$param'.",
-            );
-          }
           final raw = operation.value as String;
           final terms = tokenizer.tokenize(raw, property: param);
           for (final t in terms) {
             final foundResult = node.find(term: t, exact: true);
-            for (final ids in foundResult.values) {
+            final ids = foundResult[t];
+            if (ids != null) {
+              filtersMap[param] = filtersMap[param]!.union(ids.toSet());
+            }
+          }
+        } else if (operation is InFilter) {
+          // Phase 6 audit D1: Orama QPS handles Array.isArray(filter) on
+          // string fields by tokenizing each item and taking the first token,
+          // then performing an exact find. Union results across all values.
+          for (final value in operation.values) {
+            if (value is! String) continue;
+            final terms = tokenizer.tokenize(value, property: param);
+            if (terms.isEmpty) continue;
+            final token = terms.first;
+            final foundResult = node.find(term: token, exact: true);
+            final ids = foundResult[token];
+            if (ids != null) {
               filtersMap[param] = filtersMap[param]!.union(ids.toSet());
             }
           }
         } else {
           throw QueryException(
             'Invalid filter operation for string field '
-            "'$param'. Use EqFilter with a String value.",
+            "'$param'. Use EqFilter with a String value or InFilter "
+            'with a list of String values.',
           );
         }
 

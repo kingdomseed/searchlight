@@ -471,6 +471,20 @@ final class SearchIndex {
     double threshold = 0,
     String? language,
   }) {
+    // PT15 does not support tolerance or exact matching (matching Orama).
+    if (algorithm == SearchAlgorithm.pt15) {
+      if (tolerance != 0) {
+        throw const QueryException(
+          'Tolerance is not supported with the PT15 algorithm',
+        );
+      }
+      if (exact) {
+        throw const QueryException(
+          'Exact matching is not supported with the PT15 algorithm',
+        );
+      }
+    }
+
     switch (algorithm) {
       case SearchAlgorithm.bm25:
         return _searchBM25(

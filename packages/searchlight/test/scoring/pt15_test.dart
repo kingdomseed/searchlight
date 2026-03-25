@@ -122,7 +122,7 @@ void main() {
           tokenizer: tokenizer,
           term: 'hello',
           positionsStorage: storage,
-          boostPerProp: 1.0,
+          boostPerProp: 1,
         );
 
         expect(results, isNotEmpty);
@@ -151,7 +151,7 @@ void main() {
           tokenizer: tokenizer,
           term: 'alpha',
           positionsStorage: storage,
-          boostPerProp: 1.0,
+          boostPerProp: 1,
         );
 
         // Search for "beta" (second token -> bucket 13 -> score = 13)
@@ -159,10 +159,10 @@ void main() {
           tokenizer: tokenizer,
           term: 'beta',
           positionsStorage: storage,
-          boostPerProp: 1.0,
+          boostPerProp: 1,
         );
 
-        expect(alphaResults[1]!, greaterThan(betaResults[1]!));
+        expect(alphaResults[1], greaterThan(betaResults[1]!));
       });
 
       test('finds partial matches via prefix storage', () {
@@ -184,18 +184,18 @@ void main() {
           tokenizer: tokenizer,
           term: 'dev',
           positionsStorage: storage,
-          boostPerProp: 1.0,
+          boostPerProp: 1,
         );
 
         expect(results.containsKey(1), isTrue);
-        expect(results[1]!, greaterThan(0));
+        expect(results[1], greaterThan(0));
 
         // Search for "d" - single char prefix should also match
         final singleCharResults = searchString(
           tokenizer: tokenizer,
           term: 'd',
           positionsStorage: storage,
-          boostPerProp: 1.0,
+          boostPerProp: 1,
         );
 
         expect(singleCharResults.containsKey(1), isTrue);
@@ -222,7 +222,7 @@ void main() {
           tokenizer: tokenizer,
           term: 'hello',
           positionsStorage: storage,
-          boostPerProp: 1.0,
+          boostPerProp: 1,
           whereFiltersIDs: {1, 3},
         );
 
@@ -250,7 +250,7 @@ void main() {
           tokenizer: tokenizer,
           term: 'hello',
           positionsStorage: storage,
-          boostPerProp: 1.0,
+          boostPerProp: 1,
         );
 
         // With boost 2.5: score = 14 * 2.5 = 35
@@ -263,7 +263,7 @@ void main() {
 
         expect(normalResults[1], equals(14.0));
         expect(boostedResults[1], equals(35.0));
-        expect(boostedResults[1]!, greaterThan(normalResults[1]!));
+        expect(boostedResults[1], greaterThan(normalResults[1]!));
       });
     });
 
@@ -295,7 +295,7 @@ void main() {
           tokenizer: tokenizer,
           term: 'hello',
           positionsStorage: storage,
-          boostPerProp: 1.0,
+          boostPerProp: 1,
         );
         expect(results.containsKey(1), isTrue);
         expect(results.containsKey(2), isTrue);
@@ -315,7 +315,7 @@ void main() {
           tokenizer: tokenizer,
           term: 'hello',
           positionsStorage: storage,
-          boostPerProp: 1.0,
+          boostPerProp: 1,
         );
         expect(results.containsKey(1), isFalse);
         expect(results.containsKey(2), isTrue);

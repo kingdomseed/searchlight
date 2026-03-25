@@ -148,7 +148,7 @@ void main() {
         exact: false,
         tolerance: 0,
         stats: stats,
-        boostPerProp: 1.0,
+        boostPerProp: 1,
         resultMap: resultMap,
       );
 
@@ -173,7 +173,7 @@ void main() {
         exact: false,
         tolerance: 0,
         stats: stats,
-        boostPerProp: 1.0,
+        boostPerProp: 1,
         resultMap: resultMap,
       );
 
@@ -199,7 +199,7 @@ void main() {
         exact: false,
         tolerance: 0,
         stats: stats,
-        boostPerProp: 1.0,
+        boostPerProp: 1,
         resultMap: resultMap,
       );
 
@@ -228,7 +228,7 @@ void main() {
         exact: false,
         tolerance: 0,
         stats: stats,
-        boostPerProp: 1.0,
+        boostPerProp: 1,
         resultMap: resultMap,
         whereFiltersIDs: {1, 3}, // Only docs 1 and 3
       );
@@ -249,7 +249,7 @@ void main() {
         exact: false,
         tolerance: 0,
         stats: stats,
-        boostPerProp: 1.0,
+        boostPerProp: 1,
         resultMap: resultMap1,
       );
 
@@ -261,7 +261,7 @@ void main() {
         exact: false,
         tolerance: 0,
         stats: stats,
-        boostPerProp: 3.0,
+        boostPerProp: 3,
         resultMap: resultMap3,
       );
 
