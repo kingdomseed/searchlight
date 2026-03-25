@@ -77,5 +77,11 @@ void main() {
       db.remove(id);
       expect(db.getById(id), isNull);
     });
+
+    test('remove on unknown ID does nothing (no error)', () {
+      db.insert({'title': 'Hello', 'price': 9.99});
+      db.remove(const DocId(999));
+      expect(db.count, 1);
+    });
   });
 }
