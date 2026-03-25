@@ -9,6 +9,7 @@ environment:
 dependencies:
   cbor: ^6.5.1
   geobase: ^1.5.0
+  meta: ^1.12.0
   r_tree: ^3.0.2
   snowball_stemmer: ^0.1.0
   unorm_dart: ^0.3.2
