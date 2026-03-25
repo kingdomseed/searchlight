@@ -74,7 +74,7 @@ final class Searchlight {
       language: tokenizerLanguage,
       stemming: tokenizerLanguage == 'english',
     );
-    final index = SearchIndex.create(schema: schema);
+    final index = SearchIndex.create(schema: schema, algorithm: algorithm);
 
     return Searchlight._(
       schema: schema,
@@ -95,8 +95,13 @@ final class Searchlight {
   /// The language for tokenization and stemming.
   final String language;
 
-  /// The search index managing per-field trees and BM25 scoring data.
+  /// The search index managing per-field trees and scoring data.
   final SearchIndex _index;
+
+  /// The algorithm the underlying [SearchIndex] was created with.
+  ///
+  /// Exposed for testing/verification. Should match [algorithm].
+  SearchAlgorithm get indexAlgorithm => _index.algorithm;
 
   /// The tokenizer for splitting text into normalized tokens.
   final Tokenizer _tokenizer;
@@ -772,6 +777,43 @@ final class Searchlight {
 
     scored.sort((a, b) => b.$2.compareTo(a.$2));
     return scored;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reindex
+  // ---------------------------------------------------------------------------
+
+  /// Creates a new [Searchlight] instance with a different [algorithm],
+  /// re-inserting all current documents into the new index.
+  ///
+  /// This matches Orama's plugin architecture: QPS and PT15 are plugins that
+  /// REPLACE the index component. Reindexing creates a fresh instance with
+  /// the new algorithm and copies all documents over.
+  ///
+  /// Returns the new [Searchlight] instance. The original instance is
+  /// unmodified.
+  Searchlight reindex({required SearchAlgorithm algorithm}) {
+    final newDb = Searchlight.create(
+      schema: schema,
+      algorithm: algorithm,
+      language: language,
+    );
+
+    // Re-insert all documents from the current instance
+    for (final entry in _internalToExternal.entries) {
+      final internalId = entry.key;
+      final doc = _documents[internalId];
+      if (doc == null) continue;
+
+      // Preserve the original external ID by including it in the data
+      final data = <String, Object?>{
+        ...doc.toMap(),
+        'id': entry.value,
+      };
+      newDb.insert(data);
+    }
+
+    return newDb;
   }
 
   /// Removes all documents from the database.

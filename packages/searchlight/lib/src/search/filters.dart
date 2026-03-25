@@ -493,6 +493,12 @@ Set<int> searchByWhereClause(
             "'$param'. Use EqFilter with a String value.",
           );
         }
+
+      case TreeType.position:
+        // PT15 doesn't support string where-clause filters (matching Orama).
+        throw QueryException(
+          "String filters are not supported for PT15 field '$param'.",
+        );
     }
   }
 

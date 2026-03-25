@@ -2,10 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:searchlight/src/core/database.dart' show SearchAlgorithm;
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/scoring/bm25.dart';
+import 'package:searchlight/src/scoring/pt15.dart' as pt15;
+import 'package:searchlight/src/scoring/qps.dart';
 import 'package:searchlight/src/text/tokenizer.dart';
 import 'package:searchlight/src/trees/avl_tree.dart';
 import 'package:searchlight/src/trees/bkd_tree.dart';
@@ -36,6 +39,9 @@ enum TreeType {
 
   /// BKD tree for geopoint fields (radius/polygon queries).
   bkd,
+
+  /// Position buckets for PT15 string fields.
+  position,
 }
 
 /// A tagged tree wrapper storing the tree type, node, and whether it is
@@ -70,6 +76,7 @@ typedef FrequencyMap = Map<String, Map<int, Map<String, double>>>;
 /// Matches Orama's `Index` interface from `index.ts`.
 final class SearchIndex {
   SearchIndex._({
+    required this.algorithm,
     required this.indexes,
     required this.searchableProperties,
     required this.searchablePropertiesWithTypes,
@@ -77,13 +84,17 @@ final class SearchIndex {
     required this.tokenOccurrences,
     required this.avgFieldLength,
     required this.fieldLengths,
+    required this.qpsStats,
   });
 
   /// Creates a [SearchIndex] from a [Schema], mapping each field to the
   /// appropriate tree type.
   ///
   /// Matches Orama's `create` function from `index.ts:138-212`.
-  factory SearchIndex.create({required Schema schema}) {
+  factory SearchIndex.create({
+    required Schema schema,
+    SearchAlgorithm algorithm = SearchAlgorithm.bm25,
+  }) {
     final indexes = <String, IndexTree>{};
     final searchableProperties = <String>[];
     final searchablePropertiesWithTypes = <String, SchemaType>{};
@@ -91,6 +102,7 @@ final class SearchIndex {
     final tokenOccurrences = <String, Map<String, int>>{};
     final avgFieldLength = <String, double>{};
     final fieldLengths = <String, Map<int, int>>{};
+    final qpsStats = <String, QPSStats>{};
 
     _buildIndexes(
       schema.fields,
@@ -102,9 +114,12 @@ final class SearchIndex {
       tokenOccurrences,
       avgFieldLength,
       fieldLengths,
+      algorithm: algorithm,
+      qpsStats: qpsStats,
     );
 
     return SearchIndex._(
+      algorithm: algorithm,
       indexes: indexes,
       searchableProperties: searchableProperties,
       searchablePropertiesWithTypes: searchablePropertiesWithTypes,
@@ -112,8 +127,12 @@ final class SearchIndex {
       tokenOccurrences: tokenOccurrences,
       avgFieldLength: avgFieldLength,
       fieldLengths: fieldLengths,
+      qpsStats: qpsStats,
     );
   }
+
+  /// The scoring algorithm used for string field indexing and search.
+  final SearchAlgorithm algorithm;
 
   /// Per-field tree indexes.
   final Map<String, IndexTree> indexes;
@@ -135,6 +154,9 @@ final class SearchIndex {
 
   /// prop -> docId -> token count.
   final Map<String, Map<int, int>> fieldLengths;
+
+  /// Per-property QPS statistics (only populated when algorithm is QPS).
+  final Map<String, QPSStats> qpsStats;
 
   /// The number of documents currently indexed.
   int _docsCount = 0;
@@ -205,21 +227,40 @@ final class SearchIndex {
         final node = indexTree.node as AVLTree<num, int>;
         node.insert(value as num, docId);
       case TreeType.radix:
-        final node = indexTree.node as RadixTree;
-        // Item 10: Orama passes withCache=false during insert tokenization
-        final tokens = tokenizer.tokenize(
-          value as String,
-          property: prop,
-          withCache: false,
-        );
+        switch (algorithm) {
+          case SearchAlgorithm.bm25:
+            final node = indexTree.node as RadixTree;
+            // Item 10: Orama passes withCache=false during insert tokenization
+            final tokens = tokenizer.tokenize(
+              value as String,
+              property: prop,
+              withCache: false,
+            );
 
-        // Item 9: Orama's insertScalarBuilder calls
-        // insertDocumentScoreParameters for EVERY element (including array
-        // elements). For arrays, the last element's tokens overwrite.
-        _insertDocumentScoreParameters(prop, docId, tokens);
-        for (final token in tokens) {
-          _insertTokenScoreParameters(prop, docId, tokens, token);
-          node.insert(token, docId);
+            // Item 9: Orama's insertScalarBuilder calls
+            // insertDocumentScoreParameters for EVERY element (including array
+            // elements). For arrays, the last element's tokens overwrite.
+            _insertDocumentScoreParameters(prop, docId, tokens);
+            for (final token in tokens) {
+              _insertTokenScoreParameters(prop, docId, tokens, token);
+              node.insert(token, docId);
+            }
+          case SearchAlgorithm.qps:
+            final node = indexTree.node as RadixTree;
+            final stats = qpsStats[prop]!;
+            stats.tokenQuantums[docId] = {};
+            qpsInsertString(
+              value: value as String,
+              radixTree: node,
+              stats: stats,
+              prop: prop,
+              internalId: docId,
+              tokenizer: tokenizer,
+              language: language,
+            );
+          case SearchAlgorithm.pt15:
+            // PT15 uses position tree type, not radix — should not reach here
+            break;
         }
       case TreeType.flat:
         final node = indexTree.node as FlatTree;
@@ -228,6 +269,16 @@ final class SearchIndex {
         final node = indexTree.node as BKDTree;
         final point = value as GeoPoint;
         node.insert(point, [docId]);
+      case TreeType.position:
+        final storage = indexTree.node as pt15.PositionsStorage;
+        pt15.insertString(
+          value: value as String,
+          positionsStorage: storage,
+          prop: prop,
+          internalId: docId,
+          language: language,
+          tokenizer: tokenizer,
+        );
     }
   }
 
@@ -318,15 +369,33 @@ final class SearchIndex {
         final node = indexTree.node as AVLTree<num, int>;
         node.removeDocument(value as num, docId);
       case TreeType.radix:
-        final node = indexTree.node as RadixTree;
-        final tokens = tokenizer.tokenize(
-          value as String,
-          property: prop,
-        );
-        _removeDocumentScoreParameters(prop, docId);
-        for (final token in tokens) {
-          _removeTokenScoreParameters(prop, token);
-          node.removeDocumentByWord(token, docId);
+        switch (algorithm) {
+          case SearchAlgorithm.bm25:
+            final node = indexTree.node as RadixTree;
+            final tokens = tokenizer.tokenize(
+              value as String,
+              property: prop,
+            );
+            _removeDocumentScoreParameters(prop, docId);
+            for (final token in tokens) {
+              _removeTokenScoreParameters(prop, token);
+              node.removeDocumentByWord(token, docId);
+            }
+          case SearchAlgorithm.qps:
+            final node = indexTree.node as RadixTree;
+            final stats = qpsStats[prop]!;
+            qpsRemoveString(
+              value: value as String,
+              radixTree: node,
+              stats: stats,
+              prop: prop,
+              internalId: docId,
+              tokenizer: tokenizer,
+              language: language,
+            );
+          case SearchAlgorithm.pt15:
+            // PT15 uses position tree type, not radix — should not reach here
+            break;
         }
       case TreeType.flat:
         final node = indexTree.node as FlatTree;
@@ -335,6 +404,16 @@ final class SearchIndex {
         final node = indexTree.node as BKDTree;
         final point = value as GeoPoint;
         node.removeDocByID(point, docId);
+      case TreeType.position:
+        final storage = indexTree.node as pt15.PositionsStorage;
+        pt15.removeString(
+          value: value as String,
+          positionsStorage: storage,
+          prop: prop,
+          internalId: docId,
+          tokenizer: tokenizer,
+          language: language,
+        );
     }
   }
 
@@ -381,6 +460,58 @@ final class SearchIndex {
   /// - [whereFiltersIDs]: If provided, only score these document IDs.
   /// - [threshold]: 0 = all terms required, 1 = any term, between = percentage.
   List<TokenScore> search({
+    required String term,
+    required Tokenizer tokenizer,
+    required List<String> propertiesToSearch,
+    required BM25Params relevance,
+    bool exact = false,
+    int tolerance = 0,
+    Map<String, double> boost = const {},
+    Set<int>? whereFiltersIDs,
+    double threshold = 0,
+    String? language,
+  }) {
+    switch (algorithm) {
+      case SearchAlgorithm.bm25:
+        return _searchBM25(
+          term: term,
+          tokenizer: tokenizer,
+          propertiesToSearch: propertiesToSearch,
+          relevance: relevance,
+          exact: exact,
+          tolerance: tolerance,
+          boost: boost,
+          whereFiltersIDs: whereFiltersIDs,
+          threshold: threshold,
+          language: language,
+        );
+      case SearchAlgorithm.qps:
+        return _searchQPS(
+          term: term,
+          tokenizer: tokenizer,
+          propertiesToSearch: propertiesToSearch,
+          exact: exact,
+          tolerance: tolerance,
+          boost: boost,
+          whereFiltersIDs: whereFiltersIDs,
+          language: language,
+        );
+      case SearchAlgorithm.pt15:
+        return _searchPT15(
+          term: term,
+          tokenizer: tokenizer,
+          propertiesToSearch: propertiesToSearch,
+          boost: boost,
+          whereFiltersIDs: whereFiltersIDs,
+        );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // BM25 search (original implementation)
+  // ---------------------------------------------------------------------------
+
+  List<TokenScore> _searchBM25({
     required String term,
     required Tokenizer tokenizer,
     required List<String> propertiesToSearch,
@@ -502,6 +633,105 @@ final class SearchIndex {
     return results;
   }
 
+  // ---------------------------------------------------------------------------
+  // QPS search
+  // ---------------------------------------------------------------------------
+
+  List<TokenScore> _searchQPS({
+    required String term,
+    required Tokenizer tokenizer,
+    required List<String> propertiesToSearch,
+    bool exact = false,
+    int tolerance = 0,
+    Map<String, double> boost = const {},
+    Set<int>? whereFiltersIDs,
+    String? language,
+  }) {
+    final tokens = tokenizer.tokenize(term);
+    final resultMap = <int, (double, int)>{};
+
+    for (final prop in propertiesToSearch) {
+      if (!indexes.containsKey(prop)) continue;
+
+      final tree = indexes[prop]!;
+      if (tree.type != TreeType.radix) {
+        throw QueryException(
+          "Property '$prop' is not a searchable string field "
+          '(type: ${tree.type})',
+        );
+      }
+
+      final boostPerProp = boost[prop] ?? 1.0;
+      if (boostPerProp <= 0) {
+        throw QueryException(
+          'Invalid boost value: $boostPerProp. '
+          'Boost must be greater than 0.',
+        );
+      }
+
+      final stats = qpsStats[prop]!;
+      final node = tree.node as RadixTree;
+
+      qpsSearchString(
+        tokens: tokens,
+        radixNode: node,
+        exact: exact,
+        tolerance: tolerance,
+        stats: stats,
+        boostPerProp: boostPerProp,
+        resultMap: resultMap,
+        whereFiltersIDs: whereFiltersIDs,
+      );
+    }
+
+    // Extract score (first element of tuple) and sort descending
+    final results = resultMap.entries
+        .map<TokenScore>((e) => (e.key, e.value.$1))
+        .toList()
+      ..sort((a, b) => b.$2.compareTo(a.$2));
+
+    return results;
+  }
+
+  // ---------------------------------------------------------------------------
+  // PT15 search
+  // ---------------------------------------------------------------------------
+
+  List<TokenScore> _searchPT15({
+    required String term,
+    required Tokenizer tokenizer,
+    required List<String> propertiesToSearch,
+    Map<String, double> boost = const {},
+    Set<int>? whereFiltersIDs,
+  }) {
+    final propertyStorages = <String, pt15.PositionsStorage>{};
+
+    for (final prop in propertiesToSearch) {
+      if (!indexes.containsKey(prop)) continue;
+
+      final tree = indexes[prop]!;
+      if (tree.type != TreeType.position) {
+        throw QueryException(
+          "Property '$prop' is not a searchable string field "
+          '(type: ${tree.type})',
+        );
+      }
+
+      propertyStorages[prop] = tree.node as pt15.PositionsStorage;
+    }
+
+    final results = pt15.searchProperties(
+      tokenizer: tokenizer,
+      term: term,
+      propertyStorages: propertyStorages,
+      boost: boost,
+      whereFiltersIDs: whereFiltersIDs,
+    );
+
+    // Sort by score descending
+    return results..sort((a, b) => b.$2.compareTo(a.$2));
+  }
+
   /// Calculates BM25 scores for matching documents.
   ///
   /// Matches Orama's `calculateResultScores` from `index.ts:408-455`.
@@ -572,8 +802,10 @@ final class SearchIndex {
     FrequencyMap frequencies,
     Map<String, Map<String, int>> tokenOccurrences,
     Map<String, double> avgFieldLength,
-    Map<String, Map<int, int>> fieldLengths,
-  ) {
+    Map<String, Map<int, int>> fieldLengths, {
+    SearchAlgorithm algorithm = SearchAlgorithm.bm25,
+    Map<String, QPSStats>? qpsStats,
+  }) {
     for (final entry in fields.entries) {
       final path = prefix.isEmpty ? entry.key : '$prefix.${entry.key}';
 
@@ -589,6 +821,8 @@ final class SearchIndex {
             tokenOccurrences,
             avgFieldLength,
             fieldLengths,
+            algorithm: algorithm,
+            qpsStats: qpsStats,
           );
         case TypedField(:final type):
           final isArray = switch (type) {
@@ -602,15 +836,31 @@ final class SearchIndex {
 
           switch (type) {
             case SchemaType.string || SchemaType.stringArray:
-              indexes[path] = IndexTree(
-                type: TreeType.radix,
-                node: RadixTree(),
-                isArray: isArray,
-              );
-              avgFieldLength[path] = 0;
-              frequencies[path] = {};
-              tokenOccurrences[path] = {};
-              fieldLengths[path] = {};
+              switch (algorithm) {
+                case SearchAlgorithm.bm25:
+                  indexes[path] = IndexTree(
+                    type: TreeType.radix,
+                    node: RadixTree(),
+                    isArray: isArray,
+                  );
+                  avgFieldLength[path] = 0;
+                  frequencies[path] = {};
+                  tokenOccurrences[path] = {};
+                  fieldLengths[path] = {};
+                case SearchAlgorithm.qps:
+                  indexes[path] = IndexTree(
+                    type: TreeType.radix,
+                    node: RadixTree(),
+                    isArray: isArray,
+                  );
+                  qpsStats![path] = QPSStats();
+                case SearchAlgorithm.pt15:
+                  indexes[path] = IndexTree(
+                    type: TreeType.position,
+                    node: pt15.createPositionsStorage(),
+                    isArray: isArray,
+                  );
+              }
             case SchemaType.number || SchemaType.numberArray:
               // Orama: new AVLTree<number, InternalDocumentID>(0, [])
               indexes[path] = IndexTree(
