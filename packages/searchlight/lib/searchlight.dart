@@ -1,6 +1,7 @@
 /// A full-text search engine for Dart.
 library;
 
+export 'src/core/database.dart';
 export 'src/core/doc_id.dart';
 export 'src/core/document.dart';
 export 'src/core/exceptions.dart';
