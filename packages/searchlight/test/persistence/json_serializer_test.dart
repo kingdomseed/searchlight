@@ -173,7 +173,7 @@ void main() {
       expect(results.hits.first.id, equals('p1'));
     });
 
-    test('fromJson with wrong formatVersion throws SerializationException', () {
+    test('fromJson rejects future formatVersion (E2)', () {
       final db = Searchlight.create(
         schema: Schema({
           'title': const TypedField(SchemaType.string),
@@ -181,13 +181,33 @@ void main() {
       );
       final json = db.toJson();
 
-      // Tamper with format version
+      // Future version should be rejected
       json['formatVersion'] = 999;
 
       expect(
         () => Searchlight.fromJson(json),
         throwsA(isA<SerializationException>()),
       );
+    });
+
+    test('fromJson accepts current and past formatVersions (E2)', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      )..insert({'id': 'doc1', 'title': 'Hello'});
+
+      // Current version should work
+      final json = db.toJson();
+      final restored = Searchlight.fromJson(json);
+      expect(restored.count, equals(1));
+
+      // A past version (0) should also be accepted since the check
+      // now only rejects future versions
+      final json2 = db.toJson();
+      json2['formatVersion'] = 0;
+      final restored2 = Searchlight.fromJson(json2);
+      expect(restored2.count, equals(1));
     });
 
     test('fromJson with corrupt/missing data throws SerializationException',
@@ -290,6 +310,220 @@ void main() {
       final results = restored.search(term: 'test');
       expect(results.count, greaterThanOrEqualTo(1));
       expect(results.hits.first.id, equals('doc1'));
+    });
+
+    test('fromJson corrects nextInternalId if saved value is too low (C3)', () {
+      // Manually craft JSON where nextId (2) is less than doc count + 1 (3).
+      // The defensive check should correct it.
+      final json = <String, Object?>{
+        'formatVersion': 1,
+        'algorithm': 'bm25',
+        'language': 'en',
+        'schema': <String, Object?>{
+          'title': {'type': 'string'},
+        },
+        'internalDocumentIDStore': <String, Object?>{
+          'idToInternalId': <String, int>{'doc1': 1, 'doc2': 2},
+          'internalIdToId': <String, String>{'1': 'doc1', '2': 'doc2'},
+          'nextId': 2, // Too low! Should be >= 3
+          'nextGeneratedId': 0,
+        },
+        'documents': <String, Object?>{
+          '1': <String, Object?>{'title': 'Alpha'},
+          '2': <String, Object?>{'title': 'Beta'},
+        },
+      };
+
+      final restored = Searchlight.fromJson(json);
+      expect(restored.count, equals(2));
+
+      // Should be able to insert without ID collision
+      final newId = restored.insert({'id': 'doc3', 'title': 'Gamma'});
+      expect(newId, equals('doc3'));
+      expect(restored.count, equals(3));
+    });
+
+    test('fromJson throws when documents key is missing (I3c)', () {
+      expect(
+        () => Searchlight.fromJson(<String, Object?>{
+          'formatVersion': 1,
+          'algorithm': 'bm25',
+          'language': 'en',
+          'schema': <String, Object?>{
+            'title': {'type': 'string'},
+          },
+          // No 'documents' key
+          'internalDocumentIDStore': <String, Object?>{
+            'internalIdToId': <String, Object?>{},
+            'nextId': 1,
+            'nextGeneratedId': 0,
+          },
+        }),
+        throwsA(isA<SerializationException>()),
+      );
+    });
+
+    test('round-trip with enum fields preserves enum data', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'name': const TypedField(SchemaType.string),
+          'color': const TypedField(SchemaType.enumType),
+        }),
+      )
+        ..insert({'id': 'a', 'name': 'Apple', 'color': 'red'})
+        ..insert({'id': 'b', 'name': 'Banana', 'color': 'yellow'});
+
+      final jsonString = jsonEncode(db.toJson());
+      final decoded = jsonDecode(jsonString) as Map<String, Object?>;
+      final restored = Searchlight.fromJson(decoded);
+
+      expect(restored.count, equals(2));
+      final apple = restored.getById('a');
+      expect(apple, isNotNull);
+      expect(apple!.getString('color'), equals('red'));
+
+      // Enum filter should work on restored database
+      final results = restored.search(
+        where: {'color': const EqFilter('red')},
+      );
+      expect(results.count, equals(1));
+      expect(results.hits.first.id, equals('a'));
+    });
+
+    test('round-trip with array fields preserves array data', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'name': const TypedField(SchemaType.string),
+          'tags': const TypedField(SchemaType.stringArray),
+          'scores': const TypedField(SchemaType.numberArray),
+        }),
+      )
+        ..insert({
+          'id': 'doc1',
+          'name': 'Widget',
+          'tags': ['dart', 'flutter'],
+          'scores': [95, 87, 91],
+        })
+        ..insert({
+          'id': 'doc2',
+          'name': 'Plugin',
+          'tags': ['python'],
+          'scores': [72],
+        });
+
+      final jsonString = jsonEncode(db.toJson());
+      final decoded = jsonDecode(jsonString) as Map<String, Object?>;
+      final restored = Searchlight.fromJson(decoded);
+
+      expect(restored.count, equals(2));
+      final doc1 = restored.getById('doc1');
+      expect(doc1, isNotNull);
+      expect(doc1!.getStringList('tags'), equals(['dart', 'flutter']));
+      expect(doc1.getNumberList('scores'), equals([95, 87, 91]));
+    });
+
+    test('round-trip with nested fields preserves nested data', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'meta': const NestedField({
+            'author': TypedField(SchemaType.string),
+            'rating': TypedField(SchemaType.number),
+          }),
+        }),
+      )
+        ..insert({
+          'id': 'doc1',
+          'title': 'Dart Guide',
+          'meta': {'author': 'Alice', 'rating': 5},
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'Flutter Book',
+          'meta': {'author': 'Bob', 'rating': 3},
+        });
+
+      final jsonString = jsonEncode(db.toJson());
+      final decoded = jsonDecode(jsonString) as Map<String, Object?>;
+      final restored = Searchlight.fromJson(decoded);
+
+      expect(restored.count, equals(2));
+      final doc1 = restored.getById('doc1');
+      expect(doc1, isNotNull);
+      expect(doc1!.getNested('meta').getString('author'), equals('Alice'));
+      expect(doc1.getNested('meta').getNumber('rating'), equals(5));
+
+      // Search on nested field should work
+      final results = restored.search(term: 'Alice');
+      expect(results.count, greaterThanOrEqualTo(1));
+    });
+
+    test('delete-then-persist preserves correct IDs (sparse IDs)', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      )
+        ..insert({'id': 'a', 'title': 'Alpha'})
+        ..insert({'id': 'b', 'title': 'Beta'})
+        ..insert({'id': 'c', 'title': 'Gamma'})
+        ..insert({'id': 'd', 'title': 'Delta'});
+
+      // Delete middle documents to create sparse internal IDs
+      expect(db.remove('b'), isTrue);
+      expect(db.remove('c'), isTrue);
+      expect(db.count, equals(2));
+
+      final jsonString = jsonEncode(db.toJson());
+      final decoded = jsonDecode(jsonString) as Map<String, Object?>;
+      final restored = Searchlight.fromJson(decoded);
+
+      expect(restored.count, equals(2));
+      expect(restored.getById('a'), isNotNull);
+      expect(restored.getById('d'), isNotNull);
+      expect(restored.getById('b'), isNull);
+      expect(restored.getById('c'), isNull);
+
+      // Should be able to insert new docs without collisions
+      restored.insert({'id': 'e', 'title': 'Epsilon'});
+      expect(restored.count, equals(3));
+    });
+
+    test('round-trip with geopoint fields through jsonEncode/jsonDecode', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'name': const TypedField(SchemaType.string),
+          'location': const TypedField(SchemaType.geopoint),
+        }),
+      )
+        ..insert({
+          'id': 'nyc',
+          'name': 'New York',
+          'location': const GeoPoint(lat: 40.7128, lon: -74.0060),
+        })
+        ..insert({
+          'id': 'london',
+          'name': 'London',
+          'location': const GeoPoint(lat: 51.5074, lon: -0.1278),
+        });
+
+      // Must survive full JSON string round-trip (the real test of I4)
+      final jsonMap = db.toJson();
+      final jsonString = jsonEncode(jsonMap);
+      final decoded = jsonDecode(jsonString) as Map<String, Object?>;
+      final restored = Searchlight.fromJson(decoded);
+
+      expect(restored.count, equals(2));
+
+      final nyc = restored.getById('nyc');
+      expect(nyc, isNotNull);
+      expect(nyc!.getGeoPoint('location').lat, equals(40.7128));
+      expect(nyc.getGeoPoint('location').lon, equals(-74.0060));
+
+      final london = restored.getById('london');
+      expect(london, isNotNull);
+      expect(london!.getGeoPoint('location').lat, equals(51.5074));
+      expect(london.getGeoPoint('location').lon, equals(-0.1278));
     });
   });
 }

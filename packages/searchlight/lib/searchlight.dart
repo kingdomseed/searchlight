@@ -11,6 +11,7 @@ export 'src/highlight/highlighter.dart';
 export 'src/highlight/positions.dart';
 export 'src/indexing/sort_index.dart';
 export 'src/persistence/cbor_serializer.dart';
+export 'src/persistence/format.dart' show PersistenceFormat;
 export 'src/persistence/storage.dart';
 export 'src/scoring/pt15.dart';
 export 'src/scoring/qps.dart';

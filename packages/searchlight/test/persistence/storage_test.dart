@@ -120,4 +120,70 @@ void main() {
       );
     });
   });
+
+  group('persist/restore with JSON format (H4)', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('searchlight_json_');
+    });
+
+    tearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    test('round-trip with PersistenceFormat.json', () async {
+      final storage = FileStorage(path: '${tempDir.path}/db.json');
+
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      )
+        ..insert({'id': 'doc-1', 'title': 'Dart Programming'})
+        ..insert({'id': 'doc-2', 'title': 'Flutter Widgets'});
+
+      await db.persist(
+        storage: storage,
+        format: PersistenceFormat.json,
+      );
+
+      final restored = await Searchlight.restore(
+        storage: storage,
+        format: PersistenceFormat.json,
+      );
+
+      expect(restored.count, equals(2));
+      expect(
+        restored.getById('doc-1')?.getString('title'),
+        equals('Dart Programming'),
+      );
+
+      final results = restored.search(term: 'Dart');
+      expect(results.count, equals(1));
+      expect(results.hits.first.id, equals('doc-1'));
+    });
+
+    test('round-trip with PersistenceFormat.cbor (default)', () async {
+      final storage = FileStorage(path: '${tempDir.path}/db.cbor');
+
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      )..insert({'id': 'doc-1', 'title': 'Hello'});
+
+      // Default format should be cbor
+      await db.persist(storage: storage);
+      final restored = await Searchlight.restore(storage: storage);
+
+      expect(restored.count, equals(1));
+      expect(
+        restored.getById('doc-1')?.getString('title'),
+        equals('Hello'),
+      );
+    });
+  });
 }

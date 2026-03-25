@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:convert' show jsonDecode, jsonEncode, utf8;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -97,15 +98,27 @@ final class Searchlight {
   /// Matches Orama's `load(orama, raw)` pattern: checks the format version,
   /// then restores each component from the raw data.
   ///
+  /// **Design note (A1/A2/B6):** Rather than directly deserializing index
+  /// trees and sort indexes, this method creates a fresh database and
+  /// re-inserts all documents in internal ID order. This re-insertion
+  /// approach is simpler and produces functionally identical search results.
+  /// The trade-off is O(n*m) restore time (n = documents, m = fields)
+  /// compared to O(data_size) for direct tree restoration. For most use
+  /// cases (< 50k documents) this is acceptable. Direct tree serialization
+  /// can be added as a future optimization.
+  ///
   /// Throws [SerializationException] if the format version is incompatible
   /// or the data is corrupt/missing.
   factory Searchlight.fromJson(Map<String, Object?> json) {
-    // 1. Check format version
+    // 1. Check format version.
+    // E2 fix: reject future versions but accept current and past versions.
+    // When a future version bump adds structural changes, add migration logic
+    // here (e.g., `if (version == 1) json = _migrateFromV1(json);`).
     final version = json['formatVersion'];
-    if (version is! int || version != currentFormatVersion) {
+    if (version is! int || version > currentFormatVersion) {
       throw SerializationException(
         'Incompatible format version: $version '
-        '(expected $currentFormatVersion)',
+        '(max supported: $currentFormatVersion)',
       );
     }
 
@@ -143,11 +156,18 @@ final class Searchlight {
       language: language,
     );
 
+    // Collect geopoint field paths for deserialization (I4 fix)
+    final geoFields = schema.fieldPathsOfType(SchemaType.geopoint);
+
     // 6. Restore documents by re-inserting
+    // I3c fix: throw when documents data is missing instead of silently
+    // returning an empty database, which could mask data corruption.
     final docsJson = json['documents'];
+    if (docsJson is! Map<String, Object?>) {
+      throw const SerializationException('Missing documents data');
+    }
     final idStoreJson = json['internalDocumentIDStore'];
-    if (docsJson is Map<String, Object?> &&
-        idStoreJson is Map<String, Object?>) {
+    if (idStoreJson is Map<String, Object?>) {
       final internalToIdJson =
           idStoreJson['internalIdToId'] as Map<String, Object?>?;
       final nextId = idStoreJson['nextId'] as int?;
@@ -173,12 +193,25 @@ final class Searchlight {
             ...docData,
             'id': externalId,
           };
+
+          // Convert serialized {'lat': ..., 'lon': ...} maps back to
+          // GeoPoint objects (I4 fix).
+          for (final geoPath in geoFields) {
+            _convertMapToGeoPoint(dataWithId, geoPath);
+          }
+
           db.insert(dataWithId);
         }
       }
 
-      // Restore counters
-      if (nextId != null) db._nextInternalId = nextId;
+      // Restore counters.
+      // C3 defensive check: ensure _nextInternalId is at least
+      // (number of restored documents + 1) to prevent duplicate internal IDs
+      // from corrupted save data.
+      final minNextId = db._documents.length + 1;
+      if (nextId != null) {
+        db._nextInternalId = nextId < minNextId ? minNextId : nextId;
+      }
       if (nextGeneratedId != null) db._nextGeneratedId = nextGeneratedId;
     }
 
@@ -931,11 +964,31 @@ final class Searchlight {
   /// Matches Orama's `save(orama)` which returns a `RawData` object
   /// containing all component states. Adds `formatVersion` for forward
   /// compatibility.
+  ///
+  /// **Design note (A1/A2/B6):** The index trees and sort index are NOT
+  /// serialized. Instead, [Searchlight.fromJson] rebuilds them by
+  /// re-inserting all documents. This is simpler and more robust than
+  /// serializing each tree
+  /// type, and produces functionally identical results because insertion
+  /// order is preserved (documents are sorted by internal ID before
+  /// re-insertion). The trade-off is O(n*m) restore time vs O(data_size)
+  /// for direct tree restoration. For databases with tens of thousands of
+  /// documents this may be measurably slower. A future optimization could
+  /// add per-tree `toJson`/`fromJson` to enable direct restoration.
   Map<String, Object?> toJson() {
+    // Collect geopoint field paths from the schema so we can convert
+    // GeoPoint objects to serializable maps (I4 fix).
+    final geoFields = schema.fieldPathsOfType(SchemaType.geopoint);
+
     // Serialize documents: internalId -> document data map
     final docsJson = <String, Object?>{};
     for (final entry in _documents.entries) {
-      docsJson[entry.key.id.toString()] = entry.value.toMap();
+      final docMap = Map<String, Object?>.from(entry.value.toMap());
+      // Convert GeoPoint objects to JSON-serializable maps
+      for (final geoPath in geoFields) {
+        _convertGeoPointToMap(docMap, geoPath);
+      }
+      docsJson[entry.key.id.toString()] = docMap;
     }
 
     // Serialize ID store (matching Orama's internalDocumentIDStore.save)
@@ -961,6 +1014,56 @@ final class Searchlight {
       },
       'documents': docsJson,
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // GeoPoint serialization helpers (I4 fix)
+  // ---------------------------------------------------------------------------
+
+  /// Converts a [GeoPoint] at [path] in [data] to a `{'lat': ..., 'lon': ...}`
+  /// map for JSON/CBOR serialization.
+  static void _convertGeoPointToMap(Map<String, Object?> data, String path) {
+    final segments = path.split('.');
+    var current = data;
+    for (var i = 0; i < segments.length - 1; i++) {
+      final value = current[segments[i]];
+      if (value is! Map<String, Object?>) return;
+      // Make a mutable copy of nested maps
+      final mutable = Map<String, Object?>.from(value);
+      current[segments[i]] = mutable;
+      current = mutable;
+    }
+    final leafKey = segments.last;
+    final value = current[leafKey];
+    if (value is GeoPoint) {
+      current[leafKey] = <String, Object?>{'lat': value.lat, 'lon': value.lon};
+    }
+  }
+
+  /// Converts a `{'lat': ..., 'lon': ...}` map at [path] in [data] back to a
+  /// [GeoPoint] object during deserialization.
+  static void _convertMapToGeoPoint(Map<String, Object?> data, String path) {
+    final segments = path.split('.');
+    var current = data;
+    for (var i = 0; i < segments.length - 1; i++) {
+      final value = current[segments[i]];
+      if (value is! Map<String, Object?>) return;
+      current = value;
+    }
+    final leafKey = segments.last;
+    final value = current[leafKey];
+    if (value is Map<String, Object?> &&
+        value.containsKey('lat') &&
+        value.containsKey('lon')) {
+      final lat = value['lat'];
+      final lon = value['lon'];
+      if (lat is num && lon is num) {
+        current[leafKey] = GeoPoint(
+          lat: lat.toDouble(),
+          lon: lon.toDouble(),
+        );
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -999,24 +1102,44 @@ final class Searchlight {
 
   /// Persists the database to the given [storage].
   ///
-  /// Serializes the database state to CBOR bytes and saves them.
-  Future<void> persist({required SearchlightStorage storage}) async {
-    final bytes = serialize();
+  /// The [format] parameter selects the encoding: [PersistenceFormat.cbor]
+  /// (default, compact binary) or [PersistenceFormat.json] (human-readable).
+  /// Both formats use the same logical structure produced by [toJson].
+  Future<void> persist({
+    required SearchlightStorage storage,
+    PersistenceFormat format = PersistenceFormat.cbor,
+  }) async {
+    final Uint8List bytes;
+    switch (format) {
+      case PersistenceFormat.cbor:
+        bytes = serialize();
+      case PersistenceFormat.json:
+        final jsonString = jsonEncode(toJson());
+        bytes = Uint8List.fromList(utf8.encode(jsonString));
+    }
     await storage.save(bytes);
   }
 
   /// Restores a [Searchlight] instance from the given [storage].
   ///
-  /// Loads bytes from storage and deserializes them. Throws
-  /// [StorageException] if no data is found.
+  /// The [format] must match the format used when [persist] was called.
+  /// Throws [StorageException] if no data is found.
   static Future<Searchlight> restore({
     required SearchlightStorage storage,
+    PersistenceFormat format = PersistenceFormat.cbor,
   }) async {
     final bytes = await storage.load();
     if (bytes == null) {
       throw const StorageException('No data found');
     }
-    return deserialize(bytes);
+    switch (format) {
+      case PersistenceFormat.cbor:
+        return deserialize(bytes);
+      case PersistenceFormat.json:
+        final jsonString = utf8.decode(bytes);
+        final map = jsonDecode(jsonString) as Map<String, Object?>;
+        return Searchlight.fromJson(map);
+    }
   }
 
   /// Releases resources. Flushes pending writes if applicable.
