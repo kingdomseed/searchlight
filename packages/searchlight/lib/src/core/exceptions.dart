@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:searchlight/src/core/doc_id.dart';
-
 /// Base exception for all Searchlight errors.
 sealed class SearchlightException implements Exception {
   /// Creates a [SearchlightException] with the given [message].
@@ -35,10 +33,10 @@ final class DocumentValidationException extends SearchlightException {
 /// Document not found for update/patch/remove.
 final class DocumentNotFoundException extends SearchlightException {
   /// Creates a [DocumentNotFoundException] for the given [id].
-  DocumentNotFoundException(this.id) : super('Document not found: ${id.id}');
+  DocumentNotFoundException(this.id) : super('Document not found: $id');
 
-  /// The ID that was not found.
-  final DocId id;
+  /// The external string ID that was not found.
+  final String id;
 }
 
 /// Serialization or deserialization failure.

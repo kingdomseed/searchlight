@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:searchlight/src/core/doc_id.dart';
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:test/test.dart';
 
@@ -20,10 +19,10 @@ void main() {
       expect(e, isA<SearchlightException>());
     });
 
-    test('DocumentNotFoundException includes DocId', () {
-      final e = DocumentNotFoundException(const DocId(42));
-      expect(e.message, contains('42'));
-      expect(e.id, const DocId(42));
+    test('DocumentNotFoundException includes String id', () {
+      final e = DocumentNotFoundException('doc-42');
+      expect(e.message, contains('doc-42'));
+      expect(e.id, 'doc-42');
       expect(e, isA<SearchlightException>());
     });
 

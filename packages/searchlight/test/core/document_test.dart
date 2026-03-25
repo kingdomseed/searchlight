@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:searchlight/src/core/doc_id.dart';
 import 'package:searchlight/src/core/document.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:test/test.dart';
@@ -86,13 +85,13 @@ void main() {
   });
 
   group('SearchHit', () {
-    test('holds id, score, and document', () {
+    test('holds String id, score, and document', () {
       const hit = SearchHit(
-        id: DocId(1),
+        id: 'doc-1',
         score: 0.95,
         document: Document({'title': 'Test'}),
       );
-      expect(hit.id, const DocId(1));
+      expect(hit.id, 'doc-1');
       expect(hit.score, 0.95);
       expect(hit.document.getString('title'), 'Test');
     });
@@ -135,26 +134,6 @@ void main() {
     test('holds limit', () {
       const config = FacetConfig(limit: 10);
       expect(config.limit, 10);
-    });
-  });
-
-  group('BatchResult', () {
-    test('reports success and errors', () {
-      const result = BatchResult(
-        insertedIds: [DocId(1), DocId(2)],
-        errors: [BatchError(index: 2, error: 'Invalid field')],
-      );
-      expect(result.insertedIds, hasLength(2));
-      expect(result.errors, hasLength(1));
-      expect(result.hasErrors, isTrue);
-    });
-
-    test('hasErrors is false when no errors', () {
-      const result = BatchResult(
-        insertedIds: [DocId(1)],
-        errors: [],
-      );
-      expect(result.hasErrors, isFalse);
     });
   });
 }

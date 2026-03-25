@@ -22,86 +22,50 @@ void main() {
       await db.dispose();
     });
 
-    test(
-        'with valid documents returns BatchResult '
-        'with all DocIds and no errors', () {
-      final result = db.insertMultiple([
+    test('with valid documents returns List<String> of external IDs', () {
+      final ids = db.insertMultiple([
         {'title': 'A', 'price': 1.0},
         {'title': 'B', 'price': 2.0},
         {'title': 'C', 'price': 3.0},
       ]);
 
-      expect(result, isA<BatchResult>());
-      expect(result.insertedIds, hasLength(3));
-      expect(result.errors, isEmpty);
+      expect(ids, isA<List<String>>());
+      expect(ids, hasLength(3));
     });
 
-    test(
-        'with empty list returns BatchResult '
-        'with empty insertedIds and no errors', () {
-      final result = db.insertMultiple([]);
+    test('with empty list returns empty List<String>', () {
+      final ids = db.insertMultiple([]);
 
-      expect(result.insertedIds, isEmpty);
-      expect(result.errors, isEmpty);
+      expect(ids, isEmpty);
     });
 
-    test(
-        'with some invalid documents inserts valid '
-        'ones and records errors for invalid ones', () {
-      final result = db.insertMultiple([
-        {'title': 'Valid', 'price': 1.0},
-        {'title': 123}, // invalid: title should be String
-        {'title': 'Also Valid', 'price': 3.0},
-      ]);
+    test('with an invalid document throws (aborts entire batch)', () {
+      expect(
+        () => db.insertMultiple([
+          {'title': 'Valid', 'price': 1.0},
+          {'title': 123}, // invalid: title should be String
+          {'title': 'Also Valid', 'price': 3.0},
+        ]),
+        throwsA(isA<DocumentValidationException>()),
+      );
 
-      expect(result.insertedIds, hasLength(2));
-      expect(result.errors, hasLength(1));
-      expect(result.errors.first.error, isA<DocumentValidationException>());
+      // Only the first document was inserted before the error
+      expect(db.count, 1);
     });
 
-    test('hasErrors is true when errors exist and false when none', () {
-      final withErrors = db.insertMultiple([
-        {'title': 123}, // invalid
-      ]);
-      expect(withErrors.hasErrors, isTrue);
-
-      final withoutErrors = db.insertMultiple([
-        {'title': 'Valid', 'price': 1.0},
-      ]);
-      expect(withoutErrors.hasErrors, isFalse);
-    });
-
-    test(
-        'BatchError.index correctly identifies '
-        'which document in the input list failed', () {
-      final result = db.insertMultiple([
-        {'title': 'OK', 'price': 1.0}, // index 0: valid
-        {'title': 123}, // index 1: invalid
-        {'title': 'OK too', 'price': 2.0}, // index 2: valid
-        {'unknown': 'field'}, // index 3: invalid
-      ]);
-
-      expect(result.errors, hasLength(2));
-      expect(result.errors[0].index, 1);
-      expect(result.errors[1].index, 3);
-    });
-
-    test(
-        'count reflects only successfully inserted '
-        'documents after insertMultiple', () {
+    test('count reflects all inserted documents on success', () {
       expect(db.count, 0);
 
       db.insertMultiple([
         {'title': 'A', 'price': 1.0},
-        {'title': 123}, // invalid — should not count
         {'title': 'B', 'price': 2.0},
       ]);
 
       expect(db.count, 2);
     });
 
-    test('accepts custom batchSize parameter', () {
-      final result = db.insertMultiple(
+    test('accepts custom batchSize parameter (default is 1000)', () {
+      final ids = db.insertMultiple(
         [
           {'title': 'A', 'price': 1.0},
           {'title': 'B', 'price': 2.0},
@@ -109,8 +73,18 @@ void main() {
         batchSize: 1,
       );
 
-      expect(result.insertedIds, hasLength(2));
-      expect(result.errors, isEmpty);
+      expect(ids, hasLength(2));
+    });
+
+    test('duplicate ID in batch aborts on the duplicate', () {
+      expect(
+        () => db.insertMultiple([
+          {'id': 'same-id', 'title': 'First', 'price': 1.0},
+          {'id': 'same-id', 'title': 'Second', 'price': 2.0},
+        ]),
+        throwsA(isA<DocumentValidationException>()),
+      );
+      expect(db.count, 1);
     });
   });
 }

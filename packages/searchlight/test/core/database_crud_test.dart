@@ -22,13 +22,38 @@ void main() {
       await db.dispose();
     });
 
-    test('insert returns a DocId and increments count', () {
+    test('insert returns a String external ID and increments count', () {
       final id = db.insert({'title': 'Hello', 'price': 9.99});
-      expect(id, isA<DocId>());
+      expect(id, isA<String>());
+      expect(id, isNotEmpty);
       expect(db.count, 1);
     });
 
-    test('insert stores the document — retrievable via getById', () {
+    test('insert uses provided string id from document', () {
+      final id =
+          db.insert({'id': 'my-custom-id', 'title': 'Hello', 'price': 9.99});
+      expect(id, 'my-custom-id');
+      expect(db.count, 1);
+    });
+
+    test('insert auto-generates unique string IDs when id not provided', () {
+      final id1 = db.insert({'title': 'A', 'price': 1});
+      final id2 = db.insert({'title': 'B', 'price': 2});
+      expect(id1, isA<String>());
+      expect(id2, isA<String>());
+      expect(id1, isNot(equals(id2)));
+    });
+
+    test('insert throws on duplicate external ID', () {
+      db.insert({'id': 'dup-id', 'title': 'First', 'price': 1});
+      expect(
+        () => db.insert({'id': 'dup-id', 'title': 'Second', 'price': 2}),
+        throwsA(isA<DocumentValidationException>()),
+      );
+    });
+
+    test('insert stores the document — retrievable via getById with String',
+        () {
       final id = db.insert({'title': 'Hello', 'price': 9.99});
       final doc = db.getById(id);
       expect(doc, isNotNull);
@@ -36,8 +61,8 @@ void main() {
       expect(doc.getNumber('price'), 9.99);
     });
 
-    test('getById returns null for unknown ID', () {
-      expect(db.getById(const DocId(999)), isNull);
+    test('getById returns null for unknown String ID', () {
+      expect(db.getById('nonexistent'), isNull);
     });
 
     test(
@@ -50,16 +75,11 @@ void main() {
       },
     );
 
-    test(
-      'insert with extra fields not in schema throws '
-      'DocumentValidationException',
-      () {
-        expect(
-          () => db.insert({'title': 'Hello', 'unknown': 'field'}),
-          throwsA(isA<DocumentValidationException>()),
-        );
-      },
-    );
+    test('insert allows extra fields not in schema (silently ignored)', () {
+      final id = db.insert({'title': 'Hello', 'unknown': 'field'});
+      expect(id, isA<String>());
+      expect(db.count, 1);
+    });
 
     test('insert allows missing fields (treated as null/absent)', () {
       final id = db.insert({'title': 'Partial'});
@@ -70,10 +90,11 @@ void main() {
       expect(doc.tryGetNumber('price'), isNull);
     });
 
-    test('remove decrements count', () {
+    test('remove with String ID decrements count and returns true', () {
       final id = db.insert({'title': 'Hello', 'price': 9.99});
       expect(db.count, 1);
-      db.remove(id);
+      final removed = db.remove(id);
+      expect(removed, isTrue);
       expect(db.count, 0);
     });
 
@@ -83,19 +104,20 @@ void main() {
       expect(db.getById(id), isNull);
     });
 
-    test('remove on unknown ID does nothing (no error)', () {
-      db
-        ..insert({'title': 'Hello', 'price': 9.99})
-        ..remove(const DocId(999));
+    test('remove on unknown String ID returns false (no error)', () {
+      db.insert({'title': 'Hello', 'price': 9.99});
+      final removed = db.remove('nonexistent');
+      expect(removed, isFalse);
       expect(db.count, 1);
     });
 
-    test('removeMultiple removes multiple documents', () {
+    test('removeMultiple removes multiple documents and returns count', () {
       final id1 = db.insert({'title': 'A', 'price': 1});
       final id2 = db.insert({'title': 'B', 'price': 2});
       db.insert({'title': 'C', 'price': 3});
       expect(db.count, 3);
-      db.removeMultiple([id1, id2]);
+      final count = db.removeMultiple([id1, id2]);
+      expect(count, 2);
       expect(db.count, 1);
     });
 

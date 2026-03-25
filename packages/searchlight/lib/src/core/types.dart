@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'package:meta/meta.dart';
-import 'package:searchlight/src/core/doc_id.dart';
 import 'package:searchlight/src/core/document.dart';
 
 /// A geographic point with latitude and longitude.
@@ -105,8 +104,8 @@ final class SearchHit {
     required this.document,
   });
 
-  /// The document ID.
-  final DocId id;
+  /// The external string document ID.
+  final String id;
 
   /// The relevance score.
   final double score;
@@ -140,31 +139,4 @@ final class SearchResult {
 
   /// Grouped hits keyed by group value, if grouping was requested.
   final Map<String, List<SearchHit>>? groups;
-}
-
-/// An error that occurred while processing a single document in a batch.
-final class BatchError {
-  /// Creates a [BatchError] at [index] with the given [error].
-  const BatchError({required this.index, required this.error});
-
-  /// The zero-based index in the batch where the error occurred.
-  final int index;
-
-  /// The error that occurred.
-  final Object error;
-}
-
-/// The result of a batch insert operation.
-final class BatchResult {
-  /// Creates a [BatchResult] with the given [insertedIds] and [errors].
-  const BatchResult({required this.insertedIds, required this.errors});
-
-  /// IDs of successfully inserted documents.
-  final List<DocId> insertedIds;
-
-  /// Errors encountered during the batch, if any.
-  final List<BatchError> errors;
-
-  /// Whether any errors occurred during the batch.
-  bool get hasErrors => errors.isNotEmpty;
 }

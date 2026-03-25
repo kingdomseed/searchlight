@@ -55,8 +55,24 @@ final class Searchlight {
   /// The language for tokenization and stemming.
   final String language;
 
+  // ---------------------------------------------------------------------------
+  // Internal document storage
+  // ---------------------------------------------------------------------------
+
+  /// Internal document store keyed by internal DocId.
   final Map<DocId, Document> _documents = {};
-  int _nextId = 0;
+
+  /// External string ID -> internal DocId mapping.
+  final Map<String, DocId> _externalToInternal = {};
+
+  /// Internal DocId -> external string ID mapping.
+  final Map<DocId, String> _internalToExternal = {};
+
+  /// Auto-increment counter for internal IDs.
+  int _nextInternalId = 1;
+
+  /// Auto-increment counter for generating external IDs.
+  int _nextGeneratedId = 0;
 
   /// Total number of indexed documents.
   int get count => _documents.length;
@@ -64,37 +80,82 @@ final class Searchlight {
   /// Whether the database has no documents.
   bool get isEmpty => count == 0;
 
+  // ---------------------------------------------------------------------------
+  // Insert
+  // ---------------------------------------------------------------------------
+
   /// Inserts a document into the database.
   ///
-  /// Validates the document against the schema before storing.
-  /// Returns the auto-generated [DocId] for the new document.
+  /// If `data['id']` is a [String], it is used as the external document ID.
+  /// If not provided, a unique string ID is auto-generated.
+  ///
+  /// Validates schema-defined fields against the schema before storing.
+  /// Extra document properties (like `id`) are silently ignored.
+  ///
+  /// Returns the external [String] ID for the new document.
   ///
   /// Throws [DocumentValidationException] if the document does not conform
-  /// to the schema.
-  DocId insert(Map<String, Object?> data) {
+  /// to the schema, or if a document with the same external ID already exists.
+  String insert(Map<String, Object?> data) {
     _validateDocument(data, schema.fields, '');
-    final id = DocId(_nextId++);
-    _documents[id] = Document(data);
-    return id;
+
+    // Determine external ID (Fix 1)
+    final externalId = _getDocumentIndexId(data);
+
+    // Check for duplicate (Fix 1)
+    if (_externalToInternal.containsKey(externalId)) {
+      throw DocumentValidationException(
+        'Document already exists: $externalId',
+        field: 'id',
+      );
+    }
+
+    // Map external -> internal
+    final internalId = DocId(_nextInternalId++);
+    _externalToInternal[externalId] = internalId;
+    _internalToExternal[internalId] = externalId;
+
+    _documents[internalId] = Document(data);
+    return externalId;
   }
+
+  /// Gets the external document ID from the document data.
+  ///
+  /// If `doc['id']` is a [String], use it. Otherwise, auto-generate.
+  /// Matches Orama's `getDocumentIndexId` behavior.
+  String _getDocumentIndexId(Map<String, Object?> data) {
+    final id = data['id'];
+    if (id != null) {
+      if (id is! String) {
+        throw DocumentValidationException(
+          'Document ID must be a string, got ${id.runtimeType}',
+          field: 'id',
+        );
+      }
+      return id;
+    }
+    return _generateUniqueId();
+  }
+
+  /// Generates a unique string ID.
+  String _generateUniqueId() {
+    return '${_nextGeneratedId++}';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Validation (Fix 2: iterate schema keys, not document keys)
+  // ---------------------------------------------------------------------------
 
   void _validateDocument(
     Map<String, Object?> data,
     Map<String, SchemaField> schemaFields,
     String prefix,
   ) {
-    for (final entry in data.entries) {
+    for (final entry in schemaFields.entries) {
       final key = entry.key;
-      final value = entry.value;
+      final field = entry.value;
       final path = prefix.isEmpty ? key : '$prefix.$key';
-      final field = schemaFields[key];
-
-      if (field == null) {
-        throw DocumentValidationException(
-          "Field '$path' is not defined in the schema",
-          field: path,
-        );
-      }
+      final value = data[key];
 
       if (value == null) continue;
 
@@ -118,13 +179,16 @@ final class Searchlight {
       SchemaType.string => value is String,
       SchemaType.number => value is num,
       SchemaType.boolean => value is bool,
-      SchemaType.enumType => value is String,
+      // Fix 3: enum accepts String or num
+      SchemaType.enumType => value is String || value is num,
       SchemaType.geopoint => value is GeoPoint,
       SchemaType.stringArray =>
         value is List && value.every((e) => e is String),
       SchemaType.numberArray => value is List && value.every((e) => e is num),
       SchemaType.booleanArray => value is List && value.every((e) => e is bool),
-      SchemaType.enumArray => value is List && value.every((e) => e is String),
+      // Fix 3: enumArray accepts String or num elements
+      SchemaType.enumArray =>
+        value is List && value.every((e) => e is String || e is num),
     };
 
     if (!valid) {
@@ -135,53 +199,80 @@ final class Searchlight {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Batch insert (Fix 4: abort on failure, return List<String>)
+  // ---------------------------------------------------------------------------
+
   /// Inserts multiple documents into the database.
   ///
-  /// Iterates through [documents], calling [insert] for each. Documents that
-  /// fail validation are recorded in [BatchResult.errors]; successfully
-  /// inserted documents have their IDs in [BatchResult.insertedIds].
+  /// Calls [insert] for each document. If any insert throws, the error
+  /// propagates and the batch is aborted (matching Orama's behavior).
   ///
-  /// The [batchSize] parameter is accepted but does not change behavior in v1.
-  /// It is reserved for future isolate-based batching.
-  BatchResult insertMultiple(
+  /// Returns a [List<String>] of external IDs for all successfully inserted
+  /// documents.
+  ///
+  /// The [batchSize] parameter is accepted for API compatibility but does not
+  /// change behavior in v1. Default is 1000 (matching Orama).
+  List<String> insertMultiple(
     List<Map<String, Object?>> documents, {
-    int batchSize = 500,
+    int batchSize = 1000,
   }) {
-    final insertedIds = <DocId>[];
-    final errors = <BatchError>[];
+    final ids = <String>[];
 
-    for (var i = 0; i < documents.length; i++) {
-      try {
-        final id = insert(documents[i]);
-        insertedIds.add(id);
-      } on DocumentValidationException catch (e) {
-        errors.add(BatchError(index: i, error: e));
-      }
+    for (final doc in documents) {
+      final id = insert(doc);
+      ids.add(id);
     }
 
-    return BatchResult(insertedIds: insertedIds, errors: errors);
+    return ids;
   }
 
-  /// Returns the document with the given [id], or `null` if not found.
-  Document? getById(DocId id) => _documents[id];
+  // ---------------------------------------------------------------------------
+  // Read
+  // ---------------------------------------------------------------------------
 
-  /// Removes the document with the given [id].
-  ///
-  /// Does nothing if the [id] is not found.
-  void remove(DocId id) {
-    _documents.remove(id);
+  /// Returns the document with the given external [id], or `null` if not found.
+  Document? getById(String id) {
+    final internalId = _externalToInternal[id];
+    if (internalId == null) return null;
+    return _documents[internalId];
   }
 
-  /// Removes all documents with the given [ids].
+  // ---------------------------------------------------------------------------
+  // Remove (Fix 5: return bool / int)
+  // ---------------------------------------------------------------------------
+
+  /// Removes the document with the given external [id].
   ///
-  /// Silently ignores IDs that are not found.
-  void removeMultiple(List<DocId> ids) {
-    ids.forEach(_documents.remove);
+  /// Returns `true` if the document was found and removed,
+  /// `false` if the [id] was not found.
+  bool remove(String id) {
+    final internalId = _externalToInternal[id];
+    if (internalId == null) return false;
+
+    _documents.remove(internalId);
+    _externalToInternal.remove(id);
+    _internalToExternal.remove(internalId);
+    return true;
+  }
+
+  /// Removes all documents with the given external [ids].
+  ///
+  /// Returns the count of documents actually removed. Silently ignores IDs
+  /// that are not found.
+  int removeMultiple(List<String> ids) {
+    var count = 0;
+    for (final id in ids) {
+      if (remove(id)) count++;
+    }
+    return count;
   }
 
   /// Removes all documents from the database.
   void clear() {
     _documents.clear();
+    _externalToInternal.clear();
+    _internalToExternal.clear();
   }
 
   /// Releases resources. Flushes pending writes if applicable.
