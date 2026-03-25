@@ -71,5 +71,11 @@ void main() {
       db.remove(id);
       expect(db.count, 0);
     });
+
+    test('remove makes document unretrievable via getById', () {
+      final id = db.insert({'title': 'Hello', 'price': 9.99});
+      db.remove(id);
+      expect(db.getById(id), isNull);
+    });
   });
 }
