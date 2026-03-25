@@ -9,5 +9,7 @@ export 'src/core/schema.dart';
 export 'src/core/types.dart';
 export 'src/text/diacritics.dart';
 export 'src/text/fuzzy.dart';
+export 'src/trees/avl_tree.dart';
 export 'src/trees/bool_node.dart';
 export 'src/trees/flat_tree.dart';
+export 'src/trees/radix_tree.dart';
