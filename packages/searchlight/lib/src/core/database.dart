@@ -135,6 +135,33 @@ final class Searchlight {
     }
   }
 
+  /// Inserts multiple documents into the database.
+  ///
+  /// Iterates through [documents], calling [insert] for each. Documents that
+  /// fail validation are recorded in [BatchResult.errors]; successfully
+  /// inserted documents have their IDs in [BatchResult.insertedIds].
+  ///
+  /// The [batchSize] parameter is accepted but does not change behavior in v1.
+  /// It is reserved for future isolate-based batching.
+  BatchResult insertMultiple(
+    List<Map<String, Object?>> documents, {
+    int batchSize = 500,
+  }) {
+    final insertedIds = <DocId>[];
+    final errors = <BatchError>[];
+
+    for (var i = 0; i < documents.length; i++) {
+      try {
+        final id = insert(documents[i]);
+        insertedIds.add(id);
+      } on DocumentValidationException catch (e) {
+        errors.add(BatchError(index: i, error: e));
+      }
+    }
+
+    return BatchResult(insertedIds: insertedIds, errors: errors);
+  }
+
   /// Returns the document with the given [id], or `null` if not found.
   Document? getById(DocId id) => _documents[id];
 
