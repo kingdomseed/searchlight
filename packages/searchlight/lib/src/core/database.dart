@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:searchlight/src/core/doc_id.dart';
 import 'package:searchlight/src/core/document.dart';
@@ -11,6 +12,10 @@ import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
 import 'package:searchlight/src/indexing/sort_index.dart';
+import 'package:searchlight/src/persistence/cbor_serializer.dart';
+import 'package:searchlight/src/persistence/format.dart';
+import 'package:searchlight/src/persistence/json_serializer.dart';
+import 'package:searchlight/src/persistence/storage.dart';
 import 'package:searchlight/src/scoring/bm25.dart';
 import 'package:searchlight/src/search/facets.dart' as facets_lib;
 import 'package:searchlight/src/search/filters.dart';
@@ -84,6 +89,100 @@ final class Searchlight {
       tokenizer: tokenizer,
       sortIndex: SortIndex(language: tokenizerLanguage),
     );
+  }
+
+  /// Deserializes a [Searchlight] instance from a JSON-compatible map
+  /// produced by [toJson].
+  ///
+  /// Matches Orama's `load(orama, raw)` pattern: checks the format version,
+  /// then restores each component from the raw data.
+  ///
+  /// Throws [SerializationException] if the format version is incompatible
+  /// or the data is corrupt/missing.
+  factory Searchlight.fromJson(Map<String, Object?> json) {
+    // 1. Check format version
+    final version = json['formatVersion'];
+    if (version is! int || version != currentFormatVersion) {
+      throw SerializationException(
+        'Incompatible format version: $version '
+        '(expected $currentFormatVersion)',
+      );
+    }
+
+    // 2. Restore algorithm
+    final algorithmName = json['algorithm'] as String?;
+    if (algorithmName == null) {
+      throw const SerializationException('Missing "algorithm" in JSON');
+    }
+    final algorithm = SearchAlgorithm.values.firstWhere(
+      (a) => a.name == algorithmName,
+      orElse: () => throw SerializationException(
+        'Unknown algorithm: $algorithmName',
+      ),
+    );
+
+    // 3. Restore language
+    final language = json['language'] as String?;
+    if (language == null) {
+      throw const SerializationException('Missing "language" in JSON');
+    }
+
+    // 4. Restore schema
+    final schemaJson = json['schema'];
+    if (schemaJson is! Map<String, Object?>) {
+      throw const SerializationException(
+        'Missing or invalid "schema" in JSON',
+      );
+    }
+    final schema = schemaFromJson(schemaJson);
+
+    // 5. Create the database with restored config
+    final db = Searchlight.create(
+      schema: schema,
+      algorithm: algorithm,
+      language: language,
+    );
+
+    // 6. Restore documents by re-inserting
+    final docsJson = json['documents'];
+    final idStoreJson = json['internalDocumentIDStore'];
+    if (docsJson is Map<String, Object?> &&
+        idStoreJson is Map<String, Object?>) {
+      final internalToIdJson =
+          idStoreJson['internalIdToId'] as Map<String, Object?>?;
+      final nextId = idStoreJson['nextId'] as int?;
+      final nextGeneratedId = idStoreJson['nextGeneratedId'] as int?;
+
+      if (internalToIdJson != null) {
+        // Re-insert documents in internal ID order to preserve IDs
+        // Sort by internal ID to maintain insertion order
+        final sortedEntries = docsJson.entries.toList()
+          ..sort((a, b) => int.parse(a.key).compareTo(int.parse(b.key)));
+
+        for (final entry in sortedEntries) {
+          final internalIdStr = entry.key;
+          final docData = entry.value;
+          if (docData is! Map<String, Object?>) continue;
+
+          final externalId = internalToIdJson[internalIdStr] as String?;
+          if (externalId == null) continue;
+
+          // Ensure the document data includes the external ID so insert()
+          // uses it rather than generating a new one
+          final dataWithId = <String, Object?>{
+            ...docData,
+            'id': externalId,
+          };
+          db.insert(dataWithId);
+        }
+      }
+
+      // Restore counters
+      if (nextId != null) db._nextInternalId = nextId;
+      if (nextGeneratedId != null) db._nextGeneratedId = nextGeneratedId;
+    }
+
+    return db;
   }
 
   /// The schema defining this database's document structure.
@@ -821,6 +920,103 @@ final class Searchlight {
     _documents.clear();
     _externalToInternal.clear();
     _internalToExternal.clear();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Serialization (matching Orama's save/load pattern)
+  // ---------------------------------------------------------------------------
+
+  /// Serializes the entire database state to a JSON-compatible map.
+  ///
+  /// Matches Orama's `save(orama)` which returns a `RawData` object
+  /// containing all component states. Adds `formatVersion` for forward
+  /// compatibility.
+  Map<String, Object?> toJson() {
+    // Serialize documents: internalId -> document data map
+    final docsJson = <String, Object?>{};
+    for (final entry in _documents.entries) {
+      docsJson[entry.key.id.toString()] = entry.value.toMap();
+    }
+
+    // Serialize ID store (matching Orama's internalDocumentIDStore.save)
+    final idToInternalJson = <String, int>{};
+    for (final entry in _externalToInternal.entries) {
+      idToInternalJson[entry.key] = entry.value.id;
+    }
+    final internalToIdJson = <String, String>{};
+    for (final entry in _internalToExternal.entries) {
+      internalToIdJson[entry.key.id.toString()] = entry.value;
+    }
+
+    return {
+      'formatVersion': currentFormatVersion,
+      'algorithm': algorithm.name,
+      'language': language,
+      'schema': schemaToJson(schema),
+      'internalDocumentIDStore': {
+        'idToInternalId': idToInternalJson,
+        'internalIdToId': internalToIdJson,
+        'nextId': _nextInternalId,
+        'nextGeneratedId': _nextGeneratedId,
+      },
+      'documents': docsJson,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // CBOR binary serialization
+  // ---------------------------------------------------------------------------
+
+  /// Serializes the entire database state to CBOR binary format.
+  ///
+  /// Calls [toJson] to get the JSON-compatible map, then encodes it with
+  /// CBOR. This is Searchlight's binary format, analogous to Orama's
+  /// msgpack encoding.
+  Uint8List serialize() {
+    return cborEncode(toJson());
+  }
+
+  /// Deserializes a [Searchlight] instance from CBOR bytes produced by
+  /// [serialize].
+  ///
+  /// Decodes the CBOR bytes to a JSON-compatible map, then delegates to
+  /// [Searchlight.fromJson].
+  ///
+  /// Throws [SerializationException] if the bytes are not valid CBOR or
+  /// the decoded data is incompatible.
+  static Searchlight deserialize(Uint8List bytes) {
+    try {
+      final map = cborDecode(bytes);
+      return Searchlight.fromJson(map);
+    } on FormatException catch (e) {
+      throw SerializationException('Invalid CBOR data: ${e.message}');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Persist / Restore (convenience wrappers around serialize + storage)
+  // ---------------------------------------------------------------------------
+
+  /// Persists the database to the given [storage].
+  ///
+  /// Serializes the database state to CBOR bytes and saves them.
+  Future<void> persist({required SearchlightStorage storage}) async {
+    final bytes = serialize();
+    await storage.save(bytes);
+  }
+
+  /// Restores a [Searchlight] instance from the given [storage].
+  ///
+  /// Loads bytes from storage and deserializes them. Throws
+  /// [StorageException] if no data is found.
+  static Future<Searchlight> restore({
+    required SearchlightStorage storage,
+  }) async {
+    final bytes = await storage.load();
+    if (bytes == null) {
+      throw const StorageException('No data found');
+    }
+    return deserialize(bytes);
   }
 
   /// Releases resources. Flushes pending writes if applicable.
