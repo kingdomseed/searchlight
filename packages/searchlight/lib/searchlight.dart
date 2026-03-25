@@ -7,3 +7,5 @@ export 'src/core/document.dart';
 export 'src/core/exceptions.dart';
 export 'src/core/schema.dart';
 export 'src/core/types.dart';
+export 'src/text/diacritics.dart';
+export 'src/text/fuzzy.dart';
