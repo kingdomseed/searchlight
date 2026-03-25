@@ -27,5 +27,13 @@ void main() {
       expect(id, isA<DocId>());
       expect(db.count, 1);
     });
+
+    test('insert stores the document — retrievable via getById', () {
+      final id = db.insert({'title': 'Hello', 'price': 9.99});
+      final doc = db.getById(id);
+      expect(doc, isNotNull);
+      expect(doc!.getString('title'), 'Hello');
+      expect(doc.getNumber('price'), 9.99);
+    });
   });
 }
