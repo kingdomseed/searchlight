@@ -74,25 +74,75 @@ final class GroupBy {
   final int limit;
 }
 
-/// Configuration for faceted search on a field.
-final class FacetConfig {
-  /// Creates a [FacetConfig] with the given [limit] of facet values.
-  const FacetConfig({required this.limit});
+/// Sort direction for facet value ordering.
+///
+/// Matches Orama's `FacetSorting` type.
+enum FacetSorting {
+  /// Sort by count ascending.
+  asc,
 
-  /// Maximum number of facet values to return.
-  final int limit;
+  /// Sort by count descending (default).
+  desc,
 }
 
-/// A single facet value with its occurrence count.
-final class FacetValue {
-  /// Creates a [FacetValue] with the given [value] and [count].
-  const FacetValue({required this.value, required this.count});
+/// A numeric range for number facets.
+///
+/// Matches Orama's `NumberFacetDefinition.ranges` entries.
+@immutable
+final class NumberFacetRange {
+  /// Creates a [NumberFacetRange] from [from] to [to] (inclusive).
+  const NumberFacetRange({required this.from, required this.to});
 
-  /// The facet value (e.g. a category name).
-  final String value;
+  /// The lower bound (inclusive).
+  final num from;
 
-  /// The number of documents matching this value.
+  /// The upper bound (inclusive).
+  final num to;
+}
+
+/// Configuration for faceted search on a field.
+///
+/// Matches Orama's `StringFacetDefinition` and `NumberFacetDefinition`.
+final class FacetConfig {
+  /// Creates a [FacetConfig].
+  ///
+  /// For string/boolean facets, [limit] and [offset] control pagination of
+  /// value counts. [sort] controls the ordering (default: desc by count).
+  ///
+  /// For number facets, [ranges] must be provided to define the buckets.
+  const FacetConfig({
+    this.limit = 10,
+    this.offset = 0,
+    this.sort = FacetSorting.desc,
+    this.ranges,
+  });
+
+  /// Maximum number of facet values to return (string facets only).
+  final int limit;
+
+  /// Number of facet values to skip (string facets only).
+  final int offset;
+
+  /// Sort order for facet values (string facets only).
+  final FacetSorting sort;
+
+  /// Numeric ranges for number facets. Required when the field is a number.
+  final List<NumberFacetRange>? ranges;
+}
+
+/// The result of facet computation for a single field.
+///
+/// Matches Orama's `FacetResult[field]` shape: `{count, values}`.
+@immutable
+final class FacetResult {
+  /// Creates a [FacetResult].
+  const FacetResult({required this.count, required this.values});
+
+  /// The total number of distinct facet values (before offset/limit).
   final int count;
+
+  /// Value -> occurrence count mapping.
+  final Map<String, int> values;
 }
 
 /// A single search hit with its document, score, and ID.
@@ -112,6 +162,21 @@ final class SearchHit {
 
   /// The matched document.
   final Document document;
+}
+
+/// A group of search results sharing a common field value.
+///
+/// Matches Orama's `GroupResult` entries.
+@immutable
+final class GroupResult {
+  /// Creates a [GroupResult].
+  const GroupResult({required this.values, required this.result});
+
+  /// The group key values.
+  final List<Object> values;
+
+  /// The hits in this group.
+  final List<SearchHit> result;
 }
 
 /// The result of a search query.
@@ -134,9 +199,13 @@ final class SearchResult {
   /// Time taken for the search.
   final Duration elapsed;
 
-  /// Facet values keyed by field name, if facets were requested.
-  final Map<String, List<FacetValue>>? facets;
+  /// Facet results keyed by field name, if facets were requested.
+  ///
+  /// Matches Orama's `FacetResult` shape.
+  final Map<String, FacetResult>? facets;
 
-  /// Grouped hits keyed by group value, if grouping was requested.
-  final Map<String, List<SearchHit>>? groups;
+  /// Grouped results, if grouping was requested.
+  ///
+  /// Each entry maps a group value to its list of hits.
+  final List<GroupResult>? groups;
 }

@@ -3,9 +3,11 @@
 // found in the LICENSE file.
 
 import 'package:searchlight/src/core/schema.dart';
+import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/scoring/bm25.dart';
 import 'package:searchlight/src/text/tokenizer.dart';
 import 'package:searchlight/src/trees/avl_tree.dart';
+import 'package:searchlight/src/trees/bkd_tree.dart';
 import 'package:searchlight/src/trees/bool_node.dart';
 import 'package:searchlight/src/trees/flat_tree.dart';
 import 'package:searchlight/src/trees/radix_tree.dart';
@@ -30,6 +32,9 @@ enum TreeType {
 
   /// Flat tree for enum fields (equality/set queries).
   flat,
+
+  /// BKD tree for geopoint fields (radius/polygon queries).
+  bkd,
 }
 
 /// A tagged tree wrapper storing the tree type, node, and whether it is
@@ -155,7 +160,7 @@ final class SearchIndex {
     _docsCount++;
 
     for (final prop in searchableProperties) {
-      final value = _resolveValue(data, prop);
+      final value = resolveValue(data, prop);
       if (value == null) continue;
 
       final indexTree = indexes[prop];
@@ -233,6 +238,10 @@ final class SearchIndex {
       case TreeType.flat:
         final node = indexTree.node as FlatTree;
         node.insert(value, docId);
+      case TreeType.bkd:
+        final node = indexTree.node as BKDTree;
+        final point = value as GeoPoint;
+        node.insert(point, [docId]);
     }
   }
 
@@ -282,7 +291,7 @@ final class SearchIndex {
     String? language,
   }) {
     for (final prop in searchableProperties) {
-      final value = _resolveValue(data, prop);
+      final value = resolveValue(data, prop);
       if (value == null) continue;
 
       final indexTree = indexes[prop];
@@ -336,6 +345,10 @@ final class SearchIndex {
       case TreeType.flat:
         final node = indexTree.node as FlatTree;
         node.removeDocument(docId, value);
+      case TreeType.bkd:
+        final node = indexTree.node as BKDTree;
+        final point = value as GeoPoint;
+        node.removeDocByID(point, docId);
     }
   }
 
@@ -536,7 +549,7 @@ final class SearchIndex {
   }
 
   /// Resolves a dot-separated path in a nested map.
-  static Object? _resolveValue(Map<String, Object?> data, String path) {
+  static Object? resolveValue(Map<String, Object?> data, String path) {
     final segments = path.split('.');
     Object? current = data;
     for (final segment in segments) {
@@ -616,7 +629,11 @@ final class SearchIndex {
                 isArray: isArray,
               );
             case SchemaType.geopoint:
-              break; // Skip geopoint for now
+              indexes[path] = IndexTree(
+                type: TreeType.bkd,
+                node: BKDTree(),
+                isArray: false,
+              );
           }
 
           searchableProperties.add(path);

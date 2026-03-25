@@ -97,11 +97,14 @@ void main() {
     });
   });
 
-  group('FacetValue', () {
-    test('holds value and count', () {
-      const fv = FacetValue(value: 'electronics', count: 42);
-      expect(fv.value, 'electronics');
-      expect(fv.count, 42);
+  group('FacetResult', () {
+    test('holds count and values', () {
+      const fr = FacetResult(
+        count: 3,
+        values: {'electronics': 42, 'books': 10, 'toys': 5},
+      );
+      expect(fr.count, 3);
+      expect(fr.values['electronics'], 42);
     });
   });
 

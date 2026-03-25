@@ -8,7 +8,11 @@ import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
+import 'package:searchlight/src/indexing/sort_index.dart';
 import 'package:searchlight/src/scoring/bm25.dart';
+import 'package:searchlight/src/search/facets.dart' as facets_lib;
+import 'package:searchlight/src/search/filters.dart';
+import 'package:searchlight/src/search/grouping.dart' as grouping_lib;
 import 'package:searchlight/src/text/tokenizer.dart';
 
 /// The search algorithm used for scoring.
@@ -91,6 +95,12 @@ final class Searchlight {
   /// The tokenizer for splitting text into normalized tokens.
   final Tokenizer _tokenizer;
 
+  /// The sort index for efficient field-based sorting at search time.
+  ///
+  /// Populated during insert/remove, used during search when sortBy is
+  /// provided. Matches Orama's `Sorter`.
+  final SortIndex _sortIndex = SortIndex();
+
   // ---------------------------------------------------------------------------
   // Internal document storage
   // ---------------------------------------------------------------------------
@@ -115,6 +125,20 @@ final class Searchlight {
 
   /// Whether the database has no documents.
   bool get isEmpty => count == 0;
+
+  /// Internal documents keyed by raw integer ID — for facet/group computation.
+  Map<int, Document> get documentsForFacets {
+    return _documents.map((docId, doc) => MapEntry(docId.id, doc));
+  }
+
+  /// Field path -> SchemaType mapping — for facet/group type resolution.
+  Map<String, SchemaType> get propertiesWithTypes =>
+      _index.searchablePropertiesWithTypes;
+
+  /// Internal doc ID -> external string ID mapping — for group computation.
+  Map<int, String> get externalIdsMap {
+    return _internalToExternal.map((docId, extId) => MapEntry(docId.id, extId));
+  }
 
   // ---------------------------------------------------------------------------
   // Insert
@@ -160,6 +184,9 @@ final class Searchlight {
       tokenizer: _tokenizer,
       language: language,
     );
+
+    // Populate sort index for sortable fields (string, number, boolean)
+    _insertSortableValues(internalId.id, data);
 
     return externalId;
   }
@@ -245,6 +272,42 @@ final class Searchlight {
   }
 
   // ---------------------------------------------------------------------------
+  // Sort index helpers
+  // ---------------------------------------------------------------------------
+
+  /// Sortable types: string, number, boolean (not arrays, enums, geopoints).
+  static const Set<SchemaType> _sortableTypes = {
+    SchemaType.string,
+    SchemaType.number,
+    SchemaType.boolean,
+  };
+
+  /// Inserts sortable field values into the sort index for a document.
+  void _insertSortableValues(int docId, Map<String, Object?> data) {
+    for (final entry in _index.searchablePropertiesWithTypes.entries) {
+      final prop = entry.key;
+      final type = entry.value;
+      if (!_sortableTypes.contains(type)) continue;
+
+      final value = SearchIndex.resolveValue(data, prop);
+      if (value == null) continue;
+
+      _sortIndex.insert(property: prop, docId: docId, value: value);
+    }
+  }
+
+  /// Removes a document from the sort index for all sortable properties.
+  void _removeSortableValues(int docId) {
+    for (final entry in _index.searchablePropertiesWithTypes.entries) {
+      final prop = entry.key;
+      final type = entry.value;
+      if (!_sortableTypes.contains(type)) continue;
+
+      _sortIndex.remove(property: prop, docId: docId);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Batch insert (Fix 4: abort on failure, return List<String>)
   // ---------------------------------------------------------------------------
 
@@ -304,6 +367,9 @@ final class Searchlight {
         tokenizer: _tokenizer,
         language: language,
       );
+
+      // Remove from sort index
+      _removeSortableValues(internalId.id);
     }
 
     _documents.remove(internalId);
@@ -419,12 +485,16 @@ final class Searchlight {
   // Search (matching Orama's fullTextSearch flow)
   // ---------------------------------------------------------------------------
 
-  /// Searches the database for documents matching [term].
+  /// Searches the database for documents matching [term] and/or [where]
+  /// filters.
   ///
-  /// Matches Orama's `fullTextSearch` from `search-fulltext.ts`.
+  /// Matches Orama's `fullTextSearch` from `search-fulltext.ts` and
+  /// `innerFullTextSearch` filter integration.
   ///
   /// Parameters:
   /// - [term]: The search query string. Empty returns all documents.
+  /// - [where]: Property-level filters applied before or instead of text
+  ///   search. Multiple properties are ANDed. Pass `null` for no filtering.
   /// - [properties]: Which string fields to search
   ///   (default: all string fields).
   /// - [exact]: If true, only exact word matches are returned.
@@ -434,9 +504,11 @@ final class Searchlight {
   /// - [limit]: Maximum number of hits to return per page.
   /// - [offset]: Number of results to skip (pagination).
   ///
-  /// Throws [QueryException] if a requested property is not a string field.
+  /// Throws [QueryException] if a requested property is not a string field
+  /// or if a filter references an unknown field.
   SearchResult search({
     String term = '',
+    Map<String, Filter>? where,
     List<String>? properties,
     bool exact = false,
     int tolerance = 0,
@@ -444,6 +516,9 @@ final class Searchlight {
     double threshold = 1.0,
     int limit = 10,
     int offset = 0,
+    Map<String, FacetConfig>? facets,
+    GroupBy? groupBy,
+    SortBy? sortBy,
   }) {
     final stopwatch = Stopwatch()..start();
 
@@ -466,7 +541,18 @@ final class Searchlight {
       propertiesToSearch = stringFields;
     }
 
-    // 2. Search or return all docs
+    // 2. Evaluate where filters (matching Orama's innerFullTextSearch)
+    final hasFilters = where != null && where.isNotEmpty;
+    Set<int>? whereFiltersIDs;
+    if (hasFilters) {
+      whereFiltersIDs = searchByWhereClause(
+        _index,
+        where,
+        totalDocs: _nextInternalId - 1,
+      );
+    }
+
+    // 3. Search or return all/filtered docs
     List<TokenScore> uniqueDocsArray;
 
     if (term.isNotEmpty) {
@@ -481,28 +567,43 @@ final class Searchlight {
         boost: boost ?? const {},
         threshold: threshold,
         language: language,
+        whereFiltersIDs: whereFiltersIDs,
       );
     } else {
-      // No term: return all documents with score 0
-      uniqueDocsArray =
-          _documents.keys.map<TokenScore>((docId) => (docId.id, 0.0)).toList();
+      // No term — matching Orama: if filters, return filtered IDs with
+      // score 0; otherwise return all documents with score 0.
+      if (hasFilters) {
+        final docIds = whereFiltersIDs ?? <int>{};
+        uniqueDocsArray = docIds.map<TokenScore>((id) => (id, 0.0)).toList();
+      } else {
+        uniqueDocsArray = _documents.keys
+            .map<TokenScore>((docId) => (docId.id, 0.0))
+            .toList();
+      }
     }
 
-    // 3. Sort by score descending (already sorted from SearchIndex.search,
-    //    but for no-term case we need consistency)
-    if (term.isEmpty) {
+    // 4. Sort: by field (sortBy) or by score descending
+    if (sortBy != null) {
+      // Sort by field value using the sort index (overrides score order)
+      uniqueDocsArray = _sortIndex.sortBy(
+        results: uniqueDocsArray,
+        property: sortBy.field,
+        order: sortBy.order,
+      );
+    } else if (term.isEmpty) {
+      // For no-term case, sort by score descending for consistency
       uniqueDocsArray.sort((a, b) => b.$2.compareTo(a.$2));
     }
 
-    // 4. Total count before pagination
+    // 5. Total count before pagination
     final totalCount = uniqueDocsArray.length;
 
-    // 5. Paginate
+    // 6. Paginate
     final end = (offset + limit).clamp(0, uniqueDocsArray.length);
     final start = offset.clamp(0, uniqueDocsArray.length);
     final page = uniqueDocsArray.sublist(start, end);
 
-    // 6. Fetch documents for the result page
+    // 7. Fetch documents for the result page
     final hits = <SearchHit>[];
     for (final (docId, score) in page) {
       final internalId = DocId(docId);
@@ -514,12 +615,37 @@ final class Searchlight {
       hits.add(SearchHit(id: externalId, score: score, document: doc));
     }
 
+    // 8. Compute facets on the FULL result set (before pagination)
+    Map<String, FacetResult>? facetResults;
+    final shouldCalculateFacets = facets != null && facets.isNotEmpty;
+    if (shouldCalculateFacets) {
+      facetResults = facets_lib.getFacets(
+        documents: documentsForFacets,
+        results: uniqueDocsArray,
+        facetsConfig: facets,
+        propertiesWithTypes: propertiesWithTypes,
+      );
+    }
+
+    // 9. Compute groups on the FULL result set (before pagination)
+    List<GroupResult>? groupResults;
+    if (groupBy != null) {
+      groupResults = grouping_lib.getGroups(
+        documents: documentsForFacets,
+        externalIds: externalIdsMap,
+        results: uniqueDocsArray,
+        groupBy: groupBy,
+      );
+    }
+
     stopwatch.stop();
 
     return SearchResult(
       hits: hits,
       count: totalCount,
       elapsed: stopwatch.elapsed,
+      facets: facetResults,
+      groups: groupResults,
     );
   }
 
