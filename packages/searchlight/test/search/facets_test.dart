@@ -4,7 +4,6 @@
 
 import 'package:searchlight/searchlight.dart';
 import 'package:searchlight/src/indexing/index_manager.dart' show TokenScore;
-import 'package:searchlight/src/search/facets.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -16,8 +15,7 @@ void main() {
         'category': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
+      final db = Searchlight.create(schema: schema)
         ..insert({'id': 'doc1', 'title': 'A', 'category': 'electronics'})
         ..insert({'id': 'doc2', 'title': 'B', 'category': 'electronics'})
         ..insert({'id': 'doc3', 'title': 'C', 'category': 'electronics'})
@@ -66,8 +64,7 @@ void main() {
         'category': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
+      final db = Searchlight.create(schema: schema)
         ..insert({'id': 'doc1', 'title': 'A', 'category': 'electronics'})
         ..insert({'id': 'doc2', 'title': 'B', 'category': 'electronics'})
         ..insert({'id': 'doc3', 'title': 'C', 'category': 'electronics'})
@@ -109,8 +106,7 @@ void main() {
         'price': const TypedField(SchemaType.number),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
+      final db = Searchlight.create(schema: schema)
         ..insert({'id': 'doc1', 'title': 'A', 'price': 5})
         ..insert({'id': 'doc2', 'title': 'B', 'price': 15})
         ..insert({'id': 'doc3', 'title': 'C', 'price': 25})
@@ -129,11 +125,11 @@ void main() {
         documents: db.documentsForFacets,
         results: results,
         facetsConfig: {
-          'price': FacetConfig(
+          'price': const FacetConfig(
             ranges: [
-              const NumberFacetRange(from: 0, to: 10),
-              const NumberFacetRange(from: 10, to: 30),
-              const NumberFacetRange(from: 30, to: 100),
+              NumberFacetRange(from: 0, to: 10),
+              NumberFacetRange(from: 10, to: 30),
+              NumberFacetRange(from: 30, to: 100),
             ],
           ),
         },
@@ -153,8 +149,7 @@ void main() {
         'inStock': const TypedField(SchemaType.boolean),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
+      final db = Searchlight.create(schema: schema)
         ..insert({'id': 'doc1', 'title': 'A', 'inStock': true})
         ..insert({'id': 'doc2', 'title': 'B', 'inStock': true})
         ..insert({'id': 'doc3', 'title': 'C', 'inStock': true})
@@ -191,9 +186,8 @@ void main() {
         'category': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      // Insert docs with 5 different categories
-      db
+      final db = Searchlight.create(schema: schema)
+        // Insert docs with 5 different categories
         ..insert({'id': 'd1', 'title': 'A', 'category': 'alpha'})
         ..insert({'id': 'd2', 'title': 'B', 'category': 'alpha'})
         ..insert({'id': 'd3', 'title': 'C', 'category': 'alpha'})
@@ -237,8 +231,7 @@ void main() {
         'tags': const TypedField(SchemaType.stringArray),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
+      final db = Searchlight.create(schema: schema)
         ..insert({
           'id': 'doc1',
           'title': 'A',
@@ -275,8 +268,8 @@ void main() {
         'price': const TypedField(SchemaType.number),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db.insert({'id': 'doc1', 'title': 'A', 'price': 5});
+      final db = Searchlight.create(schema: schema)
+        ..insert({'id': 'doc1', 'title': 'A', 'price': 5});
 
       final results = <TokenScore>[(1, 1.0)];
 
@@ -284,11 +277,11 @@ void main() {
         documents: db.documentsForFacets,
         results: results,
         facetsConfig: {
-          'price': FacetConfig(
+          'price': const FacetConfig(
             ranges: [
-              const NumberFacetRange(from: 0, to: 10),
-              const NumberFacetRange(from: 10, to: 50),
-              const NumberFacetRange(from: 50, to: 100),
+              NumberFacetRange(from: 0, to: 10),
+              NumberFacetRange(from: 10, to: 50),
+              NumberFacetRange(from: 50, to: 100),
             ],
           ),
         },
@@ -313,17 +306,26 @@ void main() {
         'category': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
-        ..insert({'id': 'doc1', 'title': 'hello world', 'category': 'tech'})
-        ..insert({'id': 'doc2', 'title': 'hello dart', 'category': 'tech'})
-        ..insert(
-          {'id': 'doc3', 'title': 'hello flutter', 'category': 'mobile'},
-        );
+      final db = Searchlight.create(schema: schema)
+        ..insert({
+          'id': 'doc1',
+          'title': 'hello world',
+          'category': 'tech',
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'hello dart',
+          'category': 'tech',
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'hello flutter',
+          'category': 'mobile',
+        });
 
       final result = db.search(
         term: 'hello',
-        facets: {'category': const FacetConfig(limit: 10)},
+        facets: {'category': const FacetConfig()},
       );
 
       expect(result.count, 3);

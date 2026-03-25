@@ -13,9 +13,7 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'active': const TypedField(SchemaType.boolean),
         }),
-      );
-
-      db
+      )
         ..insert({'id': 'doc1', 'title': 'Alpha', 'active': true})
         ..insert({'id': 'doc2', 'title': 'Beta', 'active': false})
         ..insert({'id': 'doc3', 'title': 'Gamma', 'active': true});
@@ -39,9 +37,7 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'price': const TypedField(SchemaType.number),
         }),
-      );
-
-      db
+      )
         ..insert({'id': 'doc1', 'title': 'A', 'price': 30})
         ..insert({'id': 'doc2', 'title': 'B', 'price': 50})
         ..insert({'id': 'doc3', 'title': 'C', 'price': 70});
@@ -59,9 +55,7 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'price': const TypedField(SchemaType.number),
         }),
-      );
-
-      db
+      )
         ..insert({'id': 'doc1', 'title': 'A', 'price': 30})
         ..insert({'id': 'doc2', 'title': 'B', 'price': 50})
         ..insert({'id': 'doc3', 'title': 'C', 'price': 70});
@@ -78,9 +72,7 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'price': const TypedField(SchemaType.number),
         }),
-      );
-
-      db
+      )
         ..insert({'id': 'doc1', 'title': 'A', 'price': 10})
         ..insert({'id': 'doc2', 'title': 'B', 'price': 30})
         ..insert({'id': 'doc3', 'title': 'C', 'price': 50})
@@ -100,14 +92,20 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'category': const TypedField(SchemaType.enumType),
         }),
+      )
+        ..insert(
+          {'id': 'doc1', 'title': 'A', 'category': 'electronics'},
+        )
+        ..insert(
+          {'id': 'doc2', 'title': 'B', 'category': 'books'},
+        )
+        ..insert(
+          {'id': 'doc3', 'title': 'C', 'category': 'electronics'},
+        );
+
+      final result = db.search(
+        where: {'category': eq('electronics')},
       );
-
-      db
-        ..insert({'id': 'doc1', 'title': 'A', 'category': 'electronics'})
-        ..insert({'id': 'doc2', 'title': 'B', 'category': 'books'})
-        ..insert({'id': 'doc3', 'title': 'C', 'category': 'electronics'});
-
-      final result = db.search(where: {'category': eq('electronics')});
 
       expect(result.count, 2);
       final ids = result.hits.map((h) => h.id).toSet();
@@ -120,17 +118,23 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'category': const TypedField(SchemaType.enumType),
         }),
-      );
-
-      db
-        ..insert({'id': 'doc1', 'title': 'A', 'category': 'electronics'})
-        ..insert({'id': 'doc2', 'title': 'B', 'category': 'books'})
-        ..insert({'id': 'doc3', 'title': 'C', 'category': 'clothing'})
-        ..insert({'id': 'doc4', 'title': 'D', 'category': 'books'});
+      )
+        ..insert(
+          {'id': 'doc1', 'title': 'A', 'category': 'electronics'},
+        )
+        ..insert(
+          {'id': 'doc2', 'title': 'B', 'category': 'books'},
+        )
+        ..insert(
+          {'id': 'doc3', 'title': 'C', 'category': 'clothing'},
+        )
+        ..insert(
+          {'id': 'doc4', 'title': 'D', 'category': 'books'},
+        );
 
       final result = db.search(
         where: {
-          'category': inFilter(['electronics', 'books'])
+          'category': inFilter(['electronics', 'books']),
         },
       );
 
@@ -147,13 +151,31 @@ void main() {
           'price': const TypedField(SchemaType.number),
           'active': const TypedField(SchemaType.boolean),
         }),
-      );
-
-      db
-        ..insert({'id': 'doc1', 'title': 'A', 'price': 20, 'active': true})
-        ..insert({'id': 'doc2', 'title': 'B', 'price': 5, 'active': true})
-        ..insert({'id': 'doc3', 'title': 'C', 'price': 30, 'active': false})
-        ..insert({'id': 'doc4', 'title': 'D', 'price': 50, 'active': true});
+      )
+        ..insert({
+          'id': 'doc1',
+          'title': 'A',
+          'price': 20,
+          'active': true,
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'B',
+          'price': 5,
+          'active': true,
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'C',
+          'price': 30,
+          'active': false,
+        })
+        ..insert({
+          'id': 'doc4',
+          'title': 'D',
+          'price': 50,
+          'active': true,
+        });
 
       final result = db.search(
         where: {'price': gt(10), 'active': eq(true)},
@@ -171,12 +193,18 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'price': const TypedField(SchemaType.number),
         }),
-      );
-
-      db
+      )
         ..insert({'id': 'doc1', 'title': 'phone case', 'price': 20})
-        ..insert({'id': 'doc2', 'title': 'phone charger', 'price': 600})
-        ..insert({'id': 'doc3', 'title': 'phone stand', 'price': 30});
+        ..insert({
+          'id': 'doc2',
+          'title': 'phone charger',
+          'price': 600,
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'phone stand',
+          'price': 30,
+        });
 
       final result = db.search(
         term: 'phone',
@@ -195,39 +223,38 @@ void main() {
       }
     });
 
-    test('filter without search term returns matching docs with score 0', () {
-      final db = Searchlight.create(
-        schema: Schema({
-          'title': const TypedField(SchemaType.string),
-          'active': const TypedField(SchemaType.boolean),
-        }),
-      );
+    test(
+      'filter without search term returns matching docs with score 0',
+      () {
+        final db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+            'active': const TypedField(SchemaType.boolean),
+          }),
+        )
+          ..insert({'id': 'doc1', 'title': 'A', 'active': true})
+          ..insert({'id': 'doc2', 'title': 'B', 'active': false})
+          ..insert({'id': 'doc3', 'title': 'C', 'active': true})
+          ..insert({'id': 'doc4', 'title': 'D', 'active': true});
 
-      db
-        ..insert({'id': 'doc1', 'title': 'A', 'active': true})
-        ..insert({'id': 'doc2', 'title': 'B', 'active': false})
-        ..insert({'id': 'doc3', 'title': 'C', 'active': true})
-        ..insert({'id': 'doc4', 'title': 'D', 'active': true});
+        final result = db.search(where: {'active': eq(true)});
 
-      final result = db.search(where: {'active': eq(true)});
+        expect(result.count, 3);
+        final ids = result.hits.map((h) => h.id).toSet();
+        expect(ids, containsAll(['doc1', 'doc3', 'doc4']));
 
-      expect(result.count, 3);
-      final ids = result.hits.map((h) => h.id).toSet();
-      expect(ids, containsAll(['doc1', 'doc3', 'doc4']));
-
-      for (final hit in result.hits) {
-        expect(hit.score, 0.0);
-      }
-    });
+        for (final hit in result.hits) {
+          expect(hit.score, 0.0);
+        }
+      },
+    );
 
     test('filter on unknown field throws QueryException', () {
       final db = Searchlight.create(
         schema: Schema({
           'title': const TypedField(SchemaType.string),
         }),
-      );
-
-      db.insert({'id': 'doc1', 'title': 'A'});
+      )..insert({'id': 'doc1', 'title': 'A'});
 
       expect(
         () => db.search(where: {'nonexistent': eq(true)}),
@@ -242,12 +269,22 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'author': const TypedField(SchemaType.string),
         }),
-      );
-
-      db
-        ..insert({'id': 'doc1', 'title': 'Dart Guide', 'author': 'John'})
-        ..insert({'id': 'doc2', 'title': 'Flutter Book', 'author': 'Jane'})
-        ..insert({'id': 'doc3', 'title': 'Go Handbook', 'author': 'John'});
+      )
+        ..insert({
+          'id': 'doc1',
+          'title': 'Dart Guide',
+          'author': 'John',
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'Flutter Book',
+          'author': 'Jane',
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'Go Handbook',
+          'author': 'John',
+        });
 
       // Filter on string field 'author' with value 'John'
       final result = db.search(where: {'author': eq('John')});
@@ -258,54 +295,64 @@ void main() {
     });
 
     // Item 18: Geo-only distance scoring
-    test('geo-only filter returns results with distance-based scores', () {
-      final db = Searchlight.create(
-        schema: Schema({
-          'name': const TypedField(SchemaType.string),
-          'location': const TypedField(SchemaType.geopoint),
-        }),
-      );
+    test(
+      'geo-only filter returns results with distance-based scores',
+      () {
+        final db = Searchlight.create(
+          schema: Schema({
+            'name': const TypedField(SchemaType.string),
+            'location': const TypedField(SchemaType.geopoint),
+          }),
+        )
+          ..insert({
+            'id': 'nyc',
+            'name': 'New York',
+            'location': const GeoPoint(
+              lat: 40.7128,
+              lon: -74.0060,
+            ),
+          })
+          ..insert({
+            'id': 'nj',
+            'name': 'Newark NJ',
+            'location': const GeoPoint(
+              lat: 40.7357,
+              lon: -74.1724,
+            ),
+          })
+          ..insert({
+            'id': 'la',
+            'name': 'Los Angeles',
+            'location': const GeoPoint(
+              lat: 34.0522,
+              lon: -118.2437,
+            ),
+          });
 
-      db
-        ..insert({
-          'id': 'nyc',
-          'name': 'New York',
-          'location': const GeoPoint(lat: 40.7128, lon: -74.0060),
-        })
-        ..insert({
-          'id': 'nj',
-          'name': 'Newark NJ',
-          'location': const GeoPoint(lat: 40.7357, lon: -74.1724),
-        })
-        ..insert({
-          'id': 'la',
-          'name': 'Los Angeles',
-          'location': const GeoPoint(lat: 34.0522, lon: -118.2437),
-        });
+        // Geo-only filter (no search term): single geo filter
+        // triggers distance-based scoring
+        final result = db.search(
+          where: {
+            'location': geoRadius(
+              lat: 40.7128,
+              lon: -74.0060,
+              radius: 4000000, // 4000km to include LA
+            ),
+          },
+        );
 
-      // Geo-only filter (no search term): single geo filter triggers
-      // distance-based scoring
-      final result = db.search(
-        where: {
-          'location': geoRadius(
-            lat: 40.7128,
-            lon: -74.0060,
-            radius: 4000000, // 4000km to include LA
-          ),
-        },
-      );
-
-      // All 3 docs should be returned
-      expect(result.count, 3);
-      // Scores should be > 0 (distance-based, not 0)
-      for (final hit in result.hits) {
-        expect(hit.score, greaterThan(0));
-      }
-      // NYC should have highest score (closest to center)
-      final nyc = result.hits.firstWhere((h) => h.id == 'nyc');
-      final la = result.hits.firstWhere((h) => h.id == 'la');
-      expect(nyc.score, greaterThan(la.score));
-    });
+        // All 3 docs should be returned
+        expect(result.count, 3);
+        // Scores should be > 0 (distance-based, not 0)
+        for (final hit in result.hits) {
+          expect(hit.score, greaterThan(0));
+        }
+        // NYC should have highest score (closest to center)
+        final nyc = result.hits.firstWhere((h) => h.id == 'nyc');
+        final la = result.hits.firstWhere((h) => h.id == 'la');
+        expect(nyc.score, greaterThan(la.score));
+      },
+    );
 
     test('geoRadius filter returns nearby docs', () {
       final db = Searchlight.create(
@@ -313,24 +360,31 @@ void main() {
           'name': const TypedField(SchemaType.string),
           'location': const TypedField(SchemaType.geopoint),
         }),
-      );
-
-      // NYC area points
-      db
+      )
+        // NYC area points
         ..insert({
           'id': 'nyc',
           'name': 'New York',
-          'location': const GeoPoint(lat: 40.7128, lon: -74.0060),
+          'location': const GeoPoint(
+            lat: 40.7128,
+            lon: -74.0060,
+          ),
         })
         ..insert({
           'id': 'nj',
           'name': 'Newark NJ',
-          'location': const GeoPoint(lat: 40.7357, lon: -74.1724),
+          'location': const GeoPoint(
+            lat: 40.7357,
+            lon: -74.1724,
+          ),
         })
         ..insert({
           'id': 'la',
           'name': 'Los Angeles',
-          'location': const GeoPoint(lat: 34.0522, lon: -118.2437),
+          'location': const GeoPoint(
+            lat: 34.0522,
+            lon: -118.2437,
+          ),
         });
 
       // Search within 20km of NYC center

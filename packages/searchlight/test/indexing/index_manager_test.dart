@@ -99,16 +99,17 @@ void main() {
         final index = SearchIndex.create(schema: schema);
         final tokenizer = Tokenizer(allowDuplicates: true);
 
-        index.insertDocument(
-          docId: 1,
-          data: {'active': true},
-          tokenizer: tokenizer,
-        );
-        index.insertDocument(
-          docId: 2,
-          data: {'active': false},
-          tokenizer: tokenizer,
-        );
+        index
+          ..insertDocument(
+            docId: 1,
+            data: {'active': true},
+            tokenizer: tokenizer,
+          )
+          ..insertDocument(
+            docId: 2,
+            data: {'active': false},
+            tokenizer: tokenizer,
+          );
 
         final node = index.indexes['active']!.node as BoolNode<int>;
         expect(node.trueSet, {1});
@@ -214,16 +215,17 @@ void main() {
         final tokenizer = Tokenizer(allowDuplicates: true);
 
         // Doc 1: 2 tokens, Doc 2: 4 tokens => avg = 3
-        index.insertDocument(
-          docId: 1,
-          data: {'title': 'hello world'},
-          tokenizer: tokenizer,
-        );
-        index.insertDocument(
-          docId: 2,
-          data: {'title': 'the quick brown fox'},
-          tokenizer: tokenizer,
-        );
+        index
+          ..insertDocument(
+            docId: 1,
+            data: {'title': 'hello world'},
+            tokenizer: tokenizer,
+          )
+          ..insertDocument(
+            docId: 2,
+            data: {'title': 'the quick brown fox'},
+            tokenizer: tokenizer,
+          );
         expect(index.avgFieldLength['title'], 3.0);
 
         // Remove doc 1 (2 tokens): avg = (3*2 - 2) / 1 = 4
@@ -250,21 +252,25 @@ void main() {
         index = SearchIndex.create(schema: schema);
         tokenizer = Tokenizer(allowDuplicates: true);
 
-        index.insertDocument(
-          docId: 1,
-          data: {'title': 'hello world', 'body': 'a greeting'},
-          tokenizer: tokenizer,
-        );
-        index.insertDocument(
-          docId: 2,
-          data: {'title': 'goodbye world', 'body': 'a farewell'},
-          tokenizer: tokenizer,
-        );
-        index.insertDocument(
-          docId: 3,
-          data: {'title': 'hello again', 'body': 'another greeting'},
-          tokenizer: tokenizer,
-        );
+        index
+          ..insertDocument(
+            docId: 1,
+            data: {'title': 'hello world', 'body': 'a greeting'},
+            tokenizer: tokenizer,
+          )
+          ..insertDocument(
+            docId: 2,
+            data: {'title': 'goodbye world', 'body': 'a farewell'},
+            tokenizer: tokenizer,
+          )
+          ..insertDocument(
+            docId: 3,
+            data: {
+              'title': 'hello again',
+              'body': 'another greeting',
+            },
+            tokenizer: tokenizer,
+          );
       });
 
       test('returns scored results for matching term', () {
@@ -332,7 +338,6 @@ void main() {
           tokenizer: tokenizer,
           propertiesToSearch: ['title'],
           relevance: const BM25Params(),
-          threshold: 0,
         );
 
         // Only doc 1 has both 'hello' and 'world' in title

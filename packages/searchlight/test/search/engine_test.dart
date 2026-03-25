@@ -345,7 +345,7 @@ void main() {
 
       // In Orama: term='' + properties=['title'] triggers index.search()
       // which pushes '' token and returns all docs that have the property
-      final result = db.search(term: '', properties: ['title']);
+      final result = db.search(properties: ['title']);
 
       // Should trigger the search path and find all docs with 'title'
       expect(result.count, 2);

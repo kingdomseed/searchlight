@@ -4,7 +4,6 @@
 
 import 'package:searchlight/searchlight.dart';
 import 'package:searchlight/src/indexing/index_manager.dart' show TokenScore;
-import 'package:searchlight/src/search/grouping.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -15,8 +14,7 @@ void main() {
         'category': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
+      final db = Searchlight.create(schema: schema)
         ..insert({'id': 'doc1', 'title': 'A', 'category': 'electronics'})
         ..insert({'id': 'doc2', 'title': 'B', 'category': 'electronics'})
         ..insert({'id': 'doc3', 'title': 'C', 'category': 'books'})
@@ -59,11 +57,22 @@ void main() {
         'category': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
-        ..insert({'id': 'doc1', 'title': 'A', 'category': 'electronics'})
-        ..insert({'id': 'doc2', 'title': 'B', 'category': 'electronics'})
-        ..insert({'id': 'doc3', 'title': 'C', 'category': 'electronics'})
+      final db = Searchlight.create(schema: schema)
+        ..insert({
+          'id': 'doc1',
+          'title': 'A',
+          'category': 'electronics',
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'B',
+          'category': 'electronics',
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'C',
+          'category': 'electronics',
+        })
         ..insert({'id': 'doc4', 'title': 'D', 'category': 'books'})
         ..insert({'id': 'doc5', 'title': 'E', 'category': 'books'});
 
@@ -100,8 +109,7 @@ void main() {
         'status': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
+      final db = Searchlight.create(schema: schema)
         ..insert({
           'id': 'doc1',
           'title': 'A',
@@ -131,7 +139,7 @@ void main() {
         documents: db.documentsForFacets,
         externalIds: db.externalIdsMap,
         results: results,
-        groupBy: GroupBy.properties(
+        groupBy: const GroupBy.properties(
           properties: ['category', 'status'],
           limit: 10,
         ),
@@ -164,8 +172,8 @@ void main() {
         'title': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db.insert({'id': 'doc1', 'title': 'A'});
+      final db = Searchlight.create(schema: schema)
+        ..insert({'id': 'doc1', 'title': 'A'});
 
       final results = <TokenScore>[(1, 1.0)];
 
@@ -187,12 +195,12 @@ void main() {
         'location': const TypedField(SchemaType.geopoint),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db.insert({
-        'id': 'doc1',
-        'title': 'A',
-        'location': const GeoPoint(lat: 0, lon: 0),
-      });
+      final db = Searchlight.create(schema: schema)
+        ..insert({
+          'id': 'doc1',
+          'title': 'A',
+          'location': const GeoPoint(lat: 0, lon: 0),
+        });
 
       final results = <TokenScore>[(1, 1.0)];
 
@@ -215,11 +223,14 @@ void main() {
         'category': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
+      final db = Searchlight.create(schema: schema)
         ..insert({'id': 'doc1', 'title': 'A', 'category': 'tech'})
         ..insert({'id': 'doc2', 'title': 'B', 'category': 'tech'})
-        ..insert({'id': 'doc3', 'title': 'C', 'category': 'health'});
+        ..insert({
+          'id': 'doc3',
+          'title': 'C',
+          'category': 'health',
+        });
 
       final results = <TokenScore>[
         (1, 1.0),
@@ -241,10 +252,10 @@ void main() {
             },
             getInitialValue: (length) => List<SearchHit>.filled(
               length,
-              SearchHit(
+              const SearchHit(
                 id: '',
                 score: 0,
-                document: Document(const {}),
+                document: Document({}),
               ),
             ),
           ),
@@ -265,13 +276,22 @@ void main() {
         'category': const TypedField(SchemaType.string),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
-        ..insert({'id': 'doc1', 'title': 'hello world', 'category': 'tech'})
-        ..insert({'id': 'doc2', 'title': 'hello dart', 'category': 'tech'})
-        ..insert(
-          {'id': 'doc3', 'title': 'hello flutter', 'category': 'mobile'},
-        );
+      final db = Searchlight.create(schema: schema)
+        ..insert({
+          'id': 'doc1',
+          'title': 'hello world',
+          'category': 'tech',
+        })
+        ..insert({
+          'id': 'doc2',
+          'title': 'hello dart',
+          'category': 'tech',
+        })
+        ..insert({
+          'id': 'doc3',
+          'title': 'hello flutter',
+          'category': 'mobile',
+        });
 
       final result = db.search(
         term: 'hello',
@@ -297,13 +317,15 @@ void main() {
         schema: Schema({
           'title': const TypedField(SchemaType.string),
         }),
-      );
-      db.insert({'id': 'doc1', 'title': 'hello'});
+      )..insert({'id': 'doc1', 'title': 'hello'});
 
       expect(
         () => db.search(
           term: 'hello',
-          groupBy: const GroupBy(field: 'nonexistent', limit: 10),
+          groupBy: const GroupBy(
+            field: 'nonexistent',
+            limit: 10,
+          ),
         ),
         throwsA(isA<QueryException>()),
       );

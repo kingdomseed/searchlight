@@ -31,7 +31,8 @@ Map<String, FacetResult> getFacets({
     final propertyType = propertiesWithTypes[facetField];
 
     // Item 14: Pre-initialize number range buckets with 0 counts
-    // Matches Orama: values = Object.fromEntries(ranges.map(r => ['from-to', 0]))
+    // Matches Orama:
+    //   values = Object.fromEntries(ranges.map(r => ['from-to', 0]))
     final values = <String, int>{};
     if ((propertyType == SchemaType.number ||
             propertyType == SchemaType.numberArray) &&
@@ -119,8 +120,10 @@ Map<String, FacetResult> getFacets({
         sorted.sort((a, b) => b.value.compareTo(a.value));
       }
       // Item 3: Match Orama's slice(offset, limit) semantics.
-      // Orama: Object.entries(values).sort(pred).slice(offset, limit)
-      // JS slice(start, end) returns items from start up to (not including) end.
+      // Orama:
+      //   Object.entries(values).sort(pred).slice(offset, limit)
+      // JS slice(start, end) returns items from start up to
+      // (not including) end.
       final offset = config.offset;
       final limit = config.limit;
       final end = math.min(limit, sorted.length);

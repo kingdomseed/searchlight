@@ -721,7 +721,6 @@ final class Searchlight {
         center,
         distanceInMeters,
         inclusive: operation.inside,
-        sort: SortOrder.asc,
         highPrecision: operation.highPrecision,
       );
       return _createGeoTokenScores(results, center, operation.highPrecision);

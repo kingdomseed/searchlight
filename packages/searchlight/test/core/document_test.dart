@@ -144,7 +144,7 @@ void main() {
 
   group('FacetConfig', () {
     test('holds limit', () {
-      const config = FacetConfig(limit: 10);
+      const config = FacetConfig();
       expect(config.limit, 10);
     });
   });

@@ -47,7 +47,7 @@ List<GroupResult> getGroups({
       if (!_allowedGroupTypes.contains(type)) {
         throw QueryException(
           "Invalid group-by property type: '$property' is '$type'. "
-          "Allowed types: string, number, boolean.",
+          'Allowed types: string, number, boolean.',
         );
       }
     }
@@ -83,7 +83,7 @@ List<GroupResult> getGroups({
 
       final perValue = group.perValue.putIfAbsent(
         keyValue.toString(),
-        () => _PerValueData(),
+        _PerValueData.new,
       );
       if (perValue.count >= maxResult) continue;
 
@@ -145,7 +145,11 @@ List<GroupResult> getGroups({
     List<SearchHit> aggregatedResult;
     if (groupBy.reduce != null) {
       final reduce = groupBy.reduce!;
-      final func = (List<SearchHit> acc, SearchHit res, int index) =>
+      List<SearchHit> func(
+        List<SearchHit> acc,
+        SearchHit res,
+        int index,
+      ) =>
           reduce.reducer(group.values, acc, res, index);
       var accumulator = reduce.getInitialValue(docs.length);
       for (var i = 0; i < docs.length; i++) {

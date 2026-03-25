@@ -113,7 +113,7 @@ void main() {
 
     // Item 7: Language validation in tokenize()
     test('throws when language parameter mismatches tokenizer language', () {
-      final tokenizer = Tokenizer(language: 'english');
+      final tokenizer = Tokenizer();
       expect(
         () => tokenizer.tokenize('hello', language: 'french'),
         throwsA(isA<ArgumentError>()),
@@ -121,7 +121,7 @@ void main() {
     });
 
     test('does not throw when language matches tokenizer language', () {
-      final tokenizer = Tokenizer(language: 'english');
+      final tokenizer = Tokenizer();
       expect(
         tokenizer.tokenize('hello', language: 'english'),
         equals(['hello']),

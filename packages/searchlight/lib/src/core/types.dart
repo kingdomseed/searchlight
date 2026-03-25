@@ -65,9 +65,10 @@ final class SortBy {
 /// A custom reduce function for group aggregation.
 ///
 /// Matches Orama's `Reduce` type from `types.ts`.
-/// The [reducer] takes the group values, accumulator, current result, and index,
-/// and returns the new accumulator value.
-/// The [getInitialValue] creates the initial accumulator for a given result count.
+/// The [reducer] takes the group values, accumulator, current
+/// result, and index, and returns the new accumulator value.
+/// The [getInitialValue] creates the initial accumulator for a
+/// given result count.
 final class GroupReduce<T> {
   /// Creates a [GroupReduce] with the given [reducer] and [getInitialValue].
   const GroupReduce({required this.reducer, required this.getInitialValue});
@@ -76,7 +77,7 @@ final class GroupReduce<T> {
   final T Function(List<Object> values, T acc, SearchHit res, int index)
       reducer;
 
-  /// Returns the initial accumulator value for a group of the given [length].
+  /// Returns the initial accumulator value for a group of the given length.
   final T Function(int length) getInitialValue;
 }
 

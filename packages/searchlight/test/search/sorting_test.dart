@@ -4,18 +4,16 @@
 
 import 'package:searchlight/searchlight.dart';
 import 'package:searchlight/src/indexing/index_manager.dart' show TokenScore;
-import 'package:searchlight/src/indexing/sort_index.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('SortIndex', () {
     test('sortBy ascending returns results sorted by field value asc', () {
-      final sortIndex = SortIndex();
-
-      // Insert documents with price values
-      sortIndex.insert(property: 'price', docId: 1, value: 50);
-      sortIndex.insert(property: 'price', docId: 2, value: 10);
-      sortIndex.insert(property: 'price', docId: 3, value: 30);
+      final sortIndex = SortIndex()
+        // Insert documents with price values
+        ..insert(property: 'price', docId: 1, value: 50)
+        ..insert(property: 'price', docId: 2, value: 10)
+        ..insert(property: 'price', docId: 3, value: 30);
 
       // Simulate search results (in score order)
       final results = <TokenScore>[
@@ -37,11 +35,10 @@ void main() {
     });
 
     test('sortBy descending returns results sorted by field value desc', () {
-      final sortIndex = SortIndex();
-
-      sortIndex.insert(property: 'price', docId: 1, value: 50);
-      sortIndex.insert(property: 'price', docId: 2, value: 10);
-      sortIndex.insert(property: 'price', docId: 3, value: 30);
+      final sortIndex = SortIndex()
+        ..insert(property: 'price', docId: 1, value: 50)
+        ..insert(property: 'price', docId: 2, value: 10)
+        ..insert(property: 'price', docId: 3, value: 30);
 
       final results = <TokenScore>[
         (1, 1.0),
@@ -62,14 +59,13 @@ void main() {
     });
 
     test('sortBy overrides score-based sorting', () {
-      final sortIndex = SortIndex();
-
-      // Doc 1 has highest score but highest price
-      // Doc 2 has middle score and lowest price
-      // Doc 3 has lowest score and middle price
-      sortIndex.insert(property: 'price', docId: 1, value: 100);
-      sortIndex.insert(property: 'price', docId: 2, value: 10);
-      sortIndex.insert(property: 'price', docId: 3, value: 50);
+      final sortIndex = SortIndex()
+        // Doc 1 has highest score but highest price
+        // Doc 2 has middle score and lowest price
+        // Doc 3 has lowest score and middle price
+        ..insert(property: 'price', docId: 1, value: 100)
+        ..insert(property: 'price', docId: 2, value: 10)
+        ..insert(property: 'price', docId: 3, value: 50);
 
       // Results are in score order (highest first)
       final results = <TokenScore>[
@@ -103,11 +99,22 @@ void main() {
         'price': const TypedField(SchemaType.number),
       });
 
-      final db = Searchlight.create(schema: schema);
-      db
-        ..insert({'id': 'expensive', 'title': 'hello A', 'price': 100})
-        ..insert({'id': 'cheap', 'title': 'hello B', 'price': 10})
-        ..insert({'id': 'mid', 'title': 'hello C', 'price': 50});
+      final db = Searchlight.create(schema: schema)
+        ..insert({
+          'id': 'expensive',
+          'title': 'hello A',
+          'price': 100,
+        })
+        ..insert({
+          'id': 'cheap',
+          'title': 'hello B',
+          'price': 10,
+        })
+        ..insert({
+          'id': 'mid',
+          'title': 'hello C',
+          'price': 50,
+        });
 
       // Search with sort by price ascending
       final result = db.search(
@@ -124,26 +131,43 @@ void main() {
       expect(result.hits[2].id, 'expensive'); // price=100
     });
 
-    test('search with sortBy desc returns results sorted descending', () {
-      final schema = Schema({
-        'title': const TypedField(SchemaType.string),
-        'price': const TypedField(SchemaType.number),
-      });
+    test(
+      'search with sortBy desc returns results sorted descending',
+      () {
+        final schema = Schema({
+          'title': const TypedField(SchemaType.string),
+          'price': const TypedField(SchemaType.number),
+        });
 
-      final db = Searchlight.create(schema: schema);
-      db
-        ..insert({'id': 'expensive', 'title': 'hello A', 'price': 100})
-        ..insert({'id': 'cheap', 'title': 'hello B', 'price': 10})
-        ..insert({'id': 'mid', 'title': 'hello C', 'price': 50});
+        final db = Searchlight.create(schema: schema)
+          ..insert({
+            'id': 'expensive',
+            'title': 'hello A',
+            'price': 100,
+          })
+          ..insert({
+            'id': 'cheap',
+            'title': 'hello B',
+            'price': 10,
+          })
+          ..insert({
+            'id': 'mid',
+            'title': 'hello C',
+            'price': 50,
+          });
 
-      final result = db.search(
-        term: 'hello',
-        sortBy: const SortBy(field: 'price', order: SortOrder.desc),
-      );
+        final result = db.search(
+          term: 'hello',
+          sortBy: const SortBy(
+            field: 'price',
+            order: SortOrder.desc,
+          ),
+        );
 
-      expect(result.hits[0].id, 'expensive'); // price=100
-      expect(result.hits[1].id, 'mid'); // price=50
-      expect(result.hits[2].id, 'cheap'); // price=10
-    });
+        expect(result.hits[0].id, 'expensive'); // price=100
+        expect(result.hits[1].id, 'mid'); // price=50
+        expect(result.hits[2].id, 'cheap'); // price=10
+      },
+    );
   });
 }
