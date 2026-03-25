@@ -46,5 +46,14 @@ void main() {
         throwsA(isA<DocumentValidationException>()),
       );
     });
+
+    test(
+        'insert with extra fields not in schema throws DocumentValidationException',
+        () {
+      expect(
+        () => db.insert({'title': 'Hello', 'unknown': 'field'}),
+        throwsA(isA<DocumentValidationException>()),
+      );
+    });
   });
 }
