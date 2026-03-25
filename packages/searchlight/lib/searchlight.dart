@@ -14,6 +14,7 @@ export 'src/text/stemmer.dart';
 export 'src/text/stop_words.dart';
 export 'src/text/tokenizer.dart';
 export 'src/trees/avl_tree.dart';
+export 'src/trees/bkd_tree.dart';
 export 'src/trees/bool_node.dart';
 export 'src/trees/flat_tree.dart';
 export 'src/trees/radix_tree.dart';
