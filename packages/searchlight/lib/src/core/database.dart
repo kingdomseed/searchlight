@@ -149,9 +149,7 @@ final class Searchlight {
   ///
   /// Silently ignores IDs that are not found.
   void removeMultiple(List<DocId> ids) {
-    for (final id in ids) {
-      _documents.remove(id);
-    }
+    ids.forEach(_documents.remove);
   }
 
   /// Removes all documents from the database.

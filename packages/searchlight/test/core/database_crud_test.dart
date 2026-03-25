@@ -40,21 +40,26 @@ void main() {
       expect(db.getById(const DocId(999)), isNull);
     });
 
-    test('insert with wrong field type throws DocumentValidationException', () {
-      expect(
-        () => db.insert({'title': 123}),
-        throwsA(isA<DocumentValidationException>()),
-      );
-    });
+    test(
+      'insert with wrong field type throws DocumentValidationException',
+      () {
+        expect(
+          () => db.insert({'title': 123}),
+          throwsA(isA<DocumentValidationException>()),
+        );
+      },
+    );
 
     test(
-        'insert with extra fields not in schema throws DocumentValidationException',
-        () {
-      expect(
-        () => db.insert({'title': 'Hello', 'unknown': 'field'}),
-        throwsA(isA<DocumentValidationException>()),
-      );
-    });
+      'insert with extra fields not in schema throws '
+      'DocumentValidationException',
+      () {
+        expect(
+          () => db.insert({'title': 'Hello', 'unknown': 'field'}),
+          throwsA(isA<DocumentValidationException>()),
+        );
+      },
+    );
 
     test('insert allows missing fields (treated as null/absent)', () {
       final id = db.insert({'title': 'Partial'});
@@ -79,8 +84,9 @@ void main() {
     });
 
     test('remove on unknown ID does nothing (no error)', () {
-      db.insert({'title': 'Hello', 'price': 9.99});
-      db.remove(const DocId(999));
+      db
+        ..insert({'title': 'Hello', 'price': 9.99})
+        ..remove(const DocId(999));
       expect(db.count, 1);
     });
 
@@ -94,8 +100,9 @@ void main() {
     });
 
     test('clear resets count to 0 and empties the database', () {
-      db.insert({'title': 'A', 'price': 1});
-      db.insert({'title': 'B', 'price': 2});
+      db
+        ..insert({'title': 'A', 'price': 1})
+        ..insert({'title': 'B', 'price': 2});
       expect(db.count, 2);
       db.clear();
       expect(db.count, 0);
