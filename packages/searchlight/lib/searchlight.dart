@@ -10,6 +10,8 @@ export 'src/core/types.dart';
 export 'src/highlight/highlighter.dart';
 export 'src/highlight/positions.dart';
 export 'src/indexing/sort_index.dart';
+export 'src/scoring/pt15.dart';
+export 'src/scoring/qps.dart';
 export 'src/search/facets.dart';
 export 'src/search/filters.dart';
 export 'src/search/grouping.dart';
