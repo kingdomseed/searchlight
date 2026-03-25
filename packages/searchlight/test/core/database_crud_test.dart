@@ -35,5 +35,9 @@ void main() {
       expect(doc!.getString('title'), 'Hello');
       expect(doc.getNumber('price'), 9.99);
     });
+
+    test('getById returns null for unknown ID', () {
+      expect(db.getById(const DocId(999)), isNull);
+    });
   });
 }
