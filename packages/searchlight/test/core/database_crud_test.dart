@@ -39,5 +39,12 @@ void main() {
     test('getById returns null for unknown ID', () {
       expect(db.getById(const DocId(999)), isNull);
     });
+
+    test('insert with wrong field type throws DocumentValidationException', () {
+      expect(
+        () => db.insert({'title': 123}),
+        throwsA(isA<DocumentValidationException>()),
+      );
+    });
   });
 }
