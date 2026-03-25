@@ -268,6 +268,55 @@ final class Searchlight {
     return count;
   }
 
+  // ---------------------------------------------------------------------------
+  // Update
+  // ---------------------------------------------------------------------------
+
+  /// Replaces a document by removing the old one and inserting the new one.
+  ///
+  /// Matching Orama's `updateSync`: removes the document with the given
+  /// external [id], then inserts [newDoc] as a fresh document. The remove
+  /// may silently fail if [id] doesn't exist — the insert always proceeds.
+  ///
+  /// Returns the new external [String] ID of the inserted document.
+  ///
+  /// Throws [DocumentValidationException] if [newDoc] does not conform
+  /// to the schema.
+  String update(String id, Map<String, Object?> newDoc) {
+    remove(id);
+    return insert(newDoc);
+  }
+
+  /// Replaces multiple documents by removing the old ones and inserting
+  /// new ones.
+  ///
+  /// Matching Orama's `updateMultipleSync`:
+  /// 1. Validates ALL [newDocs] against the schema first. If any fail,
+  ///    throws immediately — no removes happen.
+  /// 2. Calls [removeMultiple] with [ids].
+  /// 3. Calls [insertMultiple] with [newDocs].
+  /// 4. Returns the new external IDs.
+  ///
+  /// The validate-all-first pattern prevents partial state corruption.
+  ///
+  /// The [batchSize] parameter is accepted for API compatibility.
+  List<String> updateMultiple(
+    List<String> ids,
+    List<Map<String, Object?>> newDocs, {
+    int batchSize = 1000,
+  }) {
+    // Step 1: Validate ALL docs against schema FIRST (before any removes)
+    for (final doc in newDocs) {
+      _validateDocument(doc, schema.fields, '');
+    }
+
+    // Step 2: Remove all old documents
+    removeMultiple(ids);
+
+    // Step 3: Insert all new documents
+    return insertMultiple(newDocs, batchSize: batchSize);
+  }
+
   /// Removes all documents from the database.
   void clear() {
     _documents.clear();
