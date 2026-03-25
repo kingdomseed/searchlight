@@ -92,5 +92,13 @@ void main() {
       db.removeMultiple([id1, id2]);
       expect(db.count, 1);
     });
+
+    test('clear resets count to 0 and empties the database', () {
+      db.insert({'title': 'A', 'price': 1});
+      db.insert({'title': 'B', 'price': 2});
+      expect(db.count, 2);
+      db.clear();
+      expect(db.count, 0);
+    });
   });
 }

@@ -154,6 +154,11 @@ final class Searchlight {
     }
   }
 
+  /// Removes all documents from the database.
+  void clear() {
+    _documents.clear();
+  }
+
   /// Releases resources. Flushes pending writes if applicable.
   Future<void> dispose() async {
     // Will be expanded when persistence/isolates are added
