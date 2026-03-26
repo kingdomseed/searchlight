@@ -16,7 +16,7 @@
 - [x] Edge case test 11: Search after clear (RED -> fixed clear() -> GREEN)
 - [x] Edge case test 12: Multiple inserts then bulk remove then search (passed immediately)
 - [x] Edge case test 13: Update preserving same ID (passed immediately)
-- [x] Edge case test 14: Concurrent insert and search (passed immediately)
+- [x] Edge case test 14: Sequential interleaved insert/search (passed immediately)
 - [x] Barrel file finalization
 - [x] README.md
 

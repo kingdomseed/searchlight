@@ -94,7 +94,10 @@ void qpsInsertString({
     for (final token in tokens) {
       tokenNumber++;
 
-      final tokenBitIndex = math.min(quantumIndex, 20);
+      // The packed descriptor reserves only the lower 20 bits for quantums.
+      // Saturate overflow into the final representable bucket instead of
+      // shifting into the count region and dropping the proximity signal.
+      final tokenBitIndex = math.min(quantumIndex, 19);
 
       stats.tokenQuantums[internalId]![token] = calculateTokenQuantum(
         stats.tokenQuantums[internalId]![token] ?? 0,

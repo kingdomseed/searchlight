@@ -138,7 +138,8 @@ final class SortIndex {
         return va.compareTo(vb);
       }
       if (va is bool && vb is bool) {
-        return vb ? -1 : 1;
+        if (va == vb) return 0;
+        return va ? 1 : -1;
       }
       return 0;
     });

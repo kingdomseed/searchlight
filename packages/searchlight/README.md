@@ -13,7 +13,7 @@ Inspired by [Orama](https://github.com/oramasearch/orama).
 - Facets, groups, and field-based sorting
 - Text highlighting with positions and trim
 - JSON and CBOR persistence with format versioning
-- 30-language tokenizer with stemming and stop words
+- 30 supported tokenizer languages with stemming and opt-in stop words
 
 ## Installation
 

@@ -76,6 +76,9 @@ final class Document {
   // Raw map access
   // ---------------------------------------------------------------------------
 
-  /// Returns an unmodifiable copy of the underlying data map.
+  /// Returns a shallowly unmodifiable copy of the underlying data map.
+  ///
+  /// Nested maps and lists are shared with the wrapped document data and may
+  /// still be mutated through their own references.
   Map<String, Object?> toMap() => Map<String, Object?>.unmodifiable(_data);
 }

@@ -116,9 +116,8 @@ void main() {
         throwsA(isA<DocumentValidationException>()),
       );
 
-      // Original document should still exist (insert failed, but remove
-      // already happened — matching Orama's behavior: remove then insert,
-      // insert validates and throws)
+      expect(db.getById('valid-doc'), isNull);
+      expect(db.count, 0);
     });
   });
 

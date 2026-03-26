@@ -91,6 +91,27 @@ void main() {
       expect(sorted[1].$2, 1.0);
       expect(sorted[2].$2, 10.0);
     });
+
+    test('sortBy on booleans does not reverse equal false values', () {
+      final sortIndex = SortIndex()
+        ..insert(property: 'active', docId: 1, value: false)
+        ..insert(property: 'active', docId: 2, value: false)
+        ..insert(property: 'active', docId: 3, value: true);
+
+      final results = <TokenScore>[
+        (1, 1.0),
+        (2, 0.9),
+        (3, 0.8),
+      ];
+
+      final sorted = sortIndex.sortBy(
+        results: results,
+        property: 'active',
+        order: SortOrder.asc,
+      );
+
+      expect(sorted.map((entry) => entry.$1).toList(), [1, 2, 3]);
+    });
   });
 
   group('Searchlight.search() with sortBy', () {

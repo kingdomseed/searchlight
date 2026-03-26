@@ -127,7 +127,7 @@ Map<String, FacetResult> getFacets({
       final offset = config.offset;
       final limit = config.limit;
       final end = math.min(limit, sorted.length);
-      final start = math.min(offset, sorted.length);
+      final start = math.min(offset, end);
       final sliced = sorted.sublist(start, end);
       finalValues = Map.fromEntries(sliced);
     } else {

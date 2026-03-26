@@ -16,7 +16,9 @@ final class FlatTree {
   factory FlatTree.fromJson(Map<String, Object> json) {
     final raw = json['numberToDocumentId'];
     if (raw == null) {
-      throw ArgumentError('Invalid Flat Tree JSON');
+      throw ArgumentError(
+        'Invalid FlatTree JSON: missing "numberToDocumentId" entries.',
+      );
     }
     final entries = raw as List<Object?>;
     final tree = FlatTree();

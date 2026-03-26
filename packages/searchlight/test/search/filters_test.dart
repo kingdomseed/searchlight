@@ -262,6 +262,30 @@ void main() {
       );
     });
 
+    test('not filter excludes deleted internal ids from result count', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'active': const TypedField(SchemaType.boolean),
+        }),
+      )
+        ..insert({'id': 'doc1', 'title': 'A', 'active': true})
+        ..insert({'id': 'doc2', 'title': 'B', 'active': false})
+        ..insert({'id': 'doc3', 'title': 'C', 'active': true})
+        ..remove('doc2');
+
+      final result = db.search(
+        where: {
+          'logic': not({'active': eq(false)}),
+        },
+      );
+
+      expect(result.count, 2);
+      expect(result.hits, hasLength(2));
+      final ids = result.hits.map((h) => h.id).toSet();
+      expect(ids, {'doc1', 'doc3'});
+    });
+
     // Item 2: String field where-clause filtering (Radix)
     test('filter by string field (Radix) using EqFilter', () {
       final db = Searchlight.create(

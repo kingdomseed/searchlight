@@ -82,15 +82,15 @@ void main() {
       expect(first, equals(['run']));
     });
 
-    test('tokenizeSkipProperties returns input as single normalized token', () {
+    test('tokenizeSkipProperties bypasses splitting and lowercasing', () {
       final tokenizer = Tokenizer(
         tokenizeSkipProperties: {'id'},
       );
-      // When property is in skip set, input is NOT split on whitespace
-      // but IS still normalized (diacritics replaced).
+      // When property is in skip set, input is NOT split or lowercased,
+      // but normalization still runs (for example diacritics replacement).
       expect(
-        tokenizer.tokenize('hello world', property: 'id'),
-        equals(['hello world']),
+        tokenizer.tokenize('SKU Élite 42', property: 'id'),
+        equals(['SKU Elite 42']),
       );
     });
 

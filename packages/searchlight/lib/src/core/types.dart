@@ -166,10 +166,14 @@ final class FacetConfig {
     this.ranges,
   });
 
-  /// Maximum number of facet values to return (string facets only).
+  /// End index for string-facet slicing, matching Orama's
+  /// `slice(offset, limit)` semantics.
+  ///
+  /// This is not a "count" parameter. With `offset: 1, limit: 3`, the
+  /// resulting slice includes facet entries at indices `1` and `2`.
   final int limit;
 
-  /// Number of facet values to skip (string facets only).
+  /// Start index for string-facet slicing (string facets only).
   final int offset;
 
   /// Sort order for facet values (string facets only).

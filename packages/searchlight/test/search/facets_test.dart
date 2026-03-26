@@ -225,6 +225,41 @@ void main() {
       expect(categoryFacet.values.length, 2);
     });
 
+    test('string facet with offset greater than limit returns empty slice', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+        'category': const TypedField(SchemaType.string),
+      });
+
+      final db = Searchlight.create(schema: schema)
+        ..insert({'id': 'd1', 'title': 'A', 'category': 'alpha'})
+        ..insert({'id': 'd2', 'title': 'B', 'category': 'alpha'})
+        ..insert({'id': 'd3', 'title': 'C', 'category': 'beta'})
+        ..insert({'id': 'd4', 'title': 'D', 'category': 'gamma'})
+        ..insert({'id': 'd5', 'title': 'E', 'category': 'delta'});
+
+      final results = <TokenScore>[
+        (1, 1.0),
+        (2, 0.9),
+        (3, 0.8),
+        (4, 0.7),
+        (5, 0.6),
+      ];
+
+      final facets = getFacets(
+        documents: db.documentsForFacets,
+        results: results,
+        facetsConfig: {
+          'category': const FacetConfig(offset: 5, limit: 3),
+        },
+        propertiesWithTypes: db.propertiesWithTypes,
+      );
+
+      final categoryFacet = facets['category']!;
+      expect(categoryFacet.count, 4);
+      expect(categoryFacet.values, isEmpty);
+    });
+
     // Item 4: Array facet dedup -- alreadyInsertedValues per doc
     test('array facet does not double-count duplicate values', () {
       final schema = Schema({

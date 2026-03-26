@@ -190,10 +190,26 @@ final class SearchIndex {
       if (indexTree == null) continue;
 
       final isArray = indexTree.isArray;
+      final isBm25StringArray =
+          algorithm == SearchAlgorithm.bm25 &&
+          isArray &&
+          indexTree.type == TreeType.radix &&
+          value is List;
 
-      // Orama: insertScalarBuilder is called per element, and each call
-      // to the Radix case calls insertDocumentScoreParameters. So for
-      // arrays, scoring is done per element (last element overwrites).
+      if (isBm25StringArray) {
+        _insertBm25StringArray(
+          prop,
+          docId,
+          value.cast<Object>(),
+          indexTree,
+          tokenizer,
+        );
+        continue;
+      }
+
+      // Searchlight hardening: for BM25 string arrays we score the entire
+      // property once using the concatenated token stream, then index every
+      // element's tokens.
       if (isArray && value is List) {
         for (final element in value) {
           _insertScalar(
@@ -208,6 +224,34 @@ final class SearchIndex {
       } else {
         _insertScalar(prop, docId, value, indexTree, tokenizer, language);
       }
+    }
+  }
+
+  void _insertBm25StringArray(
+    String prop,
+    int docId,
+    List<Object> values,
+    IndexTree indexTree,
+    Tokenizer tokenizer,
+  ) {
+    final node = indexTree.node as RadixTree;
+    final allTokens = <String>[];
+
+    for (final value in values) {
+      final tokens = tokenizer.tokenize(
+        value as String,
+        property: prop,
+        withCache: false,
+      );
+      allTokens.addAll(tokens);
+      for (final token in tokens) {
+        node.insert(token, docId);
+      }
+    }
+
+    _insertDocumentScoreParameters(prop, docId, allTokens);
+    for (final token in allTokens) {
+      _insertTokenScoreParameters(prop, docId, allTokens, token);
     }
   }
 
@@ -237,9 +281,6 @@ final class SearchIndex {
               withCache: false,
             );
 
-            // Item 9: Orama's insertScalarBuilder calls
-            // insertDocumentScoreParameters for EVERY element (including array
-            // elements). For arrays, the last element's tokens overwrite.
             _insertDocumentScoreParameters(prop, docId, tokens);
             for (final token in tokens) {
               _insertTokenScoreParameters(prop, docId, tokens, token);
@@ -334,6 +375,23 @@ final class SearchIndex {
       final indexTree = indexes[prop];
       if (indexTree == null) continue;
 
+      final isBm25StringArray =
+          algorithm == SearchAlgorithm.bm25 &&
+          indexTree.isArray &&
+          indexTree.type == TreeType.radix &&
+          value is List;
+
+      if (isBm25StringArray) {
+        _removeBm25StringArray(
+          prop,
+          docId,
+          value.cast<Object>(),
+          indexTree,
+          tokenizer,
+        );
+        continue;
+      }
+
       if (indexTree.isArray && value is List) {
         for (final element in value) {
           _removeScalar(
@@ -351,6 +409,31 @@ final class SearchIndex {
     }
 
     _docsCount--;
+  }
+
+  void _removeBm25StringArray(
+    String prop,
+    int docId,
+    List<Object> values,
+    IndexTree indexTree,
+    Tokenizer tokenizer,
+  ) {
+    final node = indexTree.node as RadixTree;
+    final allTokens = <String>[];
+
+    for (final value in values) {
+      final tokens = tokenizer.tokenize(
+        value as String,
+        property: prop,
+      );
+      allTokens.addAll(tokens);
+    }
+
+    _removeDocumentScoreParameters(prop, docId);
+    for (final token in allTokens) {
+      _removeTokenScoreParameters(prop, token);
+      node.removeDocumentByWord(token, docId);
+    }
   }
 
   void _removeScalar(

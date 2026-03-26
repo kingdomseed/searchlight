@@ -111,6 +111,30 @@ void main() {
       final worldResult = radixTree.find(term: 'world', exact: true);
       expect(worldResult['world'], contains(1));
     });
+
+    test('saturates overflowed sentence quantums into the final bit bucket',
+        () {
+      stats.tokenQuantums[1] = {};
+
+      final value = List.generate(
+        21,
+        (i) => i == 20 ? 'overflow token' : 'filler$i token',
+      ).join('. ');
+
+      qpsInsertString(
+        value: value,
+        radixTree: radixTree,
+        stats: stats,
+        prop: 'title',
+        internalId: 1,
+        tokenizer: tokenizer,
+      );
+
+      final packed = stats.tokenQuantums[1]!['overflow'];
+      expect(packed, isNotNull);
+      expect(countFromPacked(packed!), 1);
+      expect(bitmask20(packed), 1 << 19);
+    });
   });
 
   group('QPS searchString', () {

@@ -241,6 +241,47 @@ void main() {
         expect(index.fieldLengths['title']!.containsKey(1), isFalse);
         expect(index.frequencies['title']!.containsKey(1), isFalse);
       });
+
+      test('removing string-array doc updates bm25 stats once per document',
+          () {
+        final schema = Schema({
+          'tags': const TypedField(SchemaType.stringArray),
+        });
+        final index = SearchIndex.create(schema: schema);
+        final tokenizer = Tokenizer(
+          allowDuplicates: true,
+          useDefaultStopWords: false,
+        );
+
+        index
+          ..insertDocument(
+            docId: 1,
+            data: {
+              'tags': ['red green', 'blue yellow'],
+            },
+            tokenizer: tokenizer,
+          )
+          ..insertDocument(
+            docId: 2,
+            data: {
+              'tags': ['orange'],
+            },
+            tokenizer: tokenizer,
+          )
+          ..removeDocument(
+            docId: 1,
+            data: {
+              'tags': ['red green', 'blue yellow'],
+            },
+            tokenizer: tokenizer,
+          );
+
+        expect(index.docsCount, 1);
+        expect(index.avgFieldLength['tags'], 1.0);
+        expect(index.fieldLengths['tags'], {2: 1});
+        expect(index.frequencies['tags']!.containsKey(1), isFalse);
+        expect(index.frequencies['tags']![2], containsPair('orange', 1.0));
+      });
     });
 
     group('search', () {
@@ -419,7 +460,7 @@ void main() {
 
     // Item 9: String array BM25 scoring -- per-element overwriting
     group('string array BM25 scoring', () {
-      test('calls insertDocumentScoreParameters per element (overwriting)', () {
+      test('combines tokens from all array elements for bm25 metadata', () {
         final schema = Schema({
           'tags': const TypedField(SchemaType.stringArray),
         });
@@ -434,9 +475,70 @@ void main() {
           tokenizer: tok,
         );
 
-        // Orama: last element's tokens determine fieldLength
-        // "goodbye" => 1 token, so fieldLengths['tags'][1] = 1
-        expect(idx.fieldLengths['tags']![1], 1);
+        expect(idx.fieldLengths['tags']![1], 3);
+      });
+
+      test('search score after removal matches a fresh index', () {
+        final schema = Schema({
+          'tags': const TypedField(SchemaType.stringArray),
+        });
+        final tokenizer = Tokenizer(
+          allowDuplicates: true,
+          useDefaultStopWords: false,
+        );
+
+        final idx = SearchIndex.create(schema: schema)
+          ..insertDocument(
+            docId: 1,
+            data: {
+              'tags': ['red green', 'blue yellow'],
+            },
+            tokenizer: tokenizer,
+          )
+          ..insertDocument(
+            docId: 2,
+            data: {
+              'tags': ['orange'],
+            },
+            tokenizer: tokenizer,
+          )
+          ..removeDocument(
+            docId: 1,
+            data: {
+              'tags': ['red green', 'blue yellow'],
+            },
+            tokenizer: tokenizer,
+          );
+
+        final fresh = SearchIndex.create(schema: schema)
+          ..insertDocument(
+            docId: 2,
+            data: {
+              'tags': ['orange'],
+            },
+            tokenizer: tokenizer,
+          );
+
+        final afterRemove = idx.search(
+          term: 'orange',
+          tokenizer: tokenizer,
+          propertiesToSearch: ['tags'],
+          relevance: const BM25Params(),
+        );
+        final freshResults = fresh.search(
+          term: 'orange',
+          tokenizer: tokenizer,
+          propertiesToSearch: ['tags'],
+          relevance: const BM25Params(),
+        );
+
+        expect(afterRemove, hasLength(1));
+        expect(freshResults, hasLength(1));
+        expect(afterRemove.first.$1, 2);
+        expect(
+          afterRemove.first.$2,
+          closeTo(freshResults.first.$2, 1e-10),
+        );
       });
     });
 

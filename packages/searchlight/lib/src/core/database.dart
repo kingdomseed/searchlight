@@ -545,6 +545,11 @@ final class Searchlight {
   ///
   /// Returns the new external [String] ID of the inserted document.
   ///
+  /// Validation happens during the insert step, after the old document has
+  /// already been removed. If [newDoc] is invalid, the update throws and the
+  /// original document stays deleted. This matches Orama's remove-then-insert
+  /// semantics.
+  ///
   /// Throws [DocumentValidationException] if [newDoc] does not conform
   /// to the schema.
   String update(String id, Map<String, Object?> newDoc) {
@@ -691,7 +696,7 @@ final class Searchlight {
       whereFiltersIDs = searchByWhereClause(
         _index,
         where,
-        totalDocs: _nextInternalId - 1,
+        existingDocIds: _documents.keys.map((docId) => docId.id).toSet(),
         tokenizer: _tokenizer,
         language: language,
       );

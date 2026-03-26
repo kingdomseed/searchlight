@@ -43,10 +43,11 @@ return ((currentCount + 1) << 20) | newSentenceMask;
 - Increments `quantumIndex` only if `tokens.length > 1`
 - Sets `stats.tokensLength.set(internalId, tokenNumber)`
 
-**Searchlight** (`qps.dart:77-114`):
+**Searchlight** (`qps.dart:77-117`):
 - Splits on `RegExp('[.?!]')` -- equivalent regex
 - Same iteration structure
-- Same `tokenBitIndex = math.min(quantumIndex, 20)`
+- Caps `tokenBitIndex` at `19` so overflowed sentences saturate into the last
+  representable bit bucket
 - Passes `stats.tokenQuantums[internalId]![token] ?? 0` -- explicit null coalescion, functionally identical to JS undefined-to-0
 - Omits the `stats[token] = 0` line -- this is dead code in Orama (unused state)
 - Same `quantumIndex` increment guard (`tokens.length > 1`)
@@ -54,6 +55,7 @@ return ((currentCount + 1) << 20) | newSentenceMask;
 
 **Divergences:**
 - Regex syntax (`/\.|\?|!/` vs `RegExp('[.?!]')`): **ACCEPTABLE** -- both split on `.`, `?`, `!` characters. The Orama regex uses alternation; the Dart uses a character class. Functionally equivalent.
+- Quantum overflow saturation (`19` vs Orama's `20`): **HARDENED DIVERGENCE** -- Orama's `Math.min(quantumIndex, 20)` writes the 21st sentence into bit `20`, which is outside the packed 20-bit mask and gets discarded by `bitmask_20`. Searchlight intentionally caps at `19` so late sentences still contribute to proximity scoring.
 - `?? 0` vs implicit JS `undefined`-to-`0` coercion: **ACCEPTABLE** -- explicit null safety in Dart
 - Omission of `stats[token] = 0`: **ACCEPTABLE** -- this is dead code in Orama; it sets an ad-hoc property on the stats object that is never read by `searchString` or `removeString`
 
@@ -494,6 +496,6 @@ case SearchAlgorithm.pt15:
 
 All in the QPS where-clause filtering area (D). These are edge cases in how string filters are processed during `searchByWhereClause` for QPS mode. The core search and scoring paths are functionally equivalent.
 
-### ACCEPTABLE items: All remaining
+### ACCEPTABLE items: All remaining except the explicit hardening in A2
 
-The QPS and PT15 algorithm implementations (bit packing, scoring formulas, insert/search/remove flows, popcount, position calculation, prefix storage, multi-property merge) are functionally equivalent to Orama's TypeScript source. Differences are limited to Dart naming conventions, type system adaptations, and idiomatic Dart patterns.
+The QPS and PT15 algorithm implementations are functionally equivalent to Orama's TypeScript source except for Searchlight's intentional QPS overflow hardening in A2. Other differences are limited to Dart naming conventions, type system adaptations, and idiomatic Dart patterns.

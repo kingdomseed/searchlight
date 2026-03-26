@@ -300,6 +300,30 @@ void main() {
       expect(after.hits, isEmpty);
     });
 
+    test('not filter count matches hits after deleting a document', () {
+      final filteredDb = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'active': const TypedField(SchemaType.boolean),
+        }),
+      )
+        ..insert({'id': 'doc1', 'title': 'hello alpha', 'active': true})
+        ..insert({'id': 'doc2', 'title': 'hello beta', 'active': false})
+        ..insert({'id': 'doc3', 'title': 'hello gamma', 'active': true})
+        ..remove('doc2');
+
+      final result = filteredDb.search(
+        term: 'hello',
+        where: {
+          'logic': not({'active': eq(false)}),
+        },
+      );
+
+      expect(result.count, 2);
+      expect(result.hits, hasLength(2));
+      expect(result.hits.map((h) => h.id).toSet(), {'doc1', 'doc3'});
+    });
+
     // Item 19: Exact-term post-filtering
     test('exact search filters to docs containing whole-word matches', () {
       db

@@ -281,7 +281,7 @@ Filter not(Map<String, Filter> filter) => NotFilter(filter);
 Set<int> searchByWhereClause(
   SearchIndex index,
   Map<String, Filter> filters, {
-  required int totalDocs,
+  required Set<int> existingDocIds,
   Tokenizer? tokenizer,
   String? language,
 }) {
@@ -299,7 +299,7 @@ Set<int> searchByWhereClause(
             (f) => searchByWhereClause(
               index,
               f,
-              totalDocs: totalDocs,
+              existingDocIds: existingDocIds,
               tokenizer: tokenizer,
               language: language,
             ),
@@ -315,7 +315,7 @@ Set<int> searchByWhereClause(
             (f) => searchByWhereClause(
               index,
               f,
-              totalDocs: totalDocs,
+              existingDocIds: existingDocIds,
               tokenizer: tokenizer,
               language: language,
             ),
@@ -325,14 +325,11 @@ Set<int> searchByWhereClause(
     }
 
     if (operation is NotFilter) {
-      final allDocs = <int>{};
-      for (var i = 1; i <= totalDocs; i++) {
-        allDocs.add(i);
-      }
+      final allDocs = Set<int>.from(existingDocIds);
       final notResult = searchByWhereClause(
         index,
         operation.filter,
-        totalDocs: totalDocs,
+        existingDocIds: existingDocIds,
         tokenizer: tokenizer,
         language: language,
       );

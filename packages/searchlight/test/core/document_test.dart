@@ -45,6 +45,17 @@ void main() {
       expect(() => (map as Map)['new'] = 'value', throwsUnsupportedError);
     });
 
+    test('toMap is only shallowly unmodifiable', () {
+      final nestedData = <String, Object?>{'rating': 4.5};
+      final doc = Document({'meta': nestedData});
+
+      final map = doc.toMap();
+      final nested = map['meta']! as Map<String, Object?>;
+      nested['rating'] = 5.0;
+
+      expect((doc.toMap()['meta']! as Map<String, Object?>)['rating'], 5.0);
+    });
+
     test('getString throws on wrong type', () {
       const doc = Document({'price': 9.99});
       expect(() => doc.getString('price'), throwsA(isA<TypeError>()));

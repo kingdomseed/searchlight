@@ -99,7 +99,12 @@ final class Tokenizer {
   /// Whether to allow duplicate tokens in the output.
   final bool allowDuplicates;
 
-  /// Property names to skip tokenization for (return input as single token).
+  /// Property names to skip tokenization for.
+  ///
+  /// When a property is listed here, [tokenize] bypasses the normal
+  /// lowercasing and splitter pipeline and instead forwards the raw input
+  /// through [normalizeToken] as a single token. This matches Orama's current
+  /// behavior for `tokenizeSkipProperties`.
   final Set<String> tokenizeSkipProperties;
 
   /// Property names to skip stemming for.
@@ -109,8 +114,8 @@ final class Tokenizer {
 
   /// Tokenizes [input] into a list of normalized tokens.
   ///
-  /// When [property] is in [tokenizeSkipProperties], returns the input as a
-  /// single normalized token instead of splitting.
+  /// When [property] is in [tokenizeSkipProperties], returns the raw input as
+  /// a single normalized token instead of splitting and lowercasing first.
   List<String> tokenize(
     String input, {
     String? property,

@@ -233,7 +233,7 @@ Searchlight (`index_manager.dart:565-643`):
 
 **Divergences:**
 
-- **Orama calls `insertDocumentScoreParameters` inside `insertScalarBuilder` for Radix (once per scalar value); Searchlight calls `_insertDocumentScoreParameters` outside the loop for non-array strings, and once at array level for string arrays**: MUST FIX -- In Orama, for array string types like `string[]`, `insertScalarBuilder` is called for each element, and EACH call to the scalar builder calls `insertDocumentScoreParameters`. This means for an array of 3 strings, `insertDocumentScoreParameters` is called 3 times with the tokens of each individual string, overwriting `avgFieldLength` and `fieldLengths` each time. Searchlight calls `_insertDocumentScoreParameters` once with all tokens concatenated, and then handles token scoring at the array level. The Orama behavior appears to be a bug-by-design where the last element's tokens determine the field length. Searchlight's approach of combining all array tokens is arguably more correct. NEEDS REVIEW -- This divergence affects BM25 scoring for string array fields.
+- **Orama calls `insertDocumentScoreParameters` inside `insertScalarBuilder` for Radix (once per scalar value); Searchlight now applies BM25 score bookkeeping once per `string[]` property using all array tokens**: HARDENED DIVERGENCE -- Current Orama behavior overwrites `avgFieldLength` and `fieldLengths` per array element, and its remove path repeats the same per-element bookkeeping. Searchlight intentionally diverges here to keep BM25 metadata consistent on both insert and remove for `string[]` fields. This changes relevance scoring relative to current Orama, but avoids corrupted stats after deletions.
 
 - **Orama passes `false` for `withCache` in Radix insert tokenization (`tokenizer.tokenize(value, language, prop, false)`); Searchlight does not pass `withCache: false`**: NEEDS REVIEW -- Orama explicitly disables the normalization cache during indexing by passing `false`. Searchlight uses the default `withCache: true`. This means Searchlight's index-time tokenization uses cached results, which is correct for repeated tokens but diverges from Orama's explicit no-cache behavior during insert. The functional impact is minimal since the cache would return the same result, but it could cause subtle differences if the cache state matters for correctness.
 
@@ -448,7 +448,7 @@ Searchlight: Same approach with `_PropertySort`. On insert, appends `(docId, val
 
 - **String sort: Orama uses `localeCompare(a, b, locale)` with language locale; Searchlight uses `compareTo` without locale**: NEEDS REVIEW -- Orama's string sorting is locale-aware (e.g., German umlauts sort correctly), while Searchlight's `String.compareTo` uses lexicographic ordering. This can produce different sort orders for non-ASCII strings.
 
-- **Boolean sort: Orama's `booleanSort` returns `d[1] ? -1 : 1` (true sorts before false); Searchlight's `vb ? -1 : 1` checks `vb` not `va`**: NEEDS REVIEW -- Looking more carefully: Orama's `booleanSort(value, d)` returns `d[1] ? -1 : 1`, which means if `d` (the second element) is `true`, put it first. Searchlight's `vb ? -1 : 1` is the same: if `vb` (second element's value) is `true`, return -1 (second before first). ACCEPTABLE -- Same result.
+- **Boolean sort: Orama's `booleanSort` returns `d[1] ? -1 : 1`; Searchlight now returns `0` for equal values before ordering `false < true`**: HARDENED DIVERGENCE -- The previous Searchlight comparator matched Orama's ordering for unequal booleans, but violated the comparator contract for equal pairs (`false,false` and `true,true`). Searchlight now intentionally hardens this by returning `0` for equality so repeated sorts remain deterministic for duplicate boolean values.
 
 ### sortBy with asc/desc
 Both use position-based sorting: look up each document's position in the sorted `orderedDocs` array, then compare positions with optional inversion for descending.
@@ -546,15 +546,16 @@ Orama's highlighter is in a separate package (`@orama/highlight`) not directly i
 |---|------|-------------|------|
 | 1 | A (Tokenizer) | Searchlight provides Snowball stemmers for all languages; Orama only has English built-in | Different stemming results for non-English languages |
 | 2 | A (Tokenizer) | Missing language parameter validation in tokenize() | Low -- defense-in-depth only |
-| 3 | E (Index Manager) | String array BM25 scoring: Searchlight combines all tokens; Orama overwrites per-element | May produce different relevance scores for string array fields |
+| 3 | E (Index Manager) | String array BM25 scoring: Searchlight intentionally hardens metadata updates while Orama overwrites per-element | Different relevance scores from current Orama, but avoids corrupted BM25 stats |
 | 4 | E (Index Manager) | Orama disables normalization cache during insert; Searchlight uses cache | Minimal impact -- cache returns same result |
 | 5 | E (Index Manager) | avgFieldLength set to 0 vs undefined when last doc removed | Edge case when index empties and refills |
 | 6 | E (Index Manager) | Missing boost value validation (boost <= 0) | Could produce incorrect scores silently |
-| 7 | E (Index Manager) | Non-Radix property in search: Orama throws, Searchlight skips | Defense-in-depth difference |
-| 8 | H (Filters) | NOT filter all-docs set construction | Functionally equivalent but uses different source |
-| 9 | I (Facets) | Number ranges not pre-initialized with 0 counts | Missing empty ranges in output |
-| 10 | J (Groups) | Missing custom reduce function for group aggregation | Feature gap, low priority for v1 |
-| 11 | J (Groups) | Missing group property type validation | Could cause runtime errors |
-| 12 | K (Sorter) | String sort not locale-aware | Different sort order for non-ASCII strings |
-| 13 | M (Search Flow) | Geo-only queries return score 0 instead of distance-based scores | Affects ordering of geo-only results |
+| 7 | K (Sorter) | Boolean comparator returns `0` for equality instead of mirroring Orama's contract violation | Intentional hardening for deterministic duplicate-boolean sorts |
+| 8 | E (Index Manager) | Non-Radix property in search: Orama throws, Searchlight skips | Defense-in-depth difference |
+| 9 | H (Filters) | NOT filter all-docs set construction | Functionally equivalent but uses different source |
+| 10 | I (Facets) | Number ranges not pre-initialized with 0 counts | Missing empty ranges in output |
+| 11 | J (Groups) | Missing custom reduce function for group aggregation | Feature gap, low priority for v1 |
+| 12 | J (Groups) | Missing group property type validation | Could cause runtime errors |
+| 13 | K (Sorter) | String sort not locale-aware | Different sort order for non-ASCII strings |
+| 14 | M (Search Flow) | Geo-only queries return score 0 instead of distance-based scores | Affects ordering of geo-only results |
 | 14 | M (Search Flow) | Missing exact-term post-filtering for case-sensitive whole-word matching | Feature gap, recently added to Orama |
