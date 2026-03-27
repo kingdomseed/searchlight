@@ -54,11 +54,31 @@ final class Searchlight {
   /// The [schema] defines the structure and types of documents that will be
   /// stored. The optional [algorithm] (default [SearchAlgorithm.bm25]) sets
   /// the scoring strategy. The optional [language] (default `'en'`) controls
-  /// tokenization and stemming.
+  /// tokenization. The optional [stemming] overrides the default stemming
+  /// behavior for the resolved tokenizer language. The optional [stopWords]
+  /// supplies an explicit stop-word list for the internal tokenizer.
+  /// The optional [useDefaultStopWords] enables the built-in stop-word list
+  /// for the resolved tokenizer language.
+  /// The optional [stemmer] injects a custom stemming function.
+  /// The optional [allowDuplicates] preserves duplicate query/index tokens in
+  /// tokenizer output.
+  /// The optional [tokenizeSkipProperties] disables normal splitting and
+  /// lowercasing for the named indexed string properties.
+  /// The optional [stemmerSkipProperties] disables stemming for the named
+  /// indexed string properties. The optional [tokenizer] injects a custom
+  /// tokenizer instance directly.
   factory Searchlight.create({
     required Schema schema,
     SearchAlgorithm algorithm = SearchAlgorithm.bm25,
     String language = 'en',
+    bool? stemming,
+    String Function(String)? stemmer,
+    List<String>? stopWords,
+    bool? useDefaultStopWords,
+    bool allowDuplicates = false,
+    Set<String> tokenizeSkipProperties = const {},
+    Set<String> stemmerSkipProperties = const {},
+    Tokenizer? tokenizer,
   }) {
     // Map short language codes to full names for the tokenizer
     const languageMap = <String, String>{
@@ -76,10 +96,18 @@ final class Searchlight {
     };
     final tokenizerLanguage = languageMap[language] ?? language;
 
-    final tokenizer = Tokenizer(
-      language: tokenizerLanguage,
-      stemming: tokenizerLanguage == 'english',
-    );
+    final resolvedTokenizer =
+        tokenizer ??
+        Tokenizer(
+          language: tokenizerLanguage,
+          stemming: stemming ?? tokenizerLanguage == 'english',
+          stemmer: stemmer,
+          stopWords: stopWords,
+          useDefaultStopWords: useDefaultStopWords,
+          allowDuplicates: allowDuplicates,
+          tokenizeSkipProperties: tokenizeSkipProperties,
+          stemmerSkipProperties: stemmerSkipProperties,
+        );
     final index = SearchIndex.create(schema: schema, algorithm: algorithm);
 
     return Searchlight._(
@@ -87,7 +115,7 @@ final class Searchlight {
       algorithm: algorithm,
       language: language,
       index: index,
-      tokenizer: tokenizer,
+      tokenizer: resolvedTokenizer,
       sortIndex: SortIndex(language: tokenizerLanguage),
     );
   }
@@ -140,6 +168,27 @@ final class Searchlight {
       throw const SerializationException('Missing "language" in JSON');
     }
 
+    final tokenizerConfigJson =
+        json['tokenizerConfig'] as Map<String, Object?>?;
+    final tokenizerStemming = tokenizerConfigJson?['stemming'] as bool?;
+    final tokenizerStopWords =
+        (tokenizerConfigJson?['stopWords'] as List<dynamic>?)
+            ?.cast<String>();
+    final tokenizerUseDefaultStopWords =
+        tokenizerConfigJson?['useDefaultStopWords'] as bool?;
+    final tokenizerAllowDuplicates =
+        tokenizerConfigJson?['allowDuplicates'] as bool? ?? false;
+    final tokenizeSkipProperties =
+        (tokenizerConfigJson?['tokenizeSkipProperties'] as List<dynamic>?)
+            ?.cast<String>()
+            .toSet() ??
+        const <String>{};
+    final stemmerSkipProperties =
+        (tokenizerConfigJson?['stemmerSkipProperties'] as List<dynamic>?)
+            ?.cast<String>()
+            .toSet() ??
+        const <String>{};
+
     // 4. Restore schema
     final schemaJson = json['schema'];
     if (schemaJson is! Map<String, Object?>) {
@@ -154,6 +203,12 @@ final class Searchlight {
       schema: schema,
       algorithm: algorithm,
       language: language,
+      stemming: tokenizerStemming,
+      stopWords: tokenizerStopWords,
+      useDefaultStopWords: tokenizerUseDefaultStopWords,
+      allowDuplicates: tokenizerAllowDuplicates,
+      tokenizeSkipProperties: tokenizeSkipProperties,
+      stemmerSkipProperties: stemmerSkipProperties,
     );
 
     // Collect geopoint field paths for deserialization (I4 fix)
@@ -1010,6 +1065,16 @@ final class Searchlight {
       'formatVersion': currentFormatVersion,
       'algorithm': algorithm.name,
       'language': language,
+      'tokenizerConfig': {
+        'stemming': _tokenizer.stemmingEnabled,
+        'stopWords': _tokenizer.stopWords,
+        'useDefaultStopWords': _tokenizer.usesDefaultStopWords,
+        'allowDuplicates': _tokenizer.allowDuplicates,
+        'tokenizeSkipProperties': (_tokenizer.tokenizeSkipProperties.toList()
+          ..sort()),
+        'stemmerSkipProperties': (_tokenizer.stemmerSkipProperties.toList()
+          ..sort()),
+      },
       'schema': schemaToJson(schema),
       'internalDocumentIDStore': {
         'idToInternalId': idToInternalJson,

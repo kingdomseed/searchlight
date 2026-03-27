@@ -59,6 +59,8 @@ final class Tokenizer {
           'Unsupported language: $language',
         ),
         _stemmer = stemmer ?? (stemming ? createStemmer(language) : null),
+        _usesDefaultStopWords =
+            stopWords == null && useDefaultStopWords == true,
         _stopWords = _resolveStopWords(
           stopWords,
           useDefaultStopWords,
@@ -74,8 +76,16 @@ final class Tokenizer {
   /// The resolved stop words set (null if stop words are disabled).
   final Set<String>? _stopWords;
 
+  final bool _usesDefaultStopWords;
+
   /// Returns the stop words in use (for inspection/testing).
   List<String>? get stopWords => _stopWords?.toList();
+
+  /// Whether stemming is enabled for this tokenizer.
+  bool get stemmingEnabled => _stemmer != null;
+
+  /// Whether the tokenizer uses the built-in stop-word list for its language.
+  bool get usesDefaultStopWords => _usesDefaultStopWords;
 
   static Set<String>? _resolveStopWords(
     List<String>? explicit,
