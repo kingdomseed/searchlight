@@ -27,6 +27,35 @@ void main() {
       Directory.current = originalDirectory;
     }
   });
+
+  test('throws clear error when corpus top-level json is not an array', () async {
+    final originalDirectory = Directory.current;
+    final temp = await Directory.systemTemp.createTemp(
+      'search_fixture_loader_test_',
+    );
+    final fixturesDir = Directory('${temp.path}/test/fixtures')..createSync(recursive: true);
+
+    File('${fixturesDir.path}/search_corpus.json')
+        .writeAsStringSync('{"not":"an-array"}');
+    File('${fixturesDir.path}/search_expectations.json').writeAsStringSync('[]');
+
+    try {
+      Directory.current = temp;
+      await expectLater(
+        loadSearchFixture(),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('search_corpus.json must be a JSON array'),
+          ),
+        ),
+      );
+    } finally {
+      Directory.current = originalDirectory;
+      await temp.delete(recursive: true);
+    }
+  });
 }
 
 Directory _findRepoRoot(Directory start) {

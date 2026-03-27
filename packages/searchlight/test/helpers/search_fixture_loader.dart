@@ -50,8 +50,14 @@ Future<SearchFixture> loadSearchFixture() async {
   final corpusRaw = await corpusFile.readAsString();
   final expectationsRaw = await expectationsFile.readAsString();
 
-  final corpusJson = jsonDecode(corpusRaw) as List<dynamic>;
-  final expectationsJson = jsonDecode(expectationsRaw) as List<dynamic>;
+  final corpusJson = _readTopLevelList(
+    jsonDecode(corpusRaw),
+    'search_corpus.json',
+  );
+  final expectationsJson = _readTopLevelList(
+    jsonDecode(expectationsRaw),
+    'search_expectations.json',
+  );
 
   final records = <SearchFixtureRecord>[];
   for (var i = 0; i < corpusJson.length; i++) {
@@ -84,6 +90,13 @@ Future<SearchFixture> loadSearchFixture() async {
   }
 
   return SearchFixture(records: records, expectations: expectations);
+}
+
+List<dynamic> _readTopLevelList(dynamic value, String fileName) {
+  if (value is List<dynamic>) {
+    return value;
+  }
+  throw FormatException('$fileName must be a JSON array');
 }
 
 File _resolveFixtureFile(String fileName) {
