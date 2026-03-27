@@ -1,0 +1,16 @@
+[
+  {
+    "name": "spell title query",
+    "term": "ember lance",
+    "properties": ["title", "content"],
+    "expectedTopUrl": "/guide/spells/ember-lance",
+    "limit": 5
+  },
+  {
+    "name": "rule body query",
+    "term": "terrain defense",
+    "properties": ["content"],
+    "expectedTopUrl": "/guide/rules/cover",
+    "limit": 5
+  }
+]
