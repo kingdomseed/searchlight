@@ -38,6 +38,12 @@ gaps vs Orama are resolved or explicitly accepted.
 - non-reconstructible tokenizer state is now rejected during persistence:
   injected `Tokenizer` instances and custom stemmer callbacks fail fast in
   `toJson()` rather than serializing misleading data
+- persistence now serializes and restores `index` and `sorting` component
+  state directly, matching Orama's save/load shape more closely while still
+  accepting legacy snapshots that require reinsertion fallback
+- the public barrel no longer exports Searchlight-only `DocumentAdapter`;
+  adapter-style extraction is now an internal concern until extension work
+  defines a stable package boundary
 - package docs updated to describe the current create-time configuration
   surface and persistence limits
 

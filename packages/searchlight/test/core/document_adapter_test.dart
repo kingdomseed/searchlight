@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'package:searchlight/searchlight.dart';
+import 'package:searchlight/src/core/document_adapter.dart';
 import 'package:test/test.dart';
 
 /// A concrete test implementation of DocumentAdapter.

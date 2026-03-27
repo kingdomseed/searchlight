@@ -7,6 +7,13 @@
 
 ---
 
+> **Update — 2026-03-27:** This audit was written before the public-surface
+> tightening pass. `DocumentAdapter` is no longer exported from
+> `package:searchlight/searchlight.dart`; it remains an internal interface
+> only. Treat the old Section D / barrel-export discussion below as historical
+> context unless explicitly updated inline. The live source of truth is
+> [orama-divergence-ledger.md](orama-divergence-ledger.md).
+
 ## A. Stop Word Lists Accuracy
 
 ### Methodology
@@ -226,10 +233,12 @@ The file contains a clear comment (line 13): "**Note:** This is part of Searchli
 
 - Orama has no equivalent `DocumentAdapter` concept in its source.
 - The class is properly documented as a Searchlight-specific addition.
-- It is exported via the barrel file (`searchlight.dart` line 7).
+- It is no longer exported via the public barrel.
 - It is a simple abstract interface with a single method -- clean API surface.
 
-**Classification: ACCEPTABLE** -- Properly documented as Searchlight addition. No confusion with Orama behavior.
+**Classification: RESOLVED** -- To stay aligned with Orama's core public
+surface, Searchlight now keeps `DocumentAdapter` internal rather than
+advertising it as part of the supported package API.
 
 ---
 
@@ -244,7 +253,6 @@ The file contains a clear comment (line 13): "**Note:** This is part of Searchli
 | `database.dart` (show)         | `SearchAlgorithm`, `Searchlight`       | Core API      |
 | `doc_id.dart`                  | `DocId`                                | Core API      |
 | `document.dart`                | `Document`                             | Core API      |
-| `document_adapter.dart`        | `DocumentAdapter`                      | Core API      |
 | `exceptions.dart`              | `SearchlightException` + 6 subclasses  | Core API      |
 | `schema.dart`                  | `Schema`, `SchemaField`, `TypedField`, `NestedField`, `SchemaType` | Core API |
 | `types.dart`                   | `SearchResult`, `SearchHit`, `FacetConfig`, `FacetResult`, `GroupBy`, `GroupResult`, `GroupReduce`, `NumberFacetRange`, `FacetSorting`, `SearchMode`, `SortOrder`, `SortBy`, `GeoPoint` | Core API |
@@ -407,7 +415,7 @@ This iterates through all document IDs and calls `remove()` on each, ensuring th
 | B.3  | Language Mapping       | Japanese/Chinese: stop words yes, tokenizer no | NEEDS REVIEW |
 | C.1  | Tokenizer Stop Words   | Auto-resolves stop words when Orama does not | NEEDS REVIEW |
 | C.2  | Tokenizer Stop Words   | Misleading comment about "matching Orama"  | NEEDS REVIEW |
-| D.1  | DocumentAdapter        | Searchlight-specific, properly documented  | ACCEPTABLE      |
+| D.1  | DocumentAdapter        | Demoted from the public barrel; retained only as internal extension scaffolding | RESOLVED |
 | E.1  | Barrel File            | All public API types exported              | ACCEPTABLE      |
 | E.2  | Barrel File            | Internal types correctly not exported      | ACCEPTABLE      |
 | E.3  | Barrel File            | `supportedLanguages` not exported (minor)  | ACCEPTABLE      |

@@ -31,6 +31,8 @@ intentional divergence or an unresolved gap.
   non-reconstructible tokenizer/stemmer cases
 - locale-aware string sorting now includes explicit non-English ordering
   support for Norwegian, Danish, Swedish, and German-specific cases
+- the public barrel no longer exports Searchlight-only `DocumentAdapter`;
+  adapter-style extraction remains an internal concern for future extensions
 
 ## Intentional divergences
 
@@ -50,8 +52,6 @@ intentional divergence or an unresolved gap.
   components, hooks, and plugin registration are still missing
 - locale-aware string sort parity is not complete for every supported language;
   current support is targeted rather than a full `localeCompare` equivalent
-- `DocumentAdapter` still needs either stronger stabilization or demotion from
-  the public surface
 - tokenizer/config parity is not complete for every Orama configuration shape;
   Searchlight exposes a Dart-native surface rather than a direct config-object
   clone

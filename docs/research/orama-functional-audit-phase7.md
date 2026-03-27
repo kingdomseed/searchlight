@@ -6,6 +6,14 @@
 
 ---
 
+> **Update — 2026-03-27:** This audit captured the pre-parity persistence
+> implementation. Searchlight now serializes and restores `index` and
+> `sorting` component state directly, with reinsertion retained only as a
+> compatibility fallback for older snapshots that do not contain those
+> payloads. Treat the old A1/A2/B6/C2/C3/C5/D1/H1/I3d notes below as
+> historical context, not the current package status. The live source of truth
+> is [orama-divergence-ledger.md](orama-divergence-ledger.md).
+
 ## A. Save/Load Data Structure
 
 ### Orama `save()` returns `RawData`:
@@ -113,17 +121,19 @@ This is not a correctness issue — search results are identical after round-tri
 
 ### Searchlight
 - **Saves:** Both maps (`idToInternalId` as `Map<String, int>`, `internalIdToId` as `Map<String, String>`) plus explicit counters (`nextId`, `nextGeneratedId`).
-- **Loads:** Does NOT directly restore the maps. Instead, re-inserts documents in internal ID order, relying on `insert()` to rebuild the ID mappings. After re-insertion, overwrites `_nextInternalId` and `_nextGeneratedId` from the saved counters.
+- **Loads:** Restores the maps directly from serialized component state for
+  current snapshots. Legacy snapshots without `index`/`sorting` still use the
+  older reinsertion fallback.
 
 ### Divergences
 
 | # | Area | Impact | Classification |
 |---|------|--------|----------------|
 | C1 | ID mapping representation | Orama uses array (0-indexed) for `internalIdToId`. Searchlight uses `Map<String, String>` keyed by string representation of internal ID. | **ACCEPTABLE** (Dart type safety) |
-| C2 | Saving both maps vs one | Orama saves only `internalIdToId` and rebuilds `idToInternalId` on load. Searchlight saves both maps but does not use `idToInternalId` directly during load — it re-inserts documents instead. The saved `idToInternalId` is redundant. | **ACCEPTABLE** (extra data, not harmful) |
-| C3 | Counter restoration | Orama's counter is implicit (array length). Searchlight saves and restores explicit `nextId` and `nextGeneratedId` counters. This is necessary because re-insertion assigns new internal IDs (1, 2, 3...) which may not match the original if documents were deleted. The counter override at line 181-182 corrects this. | **NEEDS REVIEW** |
-| C4 | External ID preservation | Searchlight reads the external ID from `internalIdToId` map and injects it into the document data as `'id': externalId` before calling `insert()`. This ensures the external ID is preserved. | **ACCEPTABLE** |
-| C5 | Sparse internal IDs after delete | If a database had documents inserted (IDs 1-5) then doc 3 deleted, Orama's save preserves this gap because the index tree stores the actual internal IDs. Searchlight's re-insertion would assign contiguous IDs (1-4) to the 4 remaining docs, then set `_nextInternalId` to the saved counter (6). The gap in internal IDs is lost, but external IDs are preserved. Since internal IDs are never exposed to users, this is functionally equivalent. | **ACCEPTABLE** |
+| C2 | Saving both maps vs one | Orama saves only `internalIdToId` and rebuilds `idToInternalId` on load. Searchlight still saves both maps. The extra `idToInternalId` data is redundant but harmless. | **ACCEPTABLE** |
+| C3 | Counter restoration | Orama's counter is implicit (array length). Searchlight saves and restores explicit `nextId` and `nextGeneratedId` counters, with a defensive lower bound to avoid duplicate IDs from corrupted data. | **ACCEPTABLE** |
+| C4 | External ID preservation | Searchlight restores the external ID mapping directly from `internalIdToId` rather than reconstructing it through public `insert()`. | **ACCEPTABLE** |
+| C5 | Sparse internal IDs after delete | Current snapshots preserve sparse internal IDs directly because documents, index, sorter, and ID maps are restored from serialized state rather than normalized through reinsertion. | **RESOLVED** |
 
 ### Detailed Analysis of C3
 
@@ -133,11 +143,15 @@ if (nextId != null) db._nextInternalId = nextId;
 if (nextGeneratedId != null) db._nextGeneratedId = nextGeneratedId;
 ```
 
-This runs AFTER all documents have been re-inserted. During re-insertion, `_nextInternalId` is incremented normally (1, 2, 3, ...). After re-insertion of N documents, `_nextInternalId` equals N+1. The saved `nextId` is then used to overwrite this.
+For current snapshots this now runs after direct document/ID-store restore, not
+after reinsertion. Searchlight also clamps `nextId` to at least
+`documents.length + 1` so corrupted save data cannot create duplicate internal
+IDs on the next insert.
 
 **Potential issue:** If the saved `nextId` is less than N+1 (shouldn't happen in normal operation), subsequent inserts could create duplicate internal IDs. However, this would only occur with manually corrupted data.
 
-**For `nextGeneratedId`:** During re-insertion, documents have explicit external IDs (injected from the saved map), so `_generateUniqueId()` is never called. After re-insertion, `_nextGeneratedId` is still 0. The saved value restores the correct auto-generation counter. This is **correct**.
+**For `nextGeneratedId`:** The saved value still restores the correct
+auto-generation counter. This remains **correct**.
 
 ---
 
@@ -161,13 +175,15 @@ Saves full sorter state:
 ```
 
 ### Searchlight
-Does not serialize the sort index. It is rebuilt during re-insertion via `_insertSortableValues()`.
+Serializes the sort index and restores it directly for current snapshots.
+Legacy snapshots without serialized sorter payloads still rebuild it through the
+reinsertion fallback.
 
 ### Divergences
 
 | # | Area | Impact | Classification |
 |---|------|--------|----------------|
-| D1 | Sort index not serialized | Rebuilt from scratch during re-insertion. For each re-inserted document, `_insertSortableValues` calls `_sortIndex.insert()` for each sortable field. The resulting sort index is functionally identical to the original (same documents, same field values, same sorting behavior). | **ACCEPTABLE** |
+| D1 | Sort index serialization | Current snapshots serialize and restore sorter state directly, which now matches Orama much more closely. Legacy snapshots still rebuild sortable state through the compatibility fallback. | **RESOLVED** |
 | D2 | Sort order after restore | The `isSorted` flag starts as `true` for each `_PropertySort`, then is set to `false` on the first `insert()`. The sort index is lazily sorted on first `sortBy()` call. This matches Orama's pattern. | **ACCEPTABLE** |
 
 ---
