@@ -44,40 +44,111 @@ final class SearchFixture {
 }
 
 Future<SearchFixture> loadSearchFixture() async {
-  final corpusRaw = await File('test/fixtures/search_corpus.json').readAsString();
-  final expectationsRaw =
-      await File('test/fixtures/search_expectations.json').readAsString();
+  final corpusFile = _resolveFixtureFile('search_corpus.json');
+  final expectationsFile = _resolveFixtureFile('search_expectations.json');
+
+  final corpusRaw = await corpusFile.readAsString();
+  final expectationsRaw = await expectationsFile.readAsString();
 
   final corpusJson = jsonDecode(corpusRaw) as List<dynamic>;
   final expectationsJson = jsonDecode(expectationsRaw) as List<dynamic>;
 
-  final records = corpusJson
-      .cast<Map<String, dynamic>>()
-      .map(
-        (record) => SearchFixtureRecord(
-          url: record['url'] as String,
-          title: record['title'] as String,
-          content: record['content'] as String,
-          type: record['type'] as String,
-          group: record['group'] as String,
-        ),
-      )
-      .toList();
+  final records = <SearchFixtureRecord>[];
+  for (var i = 0; i < corpusJson.length; i++) {
+    final context = 'search_corpus.json entry #$i';
+    final record = _readMap(corpusJson[i], context);
+    records.add(
+      SearchFixtureRecord(
+        url: _readString(record, 'url', context),
+        title: _readString(record, 'title', context),
+        content: _readString(record, 'content', context),
+        type: _readString(record, 'type', context),
+        group: _readString(record, 'group', context),
+      ),
+    );
+  }
 
-  final expectations = expectationsJson
-      .cast<Map<String, dynamic>>()
-      .map(
-        (expectation) => SearchFixtureExpectation(
-          name: expectation['name'] as String,
-          term: expectation['term'] as String,
-          properties: (expectation['properties'] as List<dynamic>)
-              .cast<String>()
-              .toList(),
-          expectedTopUrl: expectation['expectedTopUrl'] as String,
-          limit: expectation['limit'] as int? ?? 10,
-        ),
-      )
-      .toList();
+  final expectations = <SearchFixtureExpectation>[];
+  for (var i = 0; i < expectationsJson.length; i++) {
+    final context = 'search_expectations.json entry #$i';
+    final expectation = _readMap(expectationsJson[i], context);
+    expectations.add(
+      SearchFixtureExpectation(
+        name: _readString(expectation, 'name', context),
+        term: _readString(expectation, 'term', context),
+        properties: _readStringList(expectation, 'properties', context),
+        expectedTopUrl: _readString(expectation, 'expectedTopUrl', context),
+        limit: _readInt(expectation, 'limit', context, defaultValue: 10),
+      ),
+    );
+  }
 
   return SearchFixture(records: records, expectations: expectations);
+}
+
+File _resolveFixtureFile(String fileName) {
+  var current = Directory.current.absolute;
+  while (true) {
+    final packageCandidate = File('${current.path}/test/fixtures/$fileName');
+    if (packageCandidate.existsSync()) {
+      return packageCandidate;
+    }
+
+    final repoCandidate =
+        File('${current.path}/packages/searchlight/test/fixtures/$fileName');
+    if (repoCandidate.existsSync()) {
+      return repoCandidate;
+    }
+
+    final parent = current.parent;
+    if (parent.path == current.path) {
+      throw FileSystemException(
+        'Could not locate fixture file "$fileName" from ${Directory.current.path}',
+      );
+    }
+    current = parent;
+  }
+}
+
+Map<String, dynamic> _readMap(dynamic value, String context) {
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  throw FormatException('$context must be a JSON object');
+}
+
+String _readString(Map<String, dynamic> map, String key, String context) {
+  final value = map[key];
+  if (value is String) {
+    return value;
+  }
+  throw FormatException('$context field "$key" must be a string');
+}
+
+List<String> _readStringList(
+  Map<String, dynamic> map,
+  String key,
+  String context,
+) {
+  final value = map[key];
+  if (value is List<dynamic> && value.every((entry) => entry is String)) {
+    return value.cast<String>();
+  }
+  throw FormatException('$context field "$key" must be a list of strings');
+}
+
+int _readInt(
+  Map<String, dynamic> map,
+  String key,
+  String context, {
+  required int defaultValue,
+}) {
+  final value = map[key];
+  if (value == null) {
+    return defaultValue;
+  }
+  if (value is int) {
+    return value;
+  }
+  throw FormatException('$context field "$key" must be an int');
 }
