@@ -248,42 +248,42 @@ void main() {
     test(
       'with allowDuplicates preserves repeated-token scoring impact',
       () async {
-      final noDuplicatesDb = Searchlight.create(
-        schema: Schema({
-          'title': const TypedField(SchemaType.string),
-        }),
-      )..insert({
-          'id': 'doc1',
-          'title': 'hello hello world',
-        });
-      addTearDown(noDuplicatesDb.dispose);
+        final noDuplicatesDb = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+        )..insert({
+            'id': 'doc1',
+            'title': 'hello hello world',
+          });
+        addTearDown(noDuplicatesDb.dispose);
 
-      final allowDuplicatesDb = Searchlight.create(
-        schema: Schema({
-          'title': const TypedField(SchemaType.string),
-        }),
-        allowDuplicates: true,
-      )..insert({
-          'id': 'doc1',
-          'title': 'hello hello world',
-        });
-      addTearDown(allowDuplicatesDb.dispose);
+        final allowDuplicatesDb = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          allowDuplicates: true,
+        )..insert({
+            'id': 'doc1',
+            'title': 'hello hello world',
+          });
+        addTearDown(allowDuplicatesDb.dispose);
 
-      final noDuplicatesResult = noDuplicatesDb.search(
-        term: 'hello',
-        properties: const ['title'],
-      );
-      final allowDuplicatesResult = allowDuplicatesDb.search(
-        term: 'hello',
-        properties: const ['title'],
-      );
+        final noDuplicatesResult = noDuplicatesDb.search(
+          term: 'hello',
+          properties: const ['title'],
+        );
+        final allowDuplicatesResult = allowDuplicatesDb.search(
+          term: 'hello',
+          properties: const ['title'],
+        );
 
-      expect(noDuplicatesResult.count, 1);
-      expect(allowDuplicatesResult.count, 1);
-      expect(
-        allowDuplicatesResult.hits.first.score,
-        greaterThan(noDuplicatesResult.hits.first.score),
-      );
+        expect(noDuplicatesResult.count, 1);
+        expect(allowDuplicatesResult.count, 1);
+        expect(
+          allowDuplicatesResult.hits.first.score,
+          greaterThan(noDuplicatesResult.hits.first.score),
+        );
       },
     );
 
@@ -305,6 +305,30 @@ void main() {
 
       expect(result.count, 1);
       expect(result.hits.first.id, 'doc1');
+    });
+
+    test('with plugins fails loudly until extension wiring exists', () {
+      expect(
+        () => Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: const [SearchlightPlugin(name: 'test-plugin')],
+        ),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
+
+    test('with components fails loudly until extension wiring exists', () {
+      expect(
+        () => Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          components: const SearchlightComponents(),
+        ),
+        throwsA(isA<UnsupportedError>()),
+      );
     });
   });
 }

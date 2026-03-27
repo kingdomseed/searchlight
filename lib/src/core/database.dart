@@ -88,8 +88,18 @@ final class Searchlight {
     List<SearchlightPlugin<Object?>> plugins = const [],
     SearchlightComponents? components,
   }) {
-    // Task 1 API scaffold only: extensions are accepted but not yet wired.
-    final _ = (plugins, components);
+    if (plugins.isNotEmpty) {
+      throw UnsupportedError(
+        'Searchlight.create plugins are not wired yet. '
+        'Extension resolution is planned for Task 2.',
+      );
+    }
+    if (components != null) {
+      throw UnsupportedError(
+        'Searchlight.create components are not wired yet. '
+        'Extension resolution is planned for Task 2.',
+      );
+    }
 
     if (tokenizer != null && language != null) {
       throw ArgumentError(
