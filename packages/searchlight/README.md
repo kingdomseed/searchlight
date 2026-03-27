@@ -164,6 +164,41 @@ db.insert({'title': 'Auto ID Document'});
 // Returns an auto-generated string ID
 ```
 
+## Validation Workflow
+
+Searchlight validation mirrors Orama's integration model:
+
+1. Extract source content into plain records (`url`, `title`, `content`, `type`, `group`)
+2. Build an index from those records
+3. Persist and reload for runtime validation
+
+Validation data is intentionally split:
+
+- Public, committed fixture data lives under `test/fixtures/` and must remain
+  public-safe (no proprietary or copyrighted corpora)
+- Private local validation content lives under `.local/` and is gitignored
+
+To generate local assets from copied local source content:
+
+```bash
+dart run tool/build_validation_assets.dart
+```
+
+This writes:
+
+- `.local/generated_search_corpus.json`
+- `.local/generated_search_snapshot.json`
+
+The Flutter validation app in `example/` can load the public fixture by
+default and optionally use these local generated assets when copied into the
+example's local asset folder.
+
+Planned package split remains:
+
+- `searchlight` (core, this package)
+- `searchlight_flutter` (future)
+- `searchlight_pdf` (future)
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
