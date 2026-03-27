@@ -102,6 +102,13 @@ class _SearchValidationScreenState extends State<SearchValidationScreen> {
         final records = await _loadCorpusAsset(
           'assets/local/generated_search_corpus.json',
         );
+        if (records.isEmpty) {
+          throw StateError(
+            'Local corpus asset is not configured. '
+            'Replace assets/local/generated_search_corpus.json '
+            'with generated data.',
+          );
+        }
         return _buildDbFromRecords(records);
       case DataSourceMode.localSnapshot:
         final raw = await rootBundle.loadString(
@@ -111,6 +118,13 @@ class _SearchValidationScreenState extends State<SearchValidationScreen> {
         if (json is! Map<String, dynamic>) {
           throw const FormatException(
             'assets/local/generated_search_snapshot.json must be a JSON object.',
+          );
+        }
+        if (json.isEmpty || !json.containsKey('documents')) {
+          throw StateError(
+            'Local snapshot asset is not configured. '
+            'Replace assets/local/generated_search_snapshot.json '
+            'with generated data.',
           );
         }
         return Searchlight.fromJson(json.cast<String, Object?>());
@@ -162,7 +176,7 @@ class _SearchValidationScreenState extends State<SearchValidationScreen> {
 
     final result = db.search(
       term: query,
-      properties: const ['title', 'content', 'url'],
+      properties: const ['title', 'content'],
       limit: 10,
     );
     setState(() {
