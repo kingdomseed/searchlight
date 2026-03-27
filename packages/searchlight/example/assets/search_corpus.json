@@ -1,0 +1,37 @@
+[
+  {
+    "url": "/guide/spells/ember-lance",
+    "title": "Ember Lance",
+    "content": "A precise fire spell that launches a concentrated spear of heat.",
+    "type": "spell",
+    "group": "fire"
+  },
+  {
+    "url": "/guide/spells/mist-veil",
+    "title": "Mist Veil",
+    "content": "A utility spell that blankets a corridor in cold fog and blocks sight lines.",
+    "type": "spell",
+    "group": "water"
+  },
+  {
+    "url": "/guide/creatures/iron-boar",
+    "title": "Iron Boar",
+    "content": "A heavily armored beast known for charging through shields.",
+    "type": "monster",
+    "group": "beasts"
+  },
+  {
+    "url": "/guide/rules/cover",
+    "title": "Cover And Position",
+    "content": "Use terrain to improve defense and deny direct lines of attack.",
+    "type": "rule",
+    "group": "combat"
+  },
+  {
+    "url": "/guide/items/field-compass",
+    "title": "Field Compass",
+    "content": "A durable navigation tool for long overland travel and route planning.",
+    "type": "item",
+    "group": "gear"
+  }
+]
