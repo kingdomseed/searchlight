@@ -89,6 +89,19 @@ final class Searchlight {
         'Cannot provide both language and a custom tokenizer.',
       );
     }
+    if (tokenizer != null &&
+        (stemming != null ||
+            stemmer != null ||
+            stopWords != null ||
+            useDefaultStopWords != null ||
+            allowDuplicates ||
+            tokenizeSkipProperties.isNotEmpty ||
+            stemmerSkipProperties.isNotEmpty)) {
+      throw ArgumentError(
+        'Cannot provide built-in tokenizer configuration when a custom '
+        'tokenizer is supplied.',
+      );
+    }
 
     final resolvedLanguage = language ?? 'en';
     final tokenizerLanguage = _resolveTokenizerLanguage(resolvedLanguage);
@@ -161,25 +174,49 @@ final class Searchlight {
     }
     final tokenizerLanguage = _resolveTokenizerLanguage(language);
 
-    final tokenizerConfigJson =
-        json['tokenizerConfig'] as Map<String, Object?>?;
-    final tokenizerStemming = tokenizerConfigJson?['stemming'] as bool?;
-    final tokenizerStopWords =
-        (tokenizerConfigJson?['stopWords'] as List<dynamic>?)?.cast<String>();
-    final tokenizerUseDefaultStopWords =
-        tokenizerConfigJson?['useDefaultStopWords'] as bool?;
+    final rawTokenizerConfig = json['tokenizerConfig'];
+    final tokenizerConfigJson = rawTokenizerConfig == null
+        ? null
+        : _asObjectMap(
+            rawTokenizerConfig,
+            'Invalid "tokenizerConfig" in JSON',
+          );
+    final tokenizerStemming = _asOptionalBool(
+      tokenizerConfigJson,
+      key: 'stemming',
+      message: 'Invalid "tokenizerConfig.stemming" in JSON',
+    );
+    final tokenizerStopWords = _asOptionalStringList(
+      tokenizerConfigJson,
+      key: 'stopWords',
+      message: 'Invalid "tokenizerConfig.stopWords" in JSON',
+    );
+    final tokenizerUseDefaultStopWords = _asOptionalBool(
+      tokenizerConfigJson,
+      key: 'useDefaultStopWords',
+      message: 'Invalid "tokenizerConfig.useDefaultStopWords" in JSON',
+    );
     final tokenizerAllowDuplicates =
-        tokenizerConfigJson?['allowDuplicates'] as bool? ?? false;
+        _asOptionalBool(
+          tokenizerConfigJson,
+          key: 'allowDuplicates',
+          message: 'Invalid "tokenizerConfig.allowDuplicates" in JSON',
+        ) ??
+        false;
     final tokenizeSkipProperties =
-        (tokenizerConfigJson?['tokenizeSkipProperties'] as List<dynamic>?)
-                ?.cast<String>()
-                .toSet() ??
-            const <String>{};
+        _asOptionalStringList(
+          tokenizerConfigJson,
+          key: 'tokenizeSkipProperties',
+          message: 'Invalid "tokenizerConfig.tokenizeSkipProperties" in JSON',
+        )?.toSet() ??
+        const <String>{};
     final stemmerSkipProperties =
-        (tokenizerConfigJson?['stemmerSkipProperties'] as List<dynamic>?)
-                ?.cast<String>()
-                .toSet() ??
-            const <String>{};
+        _asOptionalStringList(
+          tokenizerConfigJson,
+          key: 'stemmerSkipProperties',
+          message: 'Invalid "tokenizerConfig.stemmerSkipProperties" in JSON',
+        )?.toSet() ??
+        const <String>{};
 
     // 4. Restore schema
     final schemaJson = json['schema'];
@@ -443,7 +480,11 @@ final class Searchlight {
     final nextId = idStoreJson['nextId'] as int?;
     final nextGeneratedId = idStoreJson['nextGeneratedId'] as int?;
 
-    final minNextId = db._documents.length + 1;
+    final maxExistingId = db._documents.keys.fold<int>(
+      0,
+      (maxId, docId) => docId.id > maxId ? docId.id : maxId,
+    );
+    final minNextId = maxExistingId + 1;
     if (nextId != null) {
       db._nextInternalId = nextId < minNextId ? minNextId : nextId;
     } else {
@@ -459,6 +500,39 @@ final class Searchlight {
       throw SerializationException(message);
     }
     return Map<String, Object?>.from(raw);
+  }
+
+  static bool? _asOptionalBool(
+    Map<String, Object?>? json, {
+    required String key,
+    required String message,
+  }) {
+    if (json == null || !json.containsKey(key) || json[key] == null) {
+      return null;
+    }
+    final value = json[key];
+    if (value is! bool) {
+      throw SerializationException(message);
+    }
+    return value;
+  }
+
+  static List<String>? _asOptionalStringList(
+    Map<String, Object?>? json, {
+    required String key,
+    required String message,
+  }) {
+    if (json == null || !json.containsKey(key) || json[key] == null) {
+      return null;
+    }
+    final value = json[key];
+    if (value is! List) {
+      throw SerializationException(message);
+    }
+    if (value.any((element) => element is! String)) {
+      throw SerializationException(message);
+    }
+    return value.cast<String>();
   }
 
   // ---------------------------------------------------------------------------

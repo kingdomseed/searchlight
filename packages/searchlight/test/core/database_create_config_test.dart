@@ -150,6 +150,19 @@ void main() {
       );
     });
 
+    test('with custom tokenizer rejects additional tokenizer config', () {
+      expect(
+        () => Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          tokenizer: Tokenizer(),
+          stopWords: const ['the'],
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
     test('with tokenizeSkipProperties indexes that field as one token', () {
       db = Searchlight.create(
         schema: Schema({

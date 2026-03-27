@@ -276,21 +276,27 @@ final class SortIndex {
     switch (language) {
       case 'norwegian':
       case 'danish':
-        return normalized
-            .replaceAll('æ', '{a')
-            .replaceAll('ø', '{b')
-            .replaceAll('å', '{c');
+        return replaceDiacritics(
+          normalized
+              .replaceAll('æ', '{a')
+              .replaceAll('ø', '{b')
+              .replaceAll('å', '{c'),
+        );
       case 'swedish':
-        return normalized
-            .replaceAll('å', '{a')
-            .replaceAll('ä', '{b')
-            .replaceAll('ö', '{c');
+        return replaceDiacritics(
+          normalized
+              .replaceAll('å', '{a')
+              .replaceAll('ä', '{b')
+              .replaceAll('ö', '{c'),
+        );
       case 'german':
-        return normalized
-            .replaceAll('ä', 'ae')
-            .replaceAll('ö', 'oe')
-            .replaceAll('ü', 'ue')
-            .replaceAll('ß', 'ss');
+        return replaceDiacritics(
+          normalized
+              .replaceAll('ä', 'ae')
+              .replaceAll('ö', 'oe')
+              .replaceAll('ü', 'ue')
+              .replaceAll('ß', 'ss'),
+        );
       default:
         return replaceDiacritics(normalized);
     }

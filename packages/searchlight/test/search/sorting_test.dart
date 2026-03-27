@@ -207,6 +207,27 @@ void main() {
       expect(sorted.map((entry) => entry.$1).toList(), [2, 3, 4, 5, 1]);
     });
 
+    test('sortBy on norwegian strings normalizes non-special diacritics', () {
+      final sortIndex = SortIndex(language: 'norwegian')
+        ..insert(property: 'title', docId: 1, value: 'zoo')
+        ..insert(property: 'title', docId: 2, value: 'elan')
+        ..insert(property: 'title', docId: 3, value: 'élan');
+
+      final sorted = sortIndex.sortBy(
+        results: const [
+          (1, 1.0),
+          (2, 0.9),
+          (3, 0.8),
+        ],
+        property: 'title',
+        order: SortOrder.asc,
+      );
+
+      final ids = sorted.map((entry) => entry.$1).toList();
+      expect(ids.last, 1);
+      expect(ids.take(2).toSet(), {2, 3});
+    });
+
     test('sortBy preserves expected ordering after repeated removals', () {
       final sortIndex = SortIndex()
         ..insert(property: 'price', docId: 1, value: 5)

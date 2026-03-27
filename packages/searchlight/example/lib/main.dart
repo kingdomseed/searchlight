@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:searchlight/searchlight.dart';
+import 'package:searchlight_example/src/excerpt_spans.dart';
 
 void main() {
   runApp(const SearchValidationApp());
@@ -304,26 +305,7 @@ class _SearchValidationScreenState extends State<SearchValidationScreen> {
       );
     }
 
-    final spans = <TextSpan>[];
-    var cursor = 0;
-    for (final position in result.positions) {
-      if (position.start > cursor) {
-        spans.add(TextSpan(text: excerpt.substring(cursor, position.start)));
-      }
-      spans.add(
-        TextSpan(
-          text: excerpt.substring(position.start, position.end),
-          style: const TextStyle(
-            backgroundColor: Colors.yellow,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-      cursor = position.end;
-    }
-    if (cursor < excerpt.length) {
-      spans.add(TextSpan(text: excerpt.substring(cursor)));
-    }
+    final spans = buildHighlightedExcerptSpans(excerpt, result.positions);
 
     return RichText(
       text: TextSpan(

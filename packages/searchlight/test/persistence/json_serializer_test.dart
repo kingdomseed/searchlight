@@ -453,6 +453,24 @@ void main() {
       expect(tokenizerConfig['useDefaultStopWords'], isTrue);
     });
 
+    test('fromJson rejects invalid tokenizerConfig field types', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      );
+      final json = db.toJson();
+      json['tokenizerConfig'] = <String, Object?>{
+        'stemming': false,
+        'stopWords': 'not-a-list',
+      };
+
+      expect(
+        () => Searchlight.fromJson(json),
+        throwsA(isA<SerializationException>()),
+      );
+    });
+
     test('fromJson corrects nextInternalId if saved value is too low (C3)', () {
       // Manually craft JSON where nextId (2) is less than doc count + 1 (3).
       // The defensive check should correct it.
@@ -628,6 +646,36 @@ void main() {
       // Should be able to insert new docs without collisions
       restored.insert({'id': 'e', 'title': 'Epsilon'});
       expect(restored.count, equals(3));
+    });
+
+    test('fromJson corrects sparse nextInternalId floor from max doc ID', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      )
+        ..insert({'id': 'a', 'title': 'Alpha'})
+        ..insert({'id': 'b', 'title': 'Beta'})
+        ..insert({'id': 'c', 'title': 'Gamma'})
+        ..insert({'id': 'd', 'title': 'Delta'});
+
+      expect(db.remove('b'), isTrue);
+      expect(db.remove('c'), isTrue);
+
+      final json = db.toJson();
+      final idStore =
+          json['internalDocumentIDStore']! as Map<String, Object?>;
+      idStore['nextId'] = 3;
+
+      final restored = Searchlight.fromJson(json)
+        ..insert({'id': 'e', 'title': 'Epsilon'})
+        ..insert({'id': 'f', 'title': 'Phi'});
+
+      expect(restored.count, 4);
+      expect(restored.getById('a')!.getString('title'), 'Alpha');
+      expect(restored.getById('d')!.getString('title'), 'Delta');
+      expect(restored.getById('e')!.getString('title'), 'Epsilon');
+      expect(restored.getById('f')!.getString('title'), 'Phi');
     });
 
     test('round-trip with geopoint fields through jsonEncode/jsonDecode', () {
