@@ -56,16 +56,7 @@ final class Searchlight {
         _tokenizer = tokenizer,
         _sortIndex = sortIndex,
         _hasCustomStemmer = hasCustomStemmer,
-        _hasInjectedTokenizer = hasInjectedTokenizer {
-    // Keep extension state retained for upcoming lifecycle wiring work.
-    assert(
-      () {
-        final _ = _resolvedExtensions;
-        return true;
-      }(),
-      'Keep resolved extension state retained for future lifecycle wiring.',
-    );
-  }
+        _hasInjectedTokenizer = hasInjectedTokenizer;
 
   /// Creates a new Searchlight database.
   ///
@@ -347,7 +338,8 @@ final class Searchlight {
   final String language;
 
   /// Resolved extension configuration captured at construction.
-  final ResolvedExtensions _resolvedExtensions;
+  // TODO(extension-runtime): consume retained extension state in hook/runtime wiring.
+  final ResolvedExtensions _resolvedExtensions; // ignore: unused_field
 
   /// The search index managing per-field trees and scoring data.
   final SearchIndex _index;
