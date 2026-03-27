@@ -46,7 +46,7 @@ final class Tokenizer {
   /// - Pass an explicit [stopWords] list.
   /// - Pass an empty list to explicitly disable stop word filtering.
   Tokenizer({
-    this.language = 'english',
+    String language = 'english',
     bool stemming = false,
     String Function(String)? stemmer,
     List<String>? stopWords,
@@ -54,11 +54,10 @@ final class Tokenizer {
     this.allowDuplicates = false,
     this.tokenizeSkipProperties = const {},
     this.stemmerSkipProperties = const {},
-  })  : assert(
-          splitters.containsKey(language),
-          'Unsupported language: $language',
-        ),
+  })  : language = _validateLanguage(language),
         _stemmer = stemmer ?? (stemming ? createStemmer(language) : null),
+        _usesDefaultStopWords =
+            stopWords == null && useDefaultStopWords == true,
         _stopWords = _resolveStopWords(
           stopWords,
           useDefaultStopWords,
@@ -74,8 +73,27 @@ final class Tokenizer {
   /// The resolved stop words set (null if stop words are disabled).
   final Set<String>? _stopWords;
 
+  final bool _usesDefaultStopWords;
+
   /// Returns the stop words in use (for inspection/testing).
   List<String>? get stopWords => _stopWords?.toList();
+
+  /// Whether stemming is enabled for this tokenizer.
+  bool get stemmingEnabled => _stemmer != null;
+
+  /// Whether the tokenizer uses the built-in stop-word list for its language.
+  bool get usesDefaultStopWords => _usesDefaultStopWords;
+
+  static String _validateLanguage(String language) {
+    if (!splitters.containsKey(language)) {
+      throw ArgumentError.value(
+        language,
+        'language',
+        'Unsupported language',
+      );
+    }
+    return language;
+  }
 
   static Set<String>? _resolveStopWords(
     List<String>? explicit,

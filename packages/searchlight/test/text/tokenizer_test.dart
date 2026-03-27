@@ -56,6 +56,13 @@ void main() {
       );
     });
 
+    test('throws deterministically for unsupported languages', () {
+      expect(
+        () => Tokenizer(language: 'klingon'),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
     test('removes duplicates by default', () {
       final tokenizer = Tokenizer();
       expect(

@@ -21,6 +21,20 @@ void main() {
       expect(json['formatVersion'], equals(1));
     });
 
+    test('toJson includes serialized index and sorting state', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'price': const TypedField(SchemaType.number),
+        }),
+      )..insert({'id': 'doc1', 'title': 'Hello', 'price': 5});
+
+      final json = db.toJson();
+
+      expect(json['index'], isA<Map<String, Object?>>());
+      expect(json['sorting'], isA<Map<String, Object?>>());
+    });
+
     test('round-trip empty database preserves schema, algorithm, language', () {
       final schema = Schema({
         'title': const TypedField(SchemaType.string),
@@ -98,6 +112,71 @@ void main() {
       // "Python scripting" / "Slow" should not match "dart"
       expect(ids, isNot(contains('doc3')));
     });
+
+    test(
+      'fromJson restores serialized components without revalidating documents',
+      () {
+        final db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+            'rating': const TypedField(SchemaType.number),
+          }),
+        )..insert({
+            'id': 'doc1',
+            'title': 'Dart Programming',
+            'rating': 5,
+          });
+
+        final json = db.toJson();
+        final documents = json['documents']! as Map<String, Object?>;
+        final doc = documents.values.first! as Map<String, Object?>;
+        doc['rating'] = 'not-a-number';
+
+        final restored = Searchlight.fromJson(json);
+
+        final results = restored.search(term: 'dart');
+        expect(results.count, 1);
+        expect(results.hits.first.id, 'doc1');
+      },
+    );
+
+    test(
+      'fromJson restores serialized sort state without revalidating documents',
+      () {
+        final db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+            'rating': const TypedField(SchemaType.number),
+          }),
+        )
+          ..insert({
+            'id': 'doc1',
+            'title': 'Dart Patterns',
+            'rating': 10,
+          })
+          ..insert({
+            'id': 'doc2',
+            'title': 'Dart Cookbook',
+            'rating': 1,
+          });
+
+        final json = db.toJson();
+        final documents = json['documents']! as Map<String, Object?>;
+        for (final rawDoc in documents.values) {
+          final doc = rawDoc! as Map<String, Object?>;
+          doc['rating'] = 'not-a-number';
+        }
+
+        final restored = Searchlight.fromJson(json);
+        final results = restored.search(
+          term: 'dart',
+          sortBy: const SortBy(field: 'rating', order: SortOrder.asc),
+        );
+
+        expect(results.count, 2);
+        expect(results.hits.map((hit) => hit.id).toList(), ['doc2', 'doc1']);
+      },
+    );
 
     test('round-trip filters work on restored database', () {
       final db = Searchlight.create(
@@ -257,6 +336,20 @@ void main() {
         }),
         throwsA(isA<SerializationException>()),
       );
+
+      // Invalid language
+      expect(
+        () => Searchlight.fromJson(<String, Object?>{
+          'formatVersion': 1,
+          'algorithm': 'bm25',
+          'language': 'klingon',
+          'schema': <String, Object?>{
+            'title': {'type': 'string'},
+          },
+          'documents': <String, Object?>{},
+        }),
+        throwsA(isA<SerializationException>()),
+      );
     });
 
     test(
@@ -310,6 +403,72 @@ void main() {
       final results = restored.search(term: 'test');
       expect(results.count, greaterThanOrEqualTo(1));
       expect(results.hits.first.id, equals('doc1'));
+    });
+
+    test('toJson rejects databases created with a custom tokenizer', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        tokenizer: Tokenizer(
+          stopWords: ['the'],
+        ),
+      );
+
+      expect(
+        db.toJson,
+        throwsA(isA<SerializationException>()),
+      );
+    });
+
+    test('toJson rejects databases created with a custom stemmer', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        stemmer: (token) => token.isEmpty ? token : token[0],
+      );
+
+      expect(
+        db.toJson,
+        throwsA(isA<SerializationException>()),
+      );
+    });
+
+    test('round-trip preserves useDefaultStopWords config flag', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        useDefaultStopWords: true,
+      )..insert({
+          'id': 'doc1',
+          'title': 'the cat is here',
+        });
+
+      final restored = Searchlight.fromJson(db.toJson());
+      final tokenizerConfig =
+          restored.toJson()['tokenizerConfig']! as Map<String, Object?>;
+
+      expect(tokenizerConfig['useDefaultStopWords'], isTrue);
+    });
+
+    test('fromJson rejects invalid tokenizerConfig field types', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      );
+      final json = db.toJson();
+      json['tokenizerConfig'] = <String, Object?>{
+        'stemming': false,
+        'stopWords': 'not-a-list',
+      };
+
+      expect(
+        () => Searchlight.fromJson(json),
+        throwsA(isA<SerializationException>()),
+      );
     });
 
     test('fromJson corrects nextInternalId if saved value is too low (C3)', () {
@@ -487,6 +646,36 @@ void main() {
       // Should be able to insert new docs without collisions
       restored.insert({'id': 'e', 'title': 'Epsilon'});
       expect(restored.count, equals(3));
+    });
+
+    test('fromJson corrects sparse nextInternalId floor from max doc ID', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      )
+        ..insert({'id': 'a', 'title': 'Alpha'})
+        ..insert({'id': 'b', 'title': 'Beta'})
+        ..insert({'id': 'c', 'title': 'Gamma'})
+        ..insert({'id': 'd', 'title': 'Delta'});
+
+      expect(db.remove('b'), isTrue);
+      expect(db.remove('c'), isTrue);
+
+      final json = db.toJson();
+      final idStore =
+          json['internalDocumentIDStore']! as Map<String, Object?>;
+      idStore['nextId'] = 3;
+
+      final restored = Searchlight.fromJson(json)
+        ..insert({'id': 'e', 'title': 'Epsilon'})
+        ..insert({'id': 'f', 'title': 'Phi'});
+
+      expect(restored.count, 4);
+      expect(restored.getById('a')!.getString('title'), 'Alpha');
+      expect(restored.getById('d')!.getString('title'), 'Delta');
+      expect(restored.getById('e')!.getString('title'), 'Epsilon');
+      expect(restored.getById('f')!.getString('title'), 'Phi');
     });
 
     test('round-trip with geopoint fields through jsonEncode/jsonDecode', () {

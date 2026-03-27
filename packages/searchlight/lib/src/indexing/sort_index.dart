@@ -2,8 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
+import 'package:searchlight/src/text/diacritics.dart';
 
 /// A sort value stored per document.
 typedef SortValue = Object;
@@ -45,6 +47,77 @@ final class SortIndex {
   /// Creates an empty [SortIndex] with optional [language] for locale sorting.
   SortIndex({this.language});
 
+  /// Restores a [SortIndex] from serialized component state.
+  factory SortIndex.fromJson(
+    Map<String, Object?> json, {
+    String? fallbackLanguage,
+  }) {
+    final index = SortIndex(
+      language: json['language'] as String? ?? fallbackLanguage,
+    );
+
+    final rawSorts = json['sorts'];
+    if (rawSorts == null) {
+      return index;
+    }
+    if (rawSorts is! Map) {
+      throw const SerializationException(
+        'Missing or invalid "sorting.sorts" in JSON',
+      );
+    }
+
+    for (final entry in rawSorts.entries) {
+      final property = entry.key as String;
+      final rawSort = entry.value;
+      if (rawSort is! Map) {
+        throw SerializationException(
+          'Invalid serialized sort state for "$property"',
+        );
+      }
+
+      final sortJson = Map<String, Object?>.from(rawSort);
+      final sort = _PropertySort();
+
+      final rawDocs = sortJson['docs'];
+      if (rawDocs is! Map) {
+        throw SerializationException(
+          'Missing or invalid sort doc positions for "$property"',
+        );
+      }
+      for (final docEntry in rawDocs.entries) {
+        sort.docs[int.parse(docEntry.key as String)] = docEntry.value as int;
+      }
+
+      final rawOrderedDocs = sortJson['orderedDocs'];
+      if (rawOrderedDocs is! List) {
+        throw SerializationException(
+          'Missing or invalid ordered docs for "$property"',
+        );
+      }
+      for (final rawEntry in rawOrderedDocs) {
+        if (rawEntry is! List || rawEntry.length != 2) {
+          throw SerializationException(
+            'Invalid ordered doc entry for "$property"',
+          );
+        }
+
+        final docId = rawEntry[0] as int;
+        final value = rawEntry[1];
+        if (value is! num && value is! String && value is! bool) {
+          throw SerializationException(
+            'Invalid ordered doc sort value for "$property"',
+          );
+        }
+        sort.orderedDocs.add((docId, value));
+      }
+
+      sort.isSorted = sortJson['isSorted'] as bool? ?? true;
+      index._sorts[property] = sort;
+    }
+
+    return index;
+  }
+
   /// The language for locale-aware string sorting.
   ///
   /// Matches Orama's `Sorter.language`. Currently used for documentation
@@ -53,6 +126,45 @@ final class SortIndex {
 
   /// Per-property sort data.
   final Map<String, _PropertySort> _sorts = {};
+
+  /// Serializes the sort index to a JSON-compatible map.
+  Map<String, Object?> toJson() {
+    final properties = _sorts.keys.toList()..sort();
+    final sortableTypes = <String, String>{};
+    final sortsJson = <String, Object?>{};
+    var isSorted = true;
+
+    for (final property in properties) {
+      final sort = _sorts[property]!;
+      _ensureDeletedByProperty(sort);
+      _ensurePropertyIsSorted(sort);
+
+      isSorted = isSorted && sort.isSorted;
+      if (sort.orderedDocs.isNotEmpty) {
+        sortableTypes[property] = _sortValueType(sort.orderedDocs.first.$2);
+      }
+
+      sortsJson[property] = {
+        'docs': {
+          for (final entry in sort.docs.entries)
+            entry.key.toString(): entry.value,
+        },
+        'orderedDocs': [
+          for (final entry in sort.orderedDocs) [entry.$1, entry.$2],
+        ],
+        'isSorted': sort.isSorted,
+      };
+    }
+
+    return {
+      'language': language,
+      'sortableProperties': properties,
+      'sortablePropertiesWithTypes': sortableTypes,
+      'sorts': sortsJson,
+      'enabled': true,
+      'isSorted': isSorted,
+    };
+  }
 
   /// Inserts a document's sortable value for a property.
   ///
@@ -135,7 +247,7 @@ final class SortIndex {
         return va.compareTo(vb);
       }
       if (va is String && vb is String) {
-        return va.compareTo(vb);
+        return _compareStrings(va, vb);
       }
       if (va is bool && vb is bool) {
         if (va == vb) return 0;
@@ -152,6 +264,44 @@ final class SortIndex {
     s.isSorted = true;
   }
 
+  int _compareStrings(String a, String b) {
+    final keyA = _stringSortKey(a);
+    final keyB = _stringSortKey(b);
+    return keyA.compareTo(keyB);
+  }
+
+  String _stringSortKey(String value) {
+    final normalized = value.toLowerCase();
+
+    switch (language) {
+      case 'norwegian':
+      case 'danish':
+        return replaceDiacritics(
+          normalized
+              .replaceAll('æ', '{a')
+              .replaceAll('ø', '{b')
+              .replaceAll('å', '{c'),
+        );
+      case 'swedish':
+        return replaceDiacritics(
+          normalized
+              .replaceAll('å', '{a')
+              .replaceAll('ä', '{b')
+              .replaceAll('ö', '{c'),
+        );
+      case 'german':
+        return replaceDiacritics(
+          normalized
+              .replaceAll('ä', 'ae')
+              .replaceAll('ö', 'oe')
+              .replaceAll('ü', 'ue')
+              .replaceAll('ß', 'ss'),
+        );
+      default:
+        return replaceDiacritics(normalized);
+    }
+  }
+
   /// Removes lazily-deleted docs from orderedDocs.
   void _ensureDeletedByProperty(_PropertySort s) {
     if (s.orderedDocsToRemove.isEmpty) return;
@@ -165,5 +315,14 @@ final class SortIndex {
     for (var i = 0; i < s.orderedDocs.length; i++) {
       s.docs[s.orderedDocs[i].$1] = i;
     }
+  }
+
+  static String _sortValueType(SortValue value) {
+    if (value is String) return 'string';
+    if (value is num) return 'number';
+    if (value is bool) return 'boolean';
+    throw SerializationException(
+      'Unsupported sort value type: ${value.runtimeType}',
+    );
   }
 }

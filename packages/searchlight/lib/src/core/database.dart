@@ -42,52 +42,91 @@ final class Searchlight {
     required this.schema,
     required this.algorithm,
     required this.language,
+    required bool hasCustomStemmer,
+    required bool hasInjectedTokenizer,
     required SearchIndex index,
     required Tokenizer tokenizer,
     required SortIndex sortIndex,
   })  : _index = index,
         _tokenizer = tokenizer,
-        _sortIndex = sortIndex;
+        _sortIndex = sortIndex,
+        _hasCustomStemmer = hasCustomStemmer,
+        _hasInjectedTokenizer = hasInjectedTokenizer;
 
   /// Creates a new Searchlight database.
   ///
   /// The [schema] defines the structure and types of documents that will be
   /// stored. The optional [algorithm] (default [SearchAlgorithm.bm25]) sets
   /// the scoring strategy. The optional [language] (default `'en'`) controls
-  /// tokenization and stemming.
+  /// tokenization. The optional [stemming] overrides the default stemming
+  /// behavior for the resolved tokenizer language. The optional [stopWords]
+  /// supplies an explicit stop-word list for the internal tokenizer.
+  /// The optional [useDefaultStopWords] enables the built-in stop-word list
+  /// for the resolved tokenizer language.
+  /// The optional [stemmer] injects a custom stemming function.
+  /// The optional [allowDuplicates] preserves duplicate query/index tokens in
+  /// tokenizer output.
+  /// The optional [tokenizeSkipProperties] disables normal splitting and
+  /// lowercasing for the named indexed string properties.
+  /// The optional [stemmerSkipProperties] disables stemming for the named
+  /// indexed string properties. The optional [tokenizer] injects a custom
+  /// tokenizer instance directly.
   factory Searchlight.create({
     required Schema schema,
     SearchAlgorithm algorithm = SearchAlgorithm.bm25,
-    String language = 'en',
+    String? language,
+    bool? stemming,
+    String Function(String)? stemmer,
+    List<String>? stopWords,
+    bool? useDefaultStopWords,
+    bool allowDuplicates = false,
+    Set<String> tokenizeSkipProperties = const {},
+    Set<String> stemmerSkipProperties = const {},
+    Tokenizer? tokenizer,
   }) {
-    // Map short language codes to full names for the tokenizer
-    const languageMap = <String, String>{
-      'en': 'english',
-      'de': 'german',
-      'fi': 'finnish',
-      'fr': 'french',
-      'it': 'italian',
-      'nl': 'dutch',
-      'no': 'norwegian',
-      'pt': 'portuguese',
-      'ru': 'russian',
-      'es': 'spanish',
-      'sv': 'swedish',
-    };
-    final tokenizerLanguage = languageMap[language] ?? language;
+    if (tokenizer != null && language != null) {
+      throw ArgumentError(
+        'Cannot provide both language and a custom tokenizer.',
+      );
+    }
+    if (tokenizer != null &&
+        (stemming != null ||
+            stemmer != null ||
+            stopWords != null ||
+            useDefaultStopWords != null ||
+            allowDuplicates ||
+            tokenizeSkipProperties.isNotEmpty ||
+            stemmerSkipProperties.isNotEmpty)) {
+      throw ArgumentError(
+        'Cannot provide built-in tokenizer configuration when a custom '
+        'tokenizer is supplied.',
+      );
+    }
 
-    final tokenizer = Tokenizer(
-      language: tokenizerLanguage,
-      stemming: tokenizerLanguage == 'english',
-    );
+    final resolvedLanguage = language ?? 'en';
+    final tokenizerLanguage = _resolveTokenizerLanguage(resolvedLanguage);
+
+    final resolvedTokenizer = tokenizer ??
+        _createTokenizer(
+          language: tokenizerLanguage,
+          stemming: stemming,
+          stemmer: stemmer,
+          stopWords: stopWords,
+          useDefaultStopWords: useDefaultStopWords,
+          allowDuplicates: allowDuplicates,
+          tokenizeSkipProperties: tokenizeSkipProperties,
+          stemmerSkipProperties: stemmerSkipProperties,
+        );
     final index = SearchIndex.create(schema: schema, algorithm: algorithm);
 
     return Searchlight._(
       schema: schema,
       algorithm: algorithm,
-      language: language,
+      language: resolvedLanguage,
+      hasCustomStemmer: stemmer != null,
+      hasInjectedTokenizer: tokenizer != null,
       index: index,
-      tokenizer: tokenizer,
+      tokenizer: resolvedTokenizer,
       sortIndex: SortIndex(language: tokenizerLanguage),
     );
   }
@@ -96,16 +135,10 @@ final class Searchlight {
   /// produced by [toJson].
   ///
   /// Matches Orama's `load(orama, raw)` pattern: checks the format version,
-  /// then restores each component from the raw data.
-  ///
-  /// **Design note (A1/A2/B6):** Rather than directly deserializing index
-  /// trees and sort indexes, this method creates a fresh database and
-  /// re-inserts all documents in internal ID order. This re-insertion
-  /// approach is simpler and produces functionally identical search results.
-  /// The trade-off is O(n*m) restore time (n = documents, m = fields)
-  /// compared to O(data_size) for direct tree restoration. For most use
-  /// cases (< 50k documents) this is acceptable. Direct tree serialization
-  /// can be added as a future optimization.
+  /// restores the tokenizer configuration, then restores documents, index,
+  /// and sorting components from the raw data. Legacy snapshots without
+  /// serialized `index`/`sorting` component state are still supported by
+  /// rebuilding those components through document re-insertion.
   ///
   /// Throws [SerializationException] if the format version is incompatible
   /// or the data is corrupt/missing.
@@ -139,6 +172,51 @@ final class Searchlight {
     if (language == null) {
       throw const SerializationException('Missing "language" in JSON');
     }
+    final tokenizerLanguage = _resolveTokenizerLanguage(language);
+
+    final rawTokenizerConfig = json['tokenizerConfig'];
+    final tokenizerConfigJson = rawTokenizerConfig == null
+        ? null
+        : _asObjectMap(
+            rawTokenizerConfig,
+            'Invalid "tokenizerConfig" in JSON',
+          );
+    final tokenizerStemming = _asOptionalBool(
+      tokenizerConfigJson,
+      key: 'stemming',
+      message: 'Invalid "tokenizerConfig.stemming" in JSON',
+    );
+    final tokenizerStopWords = _asOptionalStringList(
+      tokenizerConfigJson,
+      key: 'stopWords',
+      message: 'Invalid "tokenizerConfig.stopWords" in JSON',
+    );
+    final tokenizerUseDefaultStopWords = _asOptionalBool(
+      tokenizerConfigJson,
+      key: 'useDefaultStopWords',
+      message: 'Invalid "tokenizerConfig.useDefaultStopWords" in JSON',
+    );
+    final tokenizerAllowDuplicates =
+        _asOptionalBool(
+          tokenizerConfigJson,
+          key: 'allowDuplicates',
+          message: 'Invalid "tokenizerConfig.allowDuplicates" in JSON',
+        ) ??
+        false;
+    final tokenizeSkipProperties =
+        _asOptionalStringList(
+          tokenizerConfigJson,
+          key: 'tokenizeSkipProperties',
+          message: 'Invalid "tokenizerConfig.tokenizeSkipProperties" in JSON',
+        )?.toSet() ??
+        const <String>{};
+    final stemmerSkipProperties =
+        _asOptionalStringList(
+          tokenizerConfigJson,
+          key: 'stemmerSkipProperties',
+          message: 'Invalid "tokenizerConfig.stemmerSkipProperties" in JSON',
+        )?.toSet() ??
+        const <String>{};
 
     // 4. Restore schema
     final schemaJson = json['schema'];
@@ -149,71 +227,89 @@ final class Searchlight {
     }
     final schema = schemaFromJson(schemaJson);
 
-    // 5. Create the database with restored config
-    final db = Searchlight.create(
-      schema: schema,
-      algorithm: algorithm,
-      language: language,
-    );
+    // 5. Restore tokenizer configuration
+    late final Tokenizer tokenizer;
+    try {
+      tokenizer = _createTokenizer(
+        language: tokenizerLanguage,
+        stemming: tokenizerStemming,
+        stopWords: tokenizerStopWords,
+        useDefaultStopWords: tokenizerUseDefaultStopWords,
+        allowDuplicates: tokenizerAllowDuplicates,
+        tokenizeSkipProperties: tokenizeSkipProperties,
+        stemmerSkipProperties: stemmerSkipProperties,
+      );
+    } catch (error) {
+      if (error is! ArgumentError) {
+        rethrow;
+      }
+      throw SerializationException(
+        'Invalid tokenizer configuration in JSON: ${error.message}',
+      );
+    }
 
-    // Collect geopoint field paths for deserialization (I4 fix)
-    final geoFields = schema.fieldPathsOfType(SchemaType.geopoint);
-
-    // 6. Restore documents by re-inserting
-    // I3c fix: throw when documents data is missing instead of silently
-    // returning an empty database, which could mask data corruption.
+    // 6. Validate serialized documents and ID store
     final docsJson = json['documents'];
     if (docsJson is! Map<String, Object?>) {
       throw const SerializationException('Missing documents data');
     }
     final idStoreJson = json['internalDocumentIDStore'];
-    if (idStoreJson is Map<String, Object?>) {
-      final internalToIdJson =
-          idStoreJson['internalIdToId'] as Map<String, Object?>?;
-      final nextId = idStoreJson['nextId'] as int?;
-      final nextGeneratedId = idStoreJson['nextGeneratedId'] as int?;
-
-      if (internalToIdJson != null) {
-        // Re-insert documents in internal ID order to preserve IDs
-        // Sort by internal ID to maintain insertion order
-        final sortedEntries = docsJson.entries.toList()
-          ..sort((a, b) => int.parse(a.key).compareTo(int.parse(b.key)));
-
-        for (final entry in sortedEntries) {
-          final internalIdStr = entry.key;
-          final docData = entry.value;
-          if (docData is! Map<String, Object?>) continue;
-
-          final externalId = internalToIdJson[internalIdStr] as String?;
-          if (externalId == null) continue;
-
-          // Ensure the document data includes the external ID so insert()
-          // uses it rather than generating a new one
-          final dataWithId = <String, Object?>{
-            ...docData,
-            'id': externalId,
-          };
-
-          // Convert serialized {'lat': ..., 'lon': ...} maps back to
-          // GeoPoint objects (I4 fix).
-          for (final geoPath in geoFields) {
-            _convertMapToGeoPoint(dataWithId, geoPath);
-          }
-
-          db.insert(dataWithId);
-        }
-      }
-
-      // Restore counters.
-      // C3 defensive check: ensure _nextInternalId is at least
-      // (number of restored documents + 1) to prevent duplicate internal IDs
-      // from corrupted save data.
-      final minNextId = db._documents.length + 1;
-      if (nextId != null) {
-        db._nextInternalId = nextId < minNextId ? minNextId : nextId;
-      }
-      if (nextGeneratedId != null) db._nextGeneratedId = nextGeneratedId;
+    if (idStoreJson is! Map<String, Object?>) {
+      throw const SerializationException(
+        'Missing or invalid "internalDocumentIDStore" in JSON',
+      );
     }
+
+    final hasSerializedIndex = json.containsKey('index');
+    final hasSerializedSorting = json.containsKey('sorting');
+    if (hasSerializedIndex != hasSerializedSorting) {
+      throw const SerializationException(
+        'Serialized snapshots must contain both "index" and "sorting" '
+        'or neither.',
+      );
+    }
+
+    final index = hasSerializedIndex
+        ? SearchIndex.fromJson(
+            _asObjectMap(json['index'], 'Missing or invalid "index" in JSON'),
+            algorithm: algorithm,
+          )
+        : SearchIndex.create(schema: schema, algorithm: algorithm);
+    final sortIndex = hasSerializedSorting
+        ? SortIndex.fromJson(
+            _asObjectMap(
+              json['sorting'],
+              'Missing or invalid "sorting" in JSON',
+            ),
+            fallbackLanguage: tokenizerLanguage,
+          )
+        : SortIndex(language: tokenizerLanguage);
+
+    final db = Searchlight._(
+      schema: schema,
+      algorithm: algorithm,
+      language: language,
+      hasCustomStemmer: false,
+      hasInjectedTokenizer: false,
+      index: index,
+      tokenizer: tokenizer,
+      sortIndex: sortIndex,
+    );
+
+    if (hasSerializedIndex) {
+      _restoreSerializedDocuments(
+        db,
+        docsJson: docsJson,
+        idStoreJson: idStoreJson,
+      );
+      return db;
+    }
+
+    _restoreLegacyDocuments(
+      db,
+      docsJson: docsJson,
+      idStoreJson: idStoreJson,
+    );
 
     return db;
   }
@@ -243,6 +339,201 @@ final class Searchlight {
   /// Populated during insert/remove, used during search when sortBy is
   /// provided. Matches Orama's `Sorter`.
   final SortIndex _sortIndex;
+
+  final bool _hasCustomStemmer;
+  final bool _hasInjectedTokenizer;
+
+  List<String>? get _serializedStopWords =>
+      _tokenizer.usesDefaultStopWords ? null : _tokenizer.stopWords;
+
+  static const Map<String, String> _languageMap = <String, String>{
+    'en': 'english',
+    'de': 'german',
+    'fi': 'finnish',
+    'fr': 'french',
+    'it': 'italian',
+    'nl': 'dutch',
+    'no': 'norwegian',
+    'pt': 'portuguese',
+    'ru': 'russian',
+    'es': 'spanish',
+    'sv': 'swedish',
+  };
+
+  static String _resolveTokenizerLanguage(String language) {
+    return _languageMap[language] ?? language;
+  }
+
+  static Tokenizer _createTokenizer({
+    required String language,
+    bool? stemming,
+    String Function(String)? stemmer,
+    List<String>? stopWords,
+    bool? useDefaultStopWords,
+    bool allowDuplicates = false,
+    Set<String> tokenizeSkipProperties = const {},
+    Set<String> stemmerSkipProperties = const {},
+  }) {
+    return Tokenizer(
+      language: language,
+      stemming: stemming ?? false,
+      stemmer: stemmer,
+      stopWords: stopWords,
+      useDefaultStopWords: useDefaultStopWords,
+      allowDuplicates: allowDuplicates,
+      tokenizeSkipProperties: tokenizeSkipProperties,
+      stemmerSkipProperties: stemmerSkipProperties,
+    );
+  }
+
+  static void _restoreSerializedDocuments(
+    Searchlight db, {
+    required Map<String, Object?> docsJson,
+    required Map<String, Object?> idStoreJson,
+  }) {
+    final internalToIdJson = _asObjectMap(
+      idStoreJson['internalIdToId'],
+      'Missing or invalid "internalDocumentIDStore.internalIdToId" in JSON',
+    );
+    final geoFields = db.schema.fieldPathsOfType(SchemaType.geopoint);
+    final sortedEntries = docsJson.entries.toList()
+      ..sort((a, b) => int.parse(a.key).compareTo(int.parse(b.key)));
+
+    for (final entry in sortedEntries) {
+      final internalId = int.parse(entry.key);
+      final externalId = internalToIdJson[entry.key] as String?;
+      if (externalId == null) {
+        throw SerializationException(
+          'Missing external ID mapping for internal document ${entry.key}',
+        );
+      }
+
+      final data = _deserializeStoredDocument(
+        entry.value,
+        docKey: entry.key,
+        geoFields: geoFields,
+      );
+      final docId = DocId(internalId);
+
+      db._documents[docId] = Document(data);
+      db._externalToInternal[externalId] = docId;
+      db._internalToExternal[docId] = externalId;
+    }
+
+    db._index.restoreDocsCount(db._documents.length);
+    _restoreCounters(db, idStoreJson);
+  }
+
+  static void _restoreLegacyDocuments(
+    Searchlight db, {
+    required Map<String, Object?> docsJson,
+    required Map<String, Object?> idStoreJson,
+  }) {
+    final internalToIdJson = _asObjectMap(
+      idStoreJson['internalIdToId'],
+      'Missing or invalid "internalDocumentIDStore.internalIdToId" in JSON',
+    );
+    final geoFields = db.schema.fieldPathsOfType(SchemaType.geopoint);
+    final sortedEntries = docsJson.entries.toList()
+      ..sort((a, b) => int.parse(a.key).compareTo(int.parse(b.key)));
+
+    for (final entry in sortedEntries) {
+      final externalId = internalToIdJson[entry.key] as String?;
+      if (externalId == null) {
+        throw SerializationException(
+          'Missing external ID mapping for internal document ${entry.key}',
+        );
+      }
+
+      final dataWithId = _deserializeStoredDocument(
+        entry.value,
+        docKey: entry.key,
+        geoFields: geoFields,
+      )..['id'] = externalId;
+
+      db.insert(dataWithId);
+    }
+
+    _restoreCounters(db, idStoreJson);
+  }
+
+  static Map<String, Object?> _deserializeStoredDocument(
+    Object? rawDocument, {
+    required String docKey,
+    required List<String> geoFields,
+  }) {
+    final data = _asObjectMap(
+      rawDocument,
+      'Invalid document payload for internal document $docKey',
+    );
+    final document = Map<String, Object?>.from(data);
+    for (final geoPath in geoFields) {
+      _convertMapToGeoPoint(document, geoPath);
+    }
+    return document;
+  }
+
+  static void _restoreCounters(
+    Searchlight db,
+    Map<String, Object?> idStoreJson,
+  ) {
+    final nextId = idStoreJson['nextId'] as int?;
+    final nextGeneratedId = idStoreJson['nextGeneratedId'] as int?;
+
+    final maxExistingId = db._documents.keys.fold<int>(
+      0,
+      (maxId, docId) => docId.id > maxId ? docId.id : maxId,
+    );
+    final minNextId = maxExistingId + 1;
+    if (nextId != null) {
+      db._nextInternalId = nextId < minNextId ? minNextId : nextId;
+    } else {
+      db._nextInternalId = minNextId;
+    }
+    if (nextGeneratedId != null) {
+      db._nextGeneratedId = nextGeneratedId;
+    }
+  }
+
+  static Map<String, Object?> _asObjectMap(Object? raw, String message) {
+    if (raw is! Map) {
+      throw SerializationException(message);
+    }
+    return Map<String, Object?>.from(raw);
+  }
+
+  static bool? _asOptionalBool(
+    Map<String, Object?>? json, {
+    required String key,
+    required String message,
+  }) {
+    if (json == null || !json.containsKey(key) || json[key] == null) {
+      return null;
+    }
+    final value = json[key];
+    if (value is! bool) {
+      throw SerializationException(message);
+    }
+    return value;
+  }
+
+  static List<String>? _asOptionalStringList(
+    Map<String, Object?>? json, {
+    required String key,
+    required String message,
+  }) {
+    if (json == null || !json.containsKey(key) || json[key] == null) {
+      return null;
+    }
+    final value = json[key];
+    if (value is! List) {
+      throw SerializationException(message);
+    }
+    if (value.any((element) => element is! String)) {
+      throw SerializationException(message);
+    }
+    return value.cast<String>();
+  }
 
   // ---------------------------------------------------------------------------
   // Internal document storage
@@ -277,6 +568,13 @@ final class Searchlight {
   /// Field path -> SchemaType mapping — for facet/group type resolution.
   Map<String, SchemaType> get propertiesWithTypes =>
       _index.searchablePropertiesWithTypes;
+
+  List<String> get _sortableProperties {
+    return _index.searchablePropertiesWithTypes.entries
+        .where((entry) => _sortableTypes.contains(entry.value))
+        .map((entry) => entry.key)
+        .toList();
+  }
 
   /// Internal doc ID -> external string ID mapping — for group computation.
   Map<int, String> get externalIdsMap {
@@ -689,6 +987,16 @@ final class Searchlight {
       propertiesToSearch = stringFields;
     }
 
+    if (sortBy != null) {
+      final sortableProperties = _sortableProperties;
+      if (!sortableProperties.contains(sortBy.field)) {
+        throw QueryException(
+          "Unable to sort on unknown field '${sortBy.field}'. "
+          'Available: ${sortableProperties.join(', ')}',
+        );
+      }
+    }
+
     // 2. Evaluate where filters (matching Orama's innerFullTextSearch)
     final hasFilters = where != null && where.isNotEmpty;
     Set<int>? whereFiltersIDs;
@@ -930,10 +1238,27 @@ final class Searchlight {
   /// Returns the new [Searchlight] instance. The original instance is
   /// unmodified.
   Searchlight reindex({required SearchAlgorithm algorithm}) {
+    if (_hasInjectedTokenizer) {
+      throw StateError(
+        'Cannot reindex a database created with a custom tokenizer.',
+      );
+    }
+    if (_hasCustomStemmer) {
+      throw StateError(
+        'Cannot reindex a database created with a custom stemmer.',
+      );
+    }
+
     final newDb = Searchlight.create(
       schema: schema,
       algorithm: algorithm,
       language: language,
+      stemming: _tokenizer.stemmingEnabled,
+      stopWords: _serializedStopWords,
+      useDefaultStopWords: _tokenizer.usesDefaultStopWords,
+      allowDuplicates: _tokenizer.allowDuplicates,
+      tokenizeSkipProperties: _tokenizer.tokenizeSkipProperties,
+      stemmerSkipProperties: _tokenizer.stemmerSkipProperties,
     );
 
     // Re-insert all documents from the current instance
@@ -969,18 +1294,18 @@ final class Searchlight {
   /// Matches Orama's `save(orama)` which returns a `RawData` object
   /// containing all component states. Adds `formatVersion` for forward
   /// compatibility.
-  ///
-  /// **Design note (A1/A2/B6):** The index trees and sort index are NOT
-  /// serialized. Instead, [Searchlight.fromJson] rebuilds them by
-  /// re-inserting all documents. This is simpler and more robust than
-  /// serializing each tree
-  /// type, and produces functionally identical results because insertion
-  /// order is preserved (documents are sorted by internal ID before
-  /// re-insertion). The trade-off is O(n*m) restore time vs O(data_size)
-  /// for direct tree restoration. For databases with tens of thousands of
-  /// documents this may be measurably slower. A future optimization could
-  /// add per-tree `toJson`/`fromJson` to enable direct restoration.
   Map<String, Object?> toJson() {
+    if (_hasInjectedTokenizer) {
+      throw const SerializationException(
+        'Cannot serialize a database created with a custom tokenizer.',
+      );
+    }
+    if (_hasCustomStemmer) {
+      throw const SerializationException(
+        'Cannot serialize a database created with a custom stemmer.',
+      );
+    }
+
     // Collect geopoint field paths from the schema so we can convert
     // GeoPoint objects to serializable maps (I4 fix).
     final geoFields = schema.fieldPathsOfType(SchemaType.geopoint);
@@ -1010,6 +1335,16 @@ final class Searchlight {
       'formatVersion': currentFormatVersion,
       'algorithm': algorithm.name,
       'language': language,
+      'tokenizerConfig': {
+        'stemming': _tokenizer.stemmingEnabled,
+        'stopWords': _serializedStopWords,
+        'useDefaultStopWords': _tokenizer.usesDefaultStopWords,
+        'allowDuplicates': _tokenizer.allowDuplicates,
+        'tokenizeSkipProperties': (_tokenizer.tokenizeSkipProperties.toList()
+          ..sort()),
+        'stemmerSkipProperties': (_tokenizer.stemmerSkipProperties.toList()
+          ..sort()),
+      },
       'schema': schemaToJson(schema),
       'internalDocumentIDStore': {
         'idToInternalId': idToInternalJson,
@@ -1017,6 +1352,8 @@ final class Searchlight {
         'nextId': _nextInternalId,
         'nextGeneratedId': _nextGeneratedId,
       },
+      'index': _index.toJson(),
+      'sorting': _sortIndex.toJson(),
       'documents': docsJson,
     };
   }

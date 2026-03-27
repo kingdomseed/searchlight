@@ -22,6 +22,22 @@ void main() {
       expect(bytes, isNotEmpty);
     });
 
+    test('serialize() rejects databases created with a custom tokenizer', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        tokenizer: Tokenizer(
+          stopWords: ['the'],
+        ),
+      );
+
+      expect(
+        db.serialize,
+        throwsA(isA<SerializationException>()),
+      );
+    });
+
     test('serialize/deserialize round-trip preserves documents', () {
       final db = Searchlight.create(
         schema: Schema({

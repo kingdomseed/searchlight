@@ -293,6 +293,83 @@ void main() {
       );
       expect(priceResult.count, 2);
     });
+
+    test('reindex: preserves built-in tokenizer stemming config', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        stemming: true,
+      )..insert({
+          'id': 'doc1',
+          'title': 'studies',
+        });
+
+      final reindexed = db.reindex(algorithm: SearchAlgorithm.qps);
+      final result = reindexed.search(
+        term: 'study',
+        properties: const ['title'],
+      );
+
+      expect(result.count, 1);
+      expect(result.hits.first.id, 'doc1');
+    });
+
+    test('reindex: preserves built-in default stop-word config', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        useDefaultStopWords: true,
+      )..insert({
+          'id': 'doc1',
+          'title': 'the cat is here',
+        });
+
+      final reindexed = db.reindex(algorithm: SearchAlgorithm.qps);
+      final stopWordResult = reindexed.search(
+        term: 'the',
+        properties: const ['title'],
+      );
+      final contentResult = reindexed.search(
+        term: 'cat',
+        properties: const ['title'],
+      );
+
+      expect(stopWordResult.count, 0);
+      expect(contentResult.count, 1);
+      expect(contentResult.hits.first.id, 'doc1');
+    });
+
+    test('reindex: rejects injected custom tokenizer instances', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        tokenizer: Tokenizer(
+          stopWords: ['the'],
+        ),
+      );
+
+      expect(
+        () => db.reindex(algorithm: SearchAlgorithm.qps),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('reindex: rejects custom stemmer callbacks', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        stemmer: (token) => token.isEmpty ? token : token[0],
+      );
+
+      expect(
+        () => db.reindex(algorithm: SearchAlgorithm.qps),
+        throwsA(isA<StateError>()),
+      );
+    });
   });
 
   group('PT15 parameter validation (Phase 6 audit F1/F2)', () {
