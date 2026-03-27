@@ -674,30 +674,48 @@ void main() {
       });
     });
 
-    // Item 11: avgFieldLength = NaN when last doc removed
     group('avgFieldLength after last doc removed', () {
-      test('sets avgFieldLength to NaN when docsCount reaches 0', () {
-        final schema = Schema({
-          'title': const TypedField(SchemaType.string),
-        });
-        final idx = SearchIndex.create(schema: schema);
-        final tok = Tokenizer(allowDuplicates: true);
+      test(
+        'reinsertion after removing last doc keeps BM25 metadata finite',
+        () {
+          final schema = Schema({
+            'title': const TypedField(SchemaType.string),
+          });
+          final idx = SearchIndex.create(schema: schema);
+          final tok = Tokenizer(allowDuplicates: true);
 
-        idx.insertDocument(
-          docId: 1,
-          data: {'title': 'hello'},
-          tokenizer: tok,
-        );
-        expect(idx.avgFieldLength['title'], 1.0);
+          idx.insertDocument(
+            docId: 1,
+            data: {'title': 'hello'},
+            tokenizer: tok,
+          );
+          expect(idx.avgFieldLength['title'], 1.0);
 
-        idx.removeDocument(
-          docId: 1,
-          data: {'title': 'hello'},
-          tokenizer: tok,
-        );
-        // Orama: sets avgFieldLength to undefined which becomes NaN
-        expect(idx.avgFieldLength['title']!.isNaN, isTrue);
-      });
+          idx.removeDocument(
+            docId: 1,
+            data: {'title': 'hello'},
+            tokenizer: tok,
+          );
+
+          final results = (idx
+                ..insertDocument(
+            docId: 2,
+            data: {'title': 'world'},
+            tokenizer: tok,
+          ))
+              .search(
+                term: 'world',
+                tokenizer: tok,
+                propertiesToSearch: ['title'],
+                relevance: const BM25Params(),
+              );
+
+          expect(idx.avgFieldLength['title'], 1.0);
+          expect(results, hasLength(1));
+          expect(results.single.$1, 2);
+          expect(results.single.$2.isNaN, isFalse);
+        },
+      );
     });
   });
 }

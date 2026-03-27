@@ -373,8 +373,10 @@ final class SearchIndex {
     int docId,
     List<String> tokens,
   ) {
+    final currentAvg = avgFieldLength[prop];
+    final safeAvg = currentAvg == null || currentAvg.isNaN ? 0.0 : currentAvg;
     avgFieldLength[prop] =
-        ((avgFieldLength[prop] ?? 0) * (_docsCount - 1) + tokens.length) /
+        (safeAvg * (_docsCount - 1) + tokens.length) /
             _docsCount;
     fieldLengths[prop]![docId] = tokens.length;
     frequencies[prop]![docId] = {};
@@ -553,9 +555,10 @@ final class SearchIndex {
               (fieldLengths[prop]![docId] ?? 0)) /
           (_docsCount - 1);
     } else {
-      // Item 11: Orama sets avgFieldLength[prop] = undefined, which
-      // becomes NaN in subsequent calculations. Match that behavior.
-      avgFieldLength[prop] = double.nan;
+      // Dart's closest equivalent to Orama's `undefined` is an absent key.
+      // Leaving a stored NaN here poisons subsequent inserts because NaN
+      // does not trigger the `?? 0`-style fallback used for fresh averages.
+      avgFieldLength.remove(prop);
     }
     fieldLengths[prop]!.remove(docId);
     frequencies[prop]!.remove(docId);

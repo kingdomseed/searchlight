@@ -246,7 +246,7 @@ Both track: `avgFieldLength`, `fieldLengths`, `frequencies`, `tokenOccurrences`.
 
 - **`tokenOccurrences` document frequency hardening**: HARDENED DIVERGENCE -- Orama increments `tokenOccurrences[prop][token]` once per token emission during insert and decrements once per emission during remove. That means repeated tokens in a single document can inflate BM25 `matchingCount`, including for duplicates spread across `string[]` elements. Searchlight now increments and decrements `tokenOccurrences` once per unique token per document while still computing TF from the full token stream. This intentionally diverges from Orama so BM25 IDF reflects document frequency instead of raw term repetitions inside one document.
 
-- **`removeDocumentScoreParameters` -- Orama sets `avgFieldLength[prop] = undefined` when docsCount==1; Searchlight sets to `0`**: NEEDS REVIEW -- When removing the last document, Orama sets avgFieldLength to `undefined` (which becomes `NaN` in subsequent calculations). Searchlight sets it to `0`. This only matters when the index goes from 1 to 0 documents and then gets queried or has new documents inserted. Setting to 0 is arguably more correct and prevents NaN propagation, but diverges from Orama.
+- **`removeDocumentScoreParameters` -- Orama sets `avgFieldLength[prop] = undefined` when docsCount==1; Searchlight removes the key**: ACCEPTABLE -- Removing the key is the correct Dart equivalent of Orama's `undefined`. This preserves reinsertion behavior because subsequent inserts fall back to `0` for the running average instead of propagating `NaN`.
 
 - **`removeDocumentScoreParameters` -- Orama sets `fieldLengths[prop][internalId] = undefined` and `frequencies[prop][internalId] = undefined`; Searchlight removes the keys**: ACCEPTABLE -- Dart doesn't have `undefined`. Removing the key is the correct Dart equivalent since lookups on missing keys return `null`.
 
@@ -550,7 +550,7 @@ Orama's highlighter is in a separate package (`@orama/highlight`) not directly i
 | 2 | A (Tokenizer) | Missing language parameter validation in tokenize() | Low -- defense-in-depth only |
 | 3 | E (Index Manager) | String array BM25 scoring: Searchlight intentionally hardens metadata updates while Orama overwrites per-element | Different relevance scores from current Orama, but avoids corrupted BM25 stats |
 | 4 | E (Index Manager) | Orama disables normalization cache during insert; Searchlight uses cache | Minimal impact -- cache returns same result |
-| 5 | E (Index Manager) | avgFieldLength set to 0 vs undefined when last doc removed | Edge case when index empties and refills |
+| 5 | E (Index Manager) | avgFieldLength reset after last doc removal uses Dart's absent-key equivalent of Orama undefined | Low -- reinsertion now stays finite and Orama-compatible |
 | 6 | E (Index Manager) | Missing boost value validation (boost <= 0) | Could produce incorrect scores silently |
 | 7 | K (Sorter) | Boolean comparator returns `0` for equality instead of mirroring Orama's contract violation | Intentional hardening for deterministic duplicate-boolean sorts |
 | 8 | E (Index Manager) | Non-Radix property in search: Orama throws, Searchlight skips | Defense-in-depth difference |
