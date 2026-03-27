@@ -7,6 +7,9 @@ export 'src/core/document.dart';
 export 'src/core/exceptions.dart';
 export 'src/core/schema.dart';
 export 'src/core/types.dart';
+export 'src/extensions/components.dart';
+export 'src/extensions/hooks.dart';
+export 'src/extensions/plugin.dart';
 export 'src/highlight/highlighter.dart';
 export 'src/highlight/positions.dart';
 export 'src/persistence/format.dart'

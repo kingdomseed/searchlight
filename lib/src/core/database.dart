@@ -11,6 +11,8 @@ import 'package:searchlight/src/core/document.dart';
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/types.dart';
+import 'package:searchlight/src/extensions/components.dart';
+import 'package:searchlight/src/extensions/plugin.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
 import 'package:searchlight/src/indexing/sort_index.dart';
 import 'package:searchlight/src/persistence/cbor_serializer.dart';
@@ -83,7 +85,12 @@ final class Searchlight {
     Set<String> tokenizeSkipProperties = const {},
     Set<String> stemmerSkipProperties = const {},
     Tokenizer? tokenizer,
+    List<SearchlightPlugin<Object?>> plugins = const [],
+    SearchlightComponents? components,
   }) {
+    // Task 1 API scaffold only: extensions are accepted but not yet wired.
+    final _ = (plugins, components);
+
     if (tokenizer != null && language != null) {
       throw ArgumentError(
         'Cannot provide both language and a custom tokenizer.',
@@ -196,22 +203,19 @@ final class Searchlight {
       key: 'useDefaultStopWords',
       message: 'Invalid "tokenizerConfig.useDefaultStopWords" in JSON',
     );
-    final tokenizerAllowDuplicates =
-        _asOptionalBool(
+    final tokenizerAllowDuplicates = _asOptionalBool(
           tokenizerConfigJson,
           key: 'allowDuplicates',
           message: 'Invalid "tokenizerConfig.allowDuplicates" in JSON',
         ) ??
         false;
-    final tokenizeSkipProperties =
-        _asOptionalStringList(
+    final tokenizeSkipProperties = _asOptionalStringList(
           tokenizerConfigJson,
           key: 'tokenizeSkipProperties',
           message: 'Invalid "tokenizerConfig.tokenizeSkipProperties" in JSON',
         )?.toSet() ??
         const <String>{};
-    final stemmerSkipProperties =
-        _asOptionalStringList(
+    final stemmerSkipProperties = _asOptionalStringList(
           tokenizerConfigJson,
           key: 'stemmerSkipProperties',
           message: 'Invalid "tokenizerConfig.stemmerSkipProperties" in JSON',
