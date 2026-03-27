@@ -257,6 +257,20 @@ void main() {
         }),
         throwsA(isA<SerializationException>()),
       );
+
+      // Invalid language
+      expect(
+        () => Searchlight.fromJson(<String, Object?>{
+          'formatVersion': 1,
+          'algorithm': 'bm25',
+          'language': 'klingon',
+          'schema': <String, Object?>{
+            'title': {'type': 'string'},
+          },
+          'documents': <String, Object?>{},
+        }),
+        throwsA(isA<SerializationException>()),
+      );
     });
 
     test(
@@ -340,6 +354,24 @@ void main() {
         db.toJson,
         throwsA(isA<SerializationException>()),
       );
+    });
+
+    test('round-trip preserves useDefaultStopWords config flag', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        useDefaultStopWords: true,
+      )..insert({
+          'id': 'doc1',
+          'title': 'the cat is here',
+        });
+
+      final restored = Searchlight.fromJson(db.toJson());
+      final tokenizerConfig =
+          restored.toJson()['tokenizerConfig']! as Map<String, Object?>;
+
+      expect(tokenizerConfig['useDefaultStopWords'], isTrue);
     });
 
     test('fromJson corrects nextInternalId if saved value is too low (C3)', () {

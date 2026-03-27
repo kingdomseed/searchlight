@@ -214,17 +214,27 @@ final class Searchlight {
     final schema = schemaFromJson(schemaJson);
 
     // 5. Create the database with restored config
-    final db = Searchlight.create(
-      schema: schema,
-      algorithm: algorithm,
-      language: language,
-      stemming: tokenizerStemming,
-      stopWords: tokenizerStopWords,
-      useDefaultStopWords: tokenizerUseDefaultStopWords,
-      allowDuplicates: tokenizerAllowDuplicates,
-      tokenizeSkipProperties: tokenizeSkipProperties,
-      stemmerSkipProperties: stemmerSkipProperties,
-    );
+    late final Searchlight db;
+    try {
+      db = Searchlight.create(
+        schema: schema,
+        algorithm: algorithm,
+        language: language,
+        stemming: tokenizerStemming,
+        stopWords: tokenizerStopWords,
+        useDefaultStopWords: tokenizerUseDefaultStopWords,
+        allowDuplicates: tokenizerAllowDuplicates,
+        tokenizeSkipProperties: tokenizeSkipProperties,
+        stemmerSkipProperties: stemmerSkipProperties,
+      );
+    } catch (error) {
+      if (error is! ArgumentError) {
+        rethrow;
+      }
+      throw SerializationException(
+        'Invalid tokenizer configuration in JSON: ${error.message}',
+      );
+    }
 
     // Collect geopoint field paths for deserialization (I4 fix)
     final geoFields = schema.fieldPathsOfType(SchemaType.geopoint);
@@ -316,6 +326,9 @@ final class Searchlight {
 
   final bool _hasCustomStemmer;
   final bool _hasInjectedTokenizer;
+
+  List<String>? get _serializedStopWords =>
+      _tokenizer.usesDefaultStopWords ? null : _tokenizer.stopWords;
 
   // ---------------------------------------------------------------------------
   // Internal document storage
@@ -1019,7 +1032,7 @@ final class Searchlight {
       algorithm: algorithm,
       language: language,
       stemming: _tokenizer.stemmingEnabled,
-      stopWords: _tokenizer.stopWords,
+      stopWords: _serializedStopWords,
       useDefaultStopWords: _tokenizer.usesDefaultStopWords,
       allowDuplicates: _tokenizer.allowDuplicates,
       tokenizeSkipProperties: _tokenizer.tokenizeSkipProperties,
@@ -1113,7 +1126,7 @@ final class Searchlight {
       'language': language,
       'tokenizerConfig': {
         'stemming': _tokenizer.stemmingEnabled,
-        'stopWords': _tokenizer.stopWords,
+        'stopWords': _serializedStopWords,
         'useDefaultStopWords': _tokenizer.usesDefaultStopWords,
         'allowDuplicates': _tokenizer.allowDuplicates,
         'tokenizeSkipProperties': (_tokenizer.tokenizeSkipProperties.toList()

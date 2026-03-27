@@ -315,6 +315,32 @@ void main() {
       expect(result.hits.first.id, 'doc1');
     });
 
+    test('reindex: preserves built-in default stop-word config', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        useDefaultStopWords: true,
+      )..insert({
+          'id': 'doc1',
+          'title': 'the cat is here',
+        });
+
+      final reindexed = db.reindex(algorithm: SearchAlgorithm.qps);
+      final stopWordResult = reindexed.search(
+        term: 'the',
+        properties: const ['title'],
+      );
+      final contentResult = reindexed.search(
+        term: 'cat',
+        properties: const ['title'],
+      );
+
+      expect(stopWordResult.count, 0);
+      expect(contentResult.count, 1);
+      expect(contentResult.hits.first.id, 'doc1');
+    });
+
     test('reindex: rejects injected custom tokenizer instances', () {
       final db = Searchlight.create(
         schema: Schema({

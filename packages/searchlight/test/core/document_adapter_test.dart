@@ -33,5 +33,28 @@ void main() {
       final docs = adapter.toDocuments('');
       expect(docs, isEmpty);
     });
+
+    test('adapter output works end-to-end with Searchlight indexing', () async {
+      final adapter = StringDocumentAdapter();
+      final db = Searchlight.create(
+        schema: Schema({
+          'content': const TypedField(SchemaType.string),
+        }),
+      );
+      addTearDown(db.dispose);
+
+      adapter.toDocuments('ember lance\niron boar').forEach(db.insert);
+
+      final result = db.search(
+        term: 'ember',
+        properties: const ['content'],
+      );
+
+      expect(result.count, 1);
+      expect(
+        result.hits.first.document.getString('content'),
+        'ember lance',
+      );
+    });
   });
 }
