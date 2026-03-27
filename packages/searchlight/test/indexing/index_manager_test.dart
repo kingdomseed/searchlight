@@ -156,6 +156,25 @@ void main() {
         expect(index.frequencies['title']![2]!['world'], 0.25);
       });
 
+      test(
+        'counts BM25 token occurrences once per document for duplicates',
+        () {
+          final schema = Schema({
+            'title': const TypedField(SchemaType.string),
+          });
+          final index = SearchIndex.create(schema: schema);
+          final tokenizer = Tokenizer(allowDuplicates: true);
+
+          index.insertDocument(
+            docId: 1,
+            data: {'title': 'echo echo echo'},
+            tokenizer: tokenizer,
+          );
+
+          expect(index.tokenOccurrences['title']!['echo'], 1);
+        },
+      );
+
       test('indexes enum field into FlatTree', () {
         final schema = Schema({
           'category': const TypedField(SchemaType.enumType),
@@ -535,6 +554,40 @@ void main() {
 
         expect(idx.fieldLengths['tags']![1], 3);
       });
+
+      test(
+        'duplicate tokens across array elements count once for BM25 IDF',
+        () {
+          final schema = Schema({
+            'tags': const TypedField(SchemaType.stringArray),
+          });
+          final idx = SearchIndex.create(schema: schema);
+          final tokenizer = Tokenizer(
+            allowDuplicates: true,
+            useDefaultStopWords: false,
+          );
+
+          idx.insertDocument(
+            docId: 1,
+            data: {
+              'tags': ['echo', 'echo'],
+            },
+            tokenizer: tokenizer,
+          );
+
+          expect(idx.tokenOccurrences['tags']!['echo'], 1);
+
+          final results = idx.search(
+            term: 'echo',
+            tokenizer: tokenizer,
+            propertiesToSearch: ['tags'],
+            relevance: const BM25Params(),
+          );
+
+          expect(results, hasLength(1));
+          expect(results.single.$2, greaterThan(0));
+        },
+      );
 
       test('search score after removal matches a fresh index', () {
         final schema = Schema({

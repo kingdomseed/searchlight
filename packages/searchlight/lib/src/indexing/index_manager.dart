@@ -264,7 +264,7 @@ final class SearchIndex {
     }
 
     _insertDocumentScoreParameters(prop, docId, allTokens);
-    for (final token in allTokens) {
+    for (final token in allTokens.toSet()) {
       _insertTokenScoreParameters(prop, docId, allTokens, token);
     }
   }
@@ -322,8 +322,10 @@ final class SearchIndex {
 
             _insertDocumentScoreParameters(prop, docId, tokens);
             for (final token in tokens) {
-              _insertTokenScoreParameters(prop, docId, tokens, token);
               node.insert(token, docId);
+            }
+            for (final token in tokens.toSet()) {
+              _insertTokenScoreParameters(prop, docId, tokens, token);
             }
           case SearchAlgorithm.qps:
             final node = indexTree.node as RadixTree;
@@ -468,8 +470,10 @@ final class SearchIndex {
     }
 
     _removeDocumentScoreParameters(prop, docId);
-    for (final token in allTokens) {
+    for (final token in allTokens.toSet()) {
       _removeTokenScoreParameters(prop, token);
+    }
+    for (final token in allTokens) {
       node.removeDocumentByWord(token, docId);
     }
   }
@@ -498,8 +502,10 @@ final class SearchIndex {
               property: prop,
             );
             _removeDocumentScoreParameters(prop, docId);
-            for (final token in tokens) {
+            for (final token in tokens.toSet()) {
               _removeTokenScoreParameters(prop, token);
+            }
+            for (final token in tokens) {
               node.removeDocumentByWord(token, docId);
             }
           case SearchAlgorithm.qps:
