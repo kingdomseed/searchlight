@@ -3,7 +3,7 @@
 **Date:** 2026-03-25
 **Auditor:** Claude (Opus 4.6)
 **Ground Truth:** Orama TypeScript source (`reference/orama/packages/orama/src/`)
-**Subject:** Searchlight Dart implementation (`packages/searchlight/lib/src/`)
+**Subject:** Searchlight Dart implementation (`lib/src/`)
 
 ---
 

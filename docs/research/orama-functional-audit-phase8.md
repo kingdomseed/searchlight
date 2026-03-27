@@ -18,7 +18,7 @@
 
 ### Methodology
 
-Extracted stop words from all 30 Orama JS files (`reference/orama/packages/stopwords/lib/*.js`) and compared against Searchlight's `const Set<String>` declarations in `packages/searchlight/lib/src/text/stop_words.dart`. Because Dart `Set` automatically deduplicates, comparisons use unique word counts.
+Extracted stop words from all 30 Orama JS files (`reference/orama/packages/stopwords/lib/*.js`) and compared against Searchlight's `const Set<String>` declarations in `lib/src/text/stop_words.dart`. Because Dart `Set` automatically deduplicates, comparisons use unique word counts.
 
 ### Per-Language Comparison
 
@@ -219,7 +219,7 @@ This comment is misleading. It describes what words are used (which matches `@or
 
 ### Analysis
 
-`DocumentAdapter<T>` is defined in `packages/searchlight/lib/src/core/document_adapter.dart`:
+`DocumentAdapter<T>` is defined in `lib/src/core/document_adapter.dart`:
 
 ```dart
 abstract class DocumentAdapter<T> {
@@ -246,7 +246,7 @@ advertising it as part of the supported package API.
 
 ### Current Exports
 
-`packages/searchlight/lib/searchlight.dart` exports:
+`lib/searchlight.dart` exports:
 
 | Export                          | Types Exposed                          | Category      |
 |--------------------------------|---------------------------------------|---------------|

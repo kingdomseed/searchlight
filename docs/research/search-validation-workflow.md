@@ -21,23 +21,23 @@ Searchlight follows the same split: extraction in tooling, indexing in core.
 
 Public-safe committed data:
 
-- `packages/searchlight/test/fixtures/search_corpus.json`
-- `packages/searchlight/test/fixtures/search_expectations.json`
+- `test/fixtures/search_corpus.json`
+- `test/fixtures/search_expectations.json`
 
 Private local-only data (gitignored):
 
-- `packages/searchlight/.local/source/` (copied local content)
-- `packages/searchlight/.local/generated_search_corpus.json`
-- `packages/searchlight/.local/generated_search_snapshot.json`
+- `.local/source/` (copied local content)
+- `.local/generated_search_corpus.json`
+- `.local/generated_search_snapshot.json`
 
 Rule: do not commit proprietary or copyrighted corpora.
 
 ## Regenerating Local Assets
 
-From `packages/searchlight`:
+From the repository root:
 
 ```bash
-dart run tool/build_validation_assets.dart
+dart run example/tool/build_validation_assets.dart
 ```
 
 What the tool does:
@@ -60,11 +60,11 @@ dart test test/integration/search_fixture_loader_test.dart \
 
 Flutter web validation app:
 
-1. Copy local generated assets into `packages/searchlight/example/assets/local/`
+1. Copy local generated assets into `example/assets/local/`
 2. Run the example app and switch source mode
 
 ```bash
-cd packages/searchlight/example
+cd example
 flutter run -d chrome
 ```
 
@@ -72,7 +72,7 @@ flutter run -d chrome
 
 Current package:
 
-- `packages/searchlight` (core)
+- repository root `searchlight` package (core)
 
 Planned future packages:
 

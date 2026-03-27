@@ -1,9 +1,7 @@
+docs/
 reference/
-.dart_tool/
 .local/
-.DS_Store
-build/
-pubspec.lock
+tools/
 findings.md
 progress.md
 task_plan.md

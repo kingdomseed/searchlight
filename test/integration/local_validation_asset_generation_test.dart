@@ -9,10 +9,10 @@ import '../../example/tool/build_validation_assets.dart';
 void main() {
   group('local validation asset generation', () {
     test('generator writes corpus and restorable snapshot', () async {
-      final exampleRoot = await Directory.systemTemp.createTemp(
+      final packageRoot = await Directory.systemTemp.createTemp(
         'searchlight_validation_assets_',
       );
-      final localDir = Directory('${exampleRoot.path}/.local');
+      final localDir = Directory('${packageRoot.path}/.local');
       final sourceDir = Directory('${localDir.path}/source');
       final corpusFile = File('${localDir.path}/generated_search_corpus.json');
       final snapshotFile = File(
@@ -30,7 +30,7 @@ void main() {
           'A precise fire spell that launches a concentrated spear of heat.\n',
         );
 
-        await buildValidationAssets(exampleRoot: exampleRoot);
+        await buildValidationAssets(packageRoot: packageRoot);
 
         expect(corpusFile.existsSync(), isTrue);
         expect(snapshotFile.existsSync(), isTrue);
@@ -51,9 +51,7 @@ void main() {
             jsonDecode(snapshotFile.readAsStringSync()) as Map<String, dynamic>;
         expect(snapshot.containsKey('documents'), isTrue);
 
-        final restored = Searchlight.fromJson(
-          snapshot.cast<String, Object?>(),
-        );
+        final restored = Searchlight.fromJson(snapshot.cast<String, Object?>());
         final result = restored.search(
           term: 'spear',
           properties: const ['content'],
@@ -66,50 +64,52 @@ void main() {
         );
         await restored.dispose();
       } finally {
-        await exampleRoot.delete(recursive: true);
+        await packageRoot.delete(recursive: true);
       }
     });
 
     test(
       'default root resolves package path when run from repo root',
       () async {
-      final sandboxRepo = await Directory.systemTemp.createTemp(
-        'searchlight_validation_repo_',
-      );
-      final exampleRoot = Directory(
-        '${sandboxRepo.path}/packages/searchlight/example',
-      );
-      final localDir = Directory('${exampleRoot.path}/.local');
-      final sourceDir = Directory('${localDir.path}/source');
-      final corpusFile = File('${localDir.path}/generated_search_corpus.json');
-      final snapshotFile = File(
-        '${localDir.path}/generated_search_snapshot.json',
-      );
-      final pubspec = File('${exampleRoot.path}/pubspec.yaml');
-      final originalCurrent = Directory.current;
-
-      try {
-        await sourceDir.create(recursive: true);
-        await pubspec.create(recursive: true);
-        pubspec.writeAsStringSync('name: searchlight_example\n');
-
-        final rulesDir = Directory('${sourceDir.path}/rules');
-        await rulesDir.create(recursive: true);
-        File('${rulesDir.path}/cover.md').writeAsStringSync(
-          '# Cover\n'
-          '\n'
-          'Use terrain to improve defense.\n',
+        final sandboxRepo = await Directory.systemTemp.createTemp(
+          'searchlight_validation_repo_',
         );
+        final localDir = Directory('${sandboxRepo.path}/.local');
+        final sourceDir = Directory('${localDir.path}/source');
+        final corpusFile = File(
+          '${localDir.path}/generated_search_corpus.json',
+        );
+        final snapshotFile = File(
+          '${localDir.path}/generated_search_snapshot.json',
+        );
+        final packagePubspec = File('${sandboxRepo.path}/pubspec.yaml');
+        final examplePubspec = File('${sandboxRepo.path}/example/pubspec.yaml');
+        final originalCurrent = Directory.current;
 
-        Directory.current = sandboxRepo;
-        await buildValidationAssets();
+        try {
+          await sourceDir.create(recursive: true);
+          await packagePubspec.create(recursive: true);
+          packagePubspec.writeAsStringSync('name: searchlight\n');
+          await examplePubspec.create(recursive: true);
+          examplePubspec.writeAsStringSync('name: searchlight_example\n');
 
-        expect(corpusFile.existsSync(), isTrue);
-        expect(snapshotFile.existsSync(), isTrue);
-      } finally {
-        Directory.current = originalCurrent;
-        await sandboxRepo.delete(recursive: true);
-      }
+          final rulesDir = Directory('${sourceDir.path}/rules');
+          await rulesDir.create(recursive: true);
+          File('${rulesDir.path}/cover.md').writeAsStringSync(
+            '# Cover\n'
+            '\n'
+            'Use terrain to improve defense.\n',
+          );
+
+          Directory.current = sandboxRepo;
+          await buildValidationAssets();
+
+          expect(corpusFile.existsSync(), isTrue);
+          expect(snapshotFile.existsSync(), isTrue);
+        } finally {
+          Directory.current = originalCurrent;
+          await sandboxRepo.delete(recursive: true);
+        }
       },
     );
   });

@@ -31,34 +31,36 @@ void main() {
   test(
     'throws clear error when corpus top-level json is not an array',
     () async {
-    final originalDirectory = Directory.current;
-    final temp = await Directory.systemTemp.createTemp(
-      'search_fixture_loader_test_',
-    );
-    final fixturesDir = Directory(
-      '${temp.path}/test/fixtures',
-    )..createSync(recursive: true);
-
-    File('${fixturesDir.path}/search_corpus.json')
-        .writeAsStringSync('{"not":"an-array"}');
-    File('${fixturesDir.path}/search_expectations.json').writeAsStringSync('[]');
-
-    try {
-      Directory.current = temp;
-      await expectLater(
-        loadSearchFixture(),
-        throwsA(
-          isA<FormatException>().having(
-            (e) => e.message,
-            'message',
-            contains('search_corpus.json must be a JSON array'),
-          ),
-        ),
+      final originalDirectory = Directory.current;
+      final temp = await Directory.systemTemp.createTemp(
+        'search_fixture_loader_test_',
       );
-    } finally {
-      Directory.current = originalDirectory;
-      await temp.delete(recursive: true);
-    }
+      final fixturesDir = Directory('${temp.path}/test/fixtures')
+        ..createSync(recursive: true);
+
+      File(
+        '${fixturesDir.path}/search_corpus.json',
+      ).writeAsStringSync('{"not":"an-array"}');
+      File(
+        '${fixturesDir.path}/search_expectations.json',
+      ).writeAsStringSync('[]');
+
+      try {
+        Directory.current = temp;
+        await expectLater(
+          loadSearchFixture(),
+          throwsA(
+            isA<FormatException>().having(
+              (e) => e.message,
+              'message',
+              contains('search_corpus.json must be a JSON array'),
+            ),
+          ),
+        );
+      } finally {
+        Directory.current = originalDirectory;
+        await temp.delete(recursive: true);
+      }
     },
   );
 }
@@ -66,9 +68,7 @@ void main() {
 Directory _findRepoRoot(Directory start) {
   var current = start.absolute;
   while (true) {
-    final marker = File(
-      '${current.path}/packages/searchlight/test/fixtures/search_corpus.json',
-    );
+    final marker = File('${current.path}/test/fixtures/search_corpus.json');
     if (marker.existsSync()) {
       return current;
     }

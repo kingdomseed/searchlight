@@ -12,7 +12,7 @@ understand intentional differences from Orama.
 
 - [App integration guide](app-integration.md)
 - [Validation workflow](validation-workflow.md)
-- [Orama divergence ledger](../../docs/research/orama-divergence-ledger.md)
+- [Orama divergence ledger](../docs/research/orama-divergence-ledger.md)
 
 ## What these docs cover
 

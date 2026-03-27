@@ -12,5 +12,4 @@ This directory contains public-safe fixture data for Searchlight tests.
 
 Do not add copyrighted or proprietary source material to these files.
 
-Local private validation assets belong under
-`packages/searchlight/example/.local/`.
+Local private validation assets belong under `.local/`.

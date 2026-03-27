@@ -29,7 +29,7 @@ The default mode is `Public fixture`.
 
 ## Run the App
 
-From `packages/searchlight/example`:
+From `example/`:
 
 ```bash
 flutter pub get
@@ -38,7 +38,7 @@ flutter run -d chrome
 
 ## Verify the Example
 
-From `packages/searchlight/example`:
+From `example/`:
 
 ```bash
 flutter test
@@ -47,10 +47,10 @@ flutter build web
 
 ## Local Asset Workflow
 
-Generate local assets from `example/`:
+Generate local assets from the repository root:
 
 ```bash
-dart run tool/build_validation_assets.dart
+dart run example/tool/build_validation_assets.dart
 ```
 
 Copy the generated files from `.local/` into this example app:

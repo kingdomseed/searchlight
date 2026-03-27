@@ -46,10 +46,7 @@ final class SearchFixtureExpectation {
 }
 
 final class SearchFixture {
-  const SearchFixture({
-    required this.records,
-    required this.expectations,
-  });
+  const SearchFixture({required this.records, required this.expectations});
 
   final List<SearchFixtureRecord> records;
   final List<SearchFixtureExpectation> expectations;
@@ -162,15 +159,9 @@ List<dynamic> _readTopLevelList(dynamic value, String fileName) {
 File _resolveFixtureFile(String fileName) {
   var current = Directory.current.absolute;
   while (true) {
-    final packageCandidate = File('${current.path}/test/fixtures/$fileName');
-    if (packageCandidate.existsSync()) {
-      return packageCandidate;
-    }
-
-    final repoCandidate =
-        File('${current.path}/packages/searchlight/test/fixtures/$fileName');
-    if (repoCandidate.existsSync()) {
-      return repoCandidate;
+    final fixtureCandidate = File('${current.path}/test/fixtures/$fileName');
+    if (fixtureCandidate.existsSync()) {
+      return fixtureCandidate;
     }
 
     final parent = current.parent;
@@ -255,7 +246,5 @@ bool _readBool(
   if (value is bool) {
     return value;
   }
-  throw FormatException(
-    '$context field "$key" must be a bool',
-  );
+  throw FormatException('$context field "$key" must be a bool');
 }

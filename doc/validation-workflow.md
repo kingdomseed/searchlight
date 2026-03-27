@@ -12,18 +12,18 @@ Committed public-safe data:
 
 Local private data:
 
-- `example/.local/source/`
-- `example/.local/generated_search_corpus.json`
-- `example/.local/generated_search_snapshot.json`
+- `.local/source/`
+- `.local/generated_search_corpus.json`
+- `.local/generated_search_snapshot.json`
 
 Only public-safe fixture data should be committed.
 
 ## Generate Local Validation Assets
 
-From `example/`:
+From the repository root:
 
 ```bash
-dart run tool/build_validation_assets.dart
+dart run example/tool/build_validation_assets.dart
 ```
 
 The tool:

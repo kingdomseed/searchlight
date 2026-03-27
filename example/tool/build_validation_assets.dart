@@ -12,10 +12,10 @@ Future<void> main() async {
 }
 
 Future<void> buildValidationAssets({
-  Directory? exampleRoot,
+  Directory? packageRoot,
   int contentCap = _defaultContentCap,
 }) async {
-  final root = exampleRoot ?? _resolveExampleRoot(Directory.current.absolute);
+  final root = packageRoot ?? _resolvePackageRoot(Directory.current.absolute);
   final localDir = Directory('${root.path}/.local');
   final sourceDir = Directory('${localDir.path}/source');
   final corpusFile = File('${localDir.path}/generated_search_corpus.json');
@@ -86,8 +86,8 @@ Future<Map<String, Object?>> _toRecord(
   final raw = await file.readAsString();
   final normalizedSource = sourceDir.uri.path;
   final normalizedFile = file.uri.path;
-  final start = normalizedSource.length +
-      (normalizedSource.endsWith('/') ? 0 : 1);
+  final start =
+      normalizedSource.length + (normalizedSource.endsWith('/') ? 0 : 1);
   final relativePath = normalizedFile.substring(start);
   final relativeNoExt = relativePath.replaceFirst(RegExp(r'\.md$'), '');
   final segments = relativeNoExt.split('/');
@@ -172,28 +172,37 @@ String _stripLeadingH1(String raw) {
   return lines.sublist(idx).join('\n');
 }
 
-Directory _resolveExampleRoot(Directory start) {
+Directory _resolvePackageRoot(Directory start) {
   var current = start;
   while (true) {
-    final examplePubspec = File('${current.path}/pubspec.yaml');
-    if (_isExamplePubspec(examplePubspec)) {
+    final packagePubspec = File('${current.path}/pubspec.yaml');
+    if (_isPackagePubspec(packagePubspec)) {
       return current;
     }
 
-    final monorepoCandidate = Directory('${current.path}/packages/searchlight/example');
-    final monorepoPubspec = File('${monorepoCandidate.path}/pubspec.yaml');
-    if (_isExamplePubspec(monorepoPubspec)) {
-      return monorepoCandidate;
+    if (_isExamplePubspec(packagePubspec)) {
+      final parent = current.parent;
+      if (_isPackagePubspec(File('${parent.path}/pubspec.yaml'))) {
+        return parent;
+      }
     }
 
     final parent = current.parent;
     if (parent.path == current.path) {
       throw FileSystemException(
-        'Could not resolve packages/searchlight/example root from ${start.path}',
+        'Could not resolve Searchlight package root from ${start.path}',
       );
     }
     current = parent;
   }
+}
+
+bool _isPackagePubspec(File pubspec) {
+  if (!pubspec.existsSync()) {
+    return false;
+  }
+  final content = pubspec.readAsStringSync();
+  return RegExp(r'^name:\s*searchlight\s*$', multiLine: true).hasMatch(content);
 }
 
 bool _isExamplePubspec(File pubspec) {

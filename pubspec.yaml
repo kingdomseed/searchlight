@@ -1,10 +1,10 @@
 name: searchlight
 description: Pure Dart reimplementation of Orama-style in-memory search and indexing for Dart and Flutter.
 version: 0.1.0
-homepage: https://github.com/kingdomseed/searchlight/tree/main/packages/searchlight
+homepage: https://github.com/kingdomseed/searchlight
 repository: https://github.com/kingdomseed/searchlight
 issue_tracker: https://github.com/kingdomseed/searchlight/issues
-documentation: https://github.com/kingdomseed/searchlight/tree/main/packages/searchlight/doc
+documentation: https://github.com/kingdomseed/searchlight/tree/main/doc
 topics:
   - search
   - full-text-search
