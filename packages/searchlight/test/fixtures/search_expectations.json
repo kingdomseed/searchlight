@@ -31,5 +31,28 @@
     "whereEq": "spell",
     "highlightField": "content",
     "assertHighlight": true
+  },
+  {
+    "name": "properties exclude url yields no hits",
+    "term": "creatures",
+    "properties": ["title", "content"],
+    "limit": 5,
+    "expectEmpty": true
+  },
+  {
+    "name": "properties include url yields hit",
+    "term": "creatures",
+    "properties": ["url"],
+    "expectedTopUrl": "/guide/creatures/iron-boar",
+    "limit": 5
+  },
+  {
+    "name": "where filter excludes natural match",
+    "term": "corridor fog",
+    "properties": ["title", "content"],
+    "whereField": "type",
+    "whereEq": "item",
+    "limit": 5,
+    "expectEmpty": true
   }
 ]

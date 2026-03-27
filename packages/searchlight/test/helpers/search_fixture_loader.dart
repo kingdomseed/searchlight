@@ -22,8 +22,9 @@ final class SearchFixtureExpectation {
     required this.name,
     required this.term,
     required this.properties,
-    required this.expectedTopUrl,
     required this.limit,
+    required this.expectedTopUrl,
+    required this.expectEmpty,
     this.whereField,
     this.whereEq,
     this.highlightField,
@@ -34,8 +35,9 @@ final class SearchFixtureExpectation {
   final String name;
   final String term;
   final List<String> properties;
-  final String expectedTopUrl;
   final int limit;
+  final String? expectedTopUrl;
+  final bool expectEmpty;
   final String? whereField;
   final String? whereEq;
   final String? highlightField;
@@ -88,15 +90,44 @@ Future<SearchFixture> loadSearchFixture() async {
   for (var i = 0; i < expectationsJson.length; i++) {
     final context = 'search_expectations.json entry #$i';
     final expectation = _readMap(expectationsJson[i], context);
+    final whereField = _readOptionalString(expectation, 'whereField', context);
+    final whereEq = _readOptionalString(expectation, 'whereEq', context);
+    final expectEmpty = _readBool(
+      expectation,
+      'expectEmpty',
+      context,
+      defaultValue: false,
+    );
+    final expectedTopUrl = _readOptionalString(
+      expectation,
+      'expectedTopUrl',
+      context,
+    );
+    if ((whereField == null) != (whereEq == null)) {
+      throw FormatException(
+        '$context fields "whereField" and "whereEq" must be provided together',
+      );
+    }
+    if (!expectEmpty && expectedTopUrl == null) {
+      throw FormatException(
+        '$context must provide "expectedTopUrl" when "expectEmpty" is false',
+      );
+    }
+    if (expectEmpty && expectedTopUrl != null) {
+      throw FormatException(
+        '$context must not provide "expectedTopUrl" when "expectEmpty" is true',
+      );
+    }
     expectations.add(
       SearchFixtureExpectation(
         name: _readString(expectation, 'name', context),
         term: _readString(expectation, 'term', context),
         properties: _readStringList(expectation, 'properties', context),
-        expectedTopUrl: _readString(expectation, 'expectedTopUrl', context),
         limit: _readInt(expectation, 'limit', context, defaultValue: 10),
-        whereField: _readOptionalString(expectation, 'whereField', context),
-        whereEq: _readOptionalString(expectation, 'whereEq', context),
+        expectedTopUrl: expectedTopUrl,
+        expectEmpty: expectEmpty,
+        whereField: whereField,
+        whereEq: whereEq,
         highlightField: _readOptionalString(
           expectation,
           'highlightField',
