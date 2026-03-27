@@ -11,6 +11,9 @@ easy to verify:
 - query behavior over `title` and `content`
 - excerpt highlighting in UI
 
+The core `searchlight` package itself is pure Dart and is not limited to Flutter
+web. This example is only a validation harness.
+
 ## Data Sources
 
 The app supports three modes:

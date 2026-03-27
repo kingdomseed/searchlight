@@ -64,10 +64,10 @@ final schema = Schema({
 This shape maps well to docs, glossaries, bestiaries, notes, and extracted PDF
 pages.
 
-If you want a reusable extraction layer, implement `DocumentAdapter<T>` for
-your source type and return record maps in your app's schema shape. If your
-extraction logic is small and app-specific, ad hoc conversion functions are
-often simpler.
+If you want a reusable extraction layer, keep it in your app or in a companion
+package and have it return record maps in your schema shape. If your extraction
+logic is small and app-specific, ad hoc conversion functions are often
+simpler.
 
 ## Build the Index
 
@@ -100,8 +100,10 @@ Future<void> persistAndRestore(Searchlight db) async {
 }
 ```
 
-`FileStorage` is a good default on desktop and mobile. For web or for custom
-cache layers, use `toJson()` and `fromJson()` directly or provide your own
+`FileStorage` is a good default on desktop and mobile. If you want persisted
+JSON instead of CBOR, use `format: PersistenceFormat.json` with both
+`persist()` and `restore()`. For web or for custom cache layers, use
+`toJson()` and `fromJson()` directly or provide your own
 `SearchlightStorage` implementation.
 
 A common pattern is:
@@ -214,8 +216,8 @@ Then:
 4. map the selected hit back to the PDF viewer
 
 If you also need exact text rectangles for in-view highlights, the extraction
-layer must preserve that PDF positioning data. That work belongs in a future
-`searchlight_pdf` package or in your host app.
+layer must preserve that PDF positioning data. That work belongs in PDF-
+specific app code or in a future companion package above the core library.
 
 ## Validation Workflow in This Repository
 

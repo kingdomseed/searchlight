@@ -4,7 +4,7 @@ version: 0.1.0
 homepage: https://github.com/kingdomseed/searchlight/tree/main/packages/searchlight
 repository: https://github.com/kingdomseed/searchlight
 issue_tracker: https://github.com/kingdomseed/searchlight/issues
-documentation: https://github.com/kingdomseed/searchlight/tree/main/packages/searchlight
+documentation: https://github.com/kingdomseed/searchlight/tree/main/packages/searchlight/doc
 topics:
   - search
   - full-text-search

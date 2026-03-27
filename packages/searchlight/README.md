@@ -16,6 +16,23 @@ that data.
 
 Inspired by [Orama](https://github.com/oramasearch/orama).
 
+## Status
+
+`searchlight` is the core package: indexing, querying, persistence, and
+highlighting.
+
+It does not currently include:
+
+- PDF parsing or rendering
+- Flutter UI widgets
+- Orama-style extension registration (`components`, hooks, plugins)
+
+## Platform Support
+
+`searchlight` is a pure Dart package. It works anywhere Dart runs, including
+Flutter mobile, desktop, and web. The core package does not include
+platform-channel code or platform-specific subpackages.
+
 ## Start Here
 
 - Read [doc/app-integration.md](doc/app-integration.md) for the recommended
@@ -113,9 +130,9 @@ This applies equally to:
 - Remote content downloaded and cached on device
 - User-imported files such as PDFs after text extraction
 
-If you want a reusable extraction layer, implement `DocumentAdapter<T>` for
-your source type. If your extraction logic is small and app-specific, simple
-record-conversion functions are often enough.
+If your app needs reusable extraction, keep that conversion layer in your app
+or in a companion package. For small integrations, simple record-conversion
+functions are often enough.
 
 ## Choose the Right Runtime Pattern
 
@@ -193,7 +210,8 @@ final result = db.search(
 ```
 
 Supported filters include `eq`, `gt`, `gte`, `lt`, `lte`, `between`,
-`inFilter`, `ninFilter`, `geoRadius`, `geoPolygon`, `and`, `or`, and `not`.
+`inFilter`, `ninFilter`, `filterContainsAll`, `filterContainsAny`,
+`geoRadius`, `geoPolygon`, `and`, `or`, and `not`.
 
 ## Persistence
 
@@ -212,9 +230,10 @@ Future<void> example(Searchlight db) async {
 }
 ```
 
-`FileStorage` is intended for `dart:io` platforms. On web or in a custom app
-storage layer, use `toJson()` and `fromJson()` or implement your own
-`SearchlightStorage`.
+`FileStorage` is intended for `dart:io` platforms. If you want persisted JSON
+instead of CBOR, pass `format: PersistenceFormat.json` to both `persist()` and
+`restore()`. On web or in a custom app storage layer, implement your own
+`SearchlightStorage` or use `toJson()` and `fromJson()` directly.
 
 Persistence supports reconstructible `Searchlight.create()` tokenizer settings
 such as stemming toggles, stop words, duplicate handling, and skip-property
@@ -277,12 +296,8 @@ For a fuller walkthrough, see [doc/app-integration.md](doc/app-integration.md).
 `searchlight` is the core indexing engine. It does not currently parse PDF
 files. To search PDFs in an app today, you need an extraction step that turns
 PDF text into searchable records before inserting them into Searchlight.
-
-Planned package boundaries:
-
-- `searchlight`: core indexing, querying, persistence, highlighting
-- `searchlight_flutter`: Flutter UI helpers and widgets
-- `searchlight_pdf`: PDF extraction and PDF-specific indexing helpers
+If you also need viewer integration or PDF-specific metadata handling, keep
+that in your app or in a companion package above the core library.
 
 ## Validation Example
 

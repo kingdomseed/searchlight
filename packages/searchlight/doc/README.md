@@ -4,10 +4,9 @@ This folder contains package-level integration and validation guidance for
 `searchlight`, a Dart reimplementation of Orama-style in-memory search and
 indexing.
 
-Current parity status is tracked in the Orama divergence ledger and the active
-parity plan. Those documents are the source of truth for what currently
-matches, what intentionally differs, and what still blocks publish-ready
-claims.
+Current Orama parity notes are tracked in the divergence ledger. That document
+is useful if you need implementation-level comparison details or want to
+understand intentional differences from Orama.
 
 ## Start here
 
@@ -22,8 +21,8 @@ claims.
 - how to structure a repository or service layer around Searchlight
 - how to validate behavior with fixture data and local corpora
 
-## Package boundaries
+## Out of Scope Today
 
-- `searchlight`: core indexing, querying, persistence, highlighting
-- `searchlight_flutter`: planned Flutter UI helpers and widgets
-- `searchlight_pdf`: planned PDF extraction and indexing helpers
+- source extraction and PDF parsing
+- Flutter UI widgets
+- Orama-style extension registration (`components`, hooks, plugins)
