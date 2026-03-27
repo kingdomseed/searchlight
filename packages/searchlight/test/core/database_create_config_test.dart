@@ -3,10 +3,12 @@ import 'package:test/test.dart';
 
 void main() {
   group('Searchlight.create tokenizer config', () {
-    late Searchlight db;
+    Searchlight? db;
+    Searchlight activeDb() => db!;
 
     tearDown(() async {
-      await db.dispose();
+      await db?.dispose();
+      db = null;
     });
 
     test('with stemming: false does not stem indexed or search terms', () {
@@ -20,7 +22,26 @@ void main() {
           'title': 'studies',
         });
 
-      final result = db.search(
+      final result = activeDb().search(
+        term: 'study',
+        properties: const ['title'],
+      );
+
+      expect(result.count, 0);
+      expect(result.hits, isEmpty);
+    });
+
+    test('defaults to no stemming like Orama create()', () {
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      )..insert({
+          'id': 'doc1',
+          'title': 'studies',
+        });
+
+      final result = activeDb().search(
         term: 'study',
         properties: const ['title'],
       );
@@ -40,11 +61,11 @@ void main() {
           'title': 'the cat is here',
         });
 
-      final stopWordResult = db.search(
+      final stopWordResult = activeDb().search(
         term: 'the',
         properties: const ['title'],
       );
-      final contentResult = db.search(
+      final contentResult = activeDb().search(
         term: 'cat',
         properties: const ['title'],
       );
@@ -69,11 +90,11 @@ void main() {
           'content': 'studying',
         });
 
-      final titleResult = db.search(
+      final titleResult = activeDb().search(
         term: 'study',
         properties: const ['title'],
       );
-      final contentResult = db.search(
+      final contentResult = activeDb().search(
         term: 'study',
         properties: const ['content'],
       );
@@ -97,15 +118,15 @@ void main() {
           'title': 'the studies',
         });
 
-      final stopWordResult = db.search(
+      final stopWordResult = activeDb().search(
         term: 'the',
         properties: const ['title'],
       );
-      final stemmedResult = db.search(
+      final stemmedResult = activeDb().search(
         term: 'study',
         properties: const ['title'],
       );
-      final literalResult = db.search(
+      final literalResult = activeDb().search(
         term: 'studies',
         properties: const ['title'],
       );
@@ -114,6 +135,19 @@ void main() {
       expect(stemmedResult.count, 0);
       expect(literalResult.count, 1);
       expect(literalResult.hits.first.id, 'doc1');
+    });
+
+    test('with custom tokenizer rejects explicit language overrides', () {
+      expect(
+        () => Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          language: 'english',
+          tokenizer: Tokenizer(),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
     });
 
     test('with tokenizeSkipProperties indexes that field as one token', () {
@@ -127,7 +161,7 @@ void main() {
           'title': 'SKU Élite 42',
         });
 
-      final result = db.search(
+      final result = activeDb().search(
         term: 'elite',
         properties: const ['title'],
       );
@@ -148,7 +182,7 @@ void main() {
           'title': 'the studies',
         });
 
-      final restored = Searchlight.fromJson(db.toJson());
+      final restored = Searchlight.fromJson(activeDb().toJson());
       addTearDown(restored.dispose);
 
       final stopWordResult = restored.search(
@@ -183,11 +217,11 @@ void main() {
           'title': 'the cat is here',
         });
 
-      final stopWordResult = db.search(
+      final stopWordResult = activeDb().search(
         term: 'the',
         properties: const ['title'],
       );
-      final contentResult = db.search(
+      final contentResult = activeDb().search(
         term: 'cat',
         properties: const ['title'],
       );
@@ -251,7 +285,7 @@ void main() {
           'title': 'zebra',
         });
 
-      final result = db.search(
+      final result = activeDb().search(
         term: 'zoo',
         properties: const ['title'],
       );

@@ -42,12 +42,16 @@ final class Searchlight {
     required this.schema,
     required this.algorithm,
     required this.language,
+    required bool hasCustomStemmer,
+    required bool hasInjectedTokenizer,
     required SearchIndex index,
     required Tokenizer tokenizer,
     required SortIndex sortIndex,
   })  : _index = index,
         _tokenizer = tokenizer,
-        _sortIndex = sortIndex;
+        _sortIndex = sortIndex,
+        _hasCustomStemmer = hasCustomStemmer,
+        _hasInjectedTokenizer = hasInjectedTokenizer;
 
   /// Creates a new Searchlight database.
   ///
@@ -70,7 +74,7 @@ final class Searchlight {
   factory Searchlight.create({
     required Schema schema,
     SearchAlgorithm algorithm = SearchAlgorithm.bm25,
-    String language = 'en',
+    String? language,
     bool? stemming,
     String Function(String)? stemmer,
     List<String>? stopWords,
@@ -80,6 +84,14 @@ final class Searchlight {
     Set<String> stemmerSkipProperties = const {},
     Tokenizer? tokenizer,
   }) {
+    if (tokenizer != null && language != null) {
+      throw ArgumentError(
+        'Cannot provide both language and a custom tokenizer.',
+      );
+    }
+
+    final resolvedLanguage = language ?? 'en';
+
     // Map short language codes to full names for the tokenizer
     const languageMap = <String, String>{
       'en': 'english',
@@ -94,13 +106,14 @@ final class Searchlight {
       'es': 'spanish',
       'sv': 'swedish',
     };
-    final tokenizerLanguage = languageMap[language] ?? language;
+    final tokenizerLanguage =
+        languageMap[resolvedLanguage] ?? resolvedLanguage;
 
     final resolvedTokenizer =
         tokenizer ??
         Tokenizer(
           language: tokenizerLanguage,
-          stemming: stemming ?? tokenizerLanguage == 'english',
+          stemming: stemming ?? false,
           stemmer: stemmer,
           stopWords: stopWords,
           useDefaultStopWords: useDefaultStopWords,
@@ -113,7 +126,9 @@ final class Searchlight {
     return Searchlight._(
       schema: schema,
       algorithm: algorithm,
-      language: language,
+      language: resolvedLanguage,
+      hasCustomStemmer: stemmer != null,
+      hasInjectedTokenizer: tokenizer != null,
       index: index,
       tokenizer: resolvedTokenizer,
       sortIndex: SortIndex(language: tokenizerLanguage),
@@ -298,6 +313,9 @@ final class Searchlight {
   /// Populated during insert/remove, used during search when sortBy is
   /// provided. Matches Orama's `Sorter`.
   final SortIndex _sortIndex;
+
+  final bool _hasCustomStemmer;
+  final bool _hasInjectedTokenizer;
 
   // ---------------------------------------------------------------------------
   // Internal document storage
@@ -1036,6 +1054,17 @@ final class Searchlight {
   /// documents this may be measurably slower. A future optimization could
   /// add per-tree `toJson`/`fromJson` to enable direct restoration.
   Map<String, Object?> toJson() {
+    if (_hasInjectedTokenizer) {
+      throw const SerializationException(
+        'Cannot serialize a database created with a custom tokenizer.',
+      );
+    }
+    if (_hasCustomStemmer) {
+      throw const SerializationException(
+        'Cannot serialize a database created with a custom stemmer.',
+      );
+    }
+
     // Collect geopoint field paths from the schema so we can convert
     // GeoPoint objects to serializable maps (I4 fix).
     final geoFields = schema.fieldPathsOfType(SchemaType.geopoint);

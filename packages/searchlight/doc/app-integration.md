@@ -22,10 +22,16 @@ Your app owns:
 That separation is intentional. It keeps the core package portable and makes it
 easy to reuse with local assets, remote content, or user-imported files.
 
-At the `Searchlight` database level, the public configuration surface is
-currently `schema`, `algorithm`, and `language`. Standalone tokenizer features
-such as explicit stop words or stemming configuration are not yet wired through
-`Searchlight.create()`.
+At the `Searchlight` database level, `Searchlight.create()` supports both the
+core database configuration (`schema`, `algorithm`, `language`) and the built-in
+tokenizer configuration (`stemming`, `stemmer`, `stopWords`,
+`useDefaultStopWords`, `allowDuplicates`, `tokenizeSkipProperties`, and
+`stemmerSkipProperties`).
+
+By default, stemming is off, matching Orama's default tokenizer behavior.
+Persisted snapshots can restore those built-in tokenizer settings. Injected
+`Tokenizer` instances and custom stemmer callbacks must be recreated by the
+app instead of serialized.
 
 ## Recommended Record Shape
 

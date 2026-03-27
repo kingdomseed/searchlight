@@ -34,10 +34,14 @@ Inspired by [Orama](https://github.com/oramasearch/orama).
 - Standalone tokenizer utilities with language support, stemming, and optional
   stop words
 
-At the `Searchlight` database level, the public configuration surface is
-currently `schema`, `algorithm`, and `language`. Custom tokenizer options such
-as explicit stop words or stemming toggles are available on the standalone
-`Tokenizer` API, but are not yet plumbed through `Searchlight.create()`.
+`Searchlight.create()` also exposes tokenizer-related configuration for the
+built-in database tokenizer, including `stemming`, `stemmer`, `stopWords`,
+`useDefaultStopWords`, `allowDuplicates`, `tokenizeSkipProperties`, and
+`stemmerSkipProperties`.
+
+By default, stemming is off, matching Orama's default tokenizer behavior.
+Built-in tokenizer settings round-trip through persistence. Injected
+`Tokenizer` instances and custom stemmer callbacks do not serialize.
 
 ## Installation
 
@@ -211,6 +215,11 @@ Future<void> example(Searchlight db) async {
 `FileStorage` is intended for `dart:io` platforms. On web or in a custom app
 storage layer, use `toJson()` and `fromJson()` or implement your own
 `SearchlightStorage`.
+
+Persistence supports reconstructible `Searchlight.create()` tokenizer settings
+such as stemming toggles, stop words, duplicate handling, and skip-property
+sets. Databases created with an injected `Tokenizer` or custom stemmer callback
+must be rebuilt instead of serialized.
 
 You can also work directly with JSON-compatible maps:
 

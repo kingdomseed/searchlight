@@ -312,6 +312,36 @@ void main() {
       expect(results.hits.first.id, equals('doc1'));
     });
 
+    test('toJson rejects databases created with a custom tokenizer', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        tokenizer: Tokenizer(
+          stopWords: ['the'],
+        ),
+      );
+
+      expect(
+        db.toJson,
+        throwsA(isA<SerializationException>()),
+      );
+    });
+
+    test('toJson rejects databases created with a custom stemmer', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        stemmer: (token) => token.isEmpty ? token : token[0],
+      );
+
+      expect(
+        db.toJson,
+        throwsA(isA<SerializationException>()),
+      );
+    });
+
     test('fromJson corrects nextInternalId if saved value is too low (C3)', () {
       // Manually craft JSON where nextId (2) is less than doc count + 1 (3).
       // The defensive check should correct it.
