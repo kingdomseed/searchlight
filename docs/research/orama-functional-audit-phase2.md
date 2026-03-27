@@ -359,6 +359,8 @@ Both implement the same three-tier logic:
 
 - **NOT**: Orama builds `allDocs` from `docsStore.internalIdToId.length`; Searchlight builds from `1..totalDocs`. NEEDS REVIEW -- Orama iterates `i = 1; i <= docsStore.internalIdToId.length`, which represents all documents ever allocated (including deleted ones that still have entries in the ID store). Searchlight uses `1..totalDocs` where `totalDocs = _nextInternalId - 1`, which also includes all ever-allocated IDs since `_nextInternalId` is never decremented. ACCEPTABLE -- Functionally equivalent since both use the same ID space.
 
+- **Mixed top-level logical operators with sibling property filters short-circuit in both implementations**: ACCEPTABLE -- Both Orama and Searchlight return immediately when a top-level `and`/`or`/`not` operator is present, so sibling property filters in the same map are not composed with that logical result. This is a shared API limitation, not a Searchlight divergence.
+
 ### Per-type dispatch
 
 **Divergences:**

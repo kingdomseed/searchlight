@@ -58,6 +58,7 @@ return ((currentCount + 1) << 20) | newSentenceMask;
 - Quantum overflow saturation (`19` vs Orama's `20`): **HARDENED DIVERGENCE** -- Orama's `Math.min(quantumIndex, 20)` writes the 21st sentence into bit `20`, which is outside the packed 20-bit mask and gets discarded by `bitmask_20`. Searchlight intentionally caps at `19` so late sentences still contribute to proximity scoring.
 - `?? 0` vs implicit JS `undefined`-to-`0` coercion: **ACCEPTABLE** -- explicit null safety in Dart
 - Omission of `stats[token] = 0`: **ACCEPTABLE** -- this is dead code in Orama; it sets an ad-hoc property on the stats object that is never read by `searchString` or `removeString`
+- `string[]` insertion overwrites `tokensLength` per array element in both implementations: **ACCEPTABLE** -- Searchlight's `_insertQpsStringArray` calls `qpsInsertString` once per element, and each call stores only that element's `tokenNumber`. Orama's QPS plugin does the same. This is a parity sharp edge rather than a Searchlight-only bug.
 
 ### A3: `searchString`
 
