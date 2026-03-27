@@ -5,16 +5,14 @@
 [![style: very good analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
 [![Repository](https://img.shields.io/badge/repository-kingdomseed%2Fsearchlight-24292f)](https://github.com/kingdomseed/searchlight)
 
-Searchlight is a pure Dart reimplementation of Orama-style in-memory search
-and indexing for Dart and Flutter apps. It gives you schema-based indexing,
-scoring, filtering, facets, persistence, and standalone highlighting without
-requiring a server.
+Searchlight is an independent pure Dart reimplementation of Orama's in-memory
+search and indexing model for Dart and Flutter apps. It gives you
+schema-based indexing, scoring, filtering, facets, persistence, and
+standalone highlighting without requiring a server.
 
 Searchlight is especially useful when your app already has content available
 locally or can download and cache it, and you want fast in-app search over
 that data.
-
-Inspired by [Orama](https://github.com/oramasearch/orama).
 
 ## Status
 
@@ -382,5 +380,6 @@ See:
 
 Apache License 2.0. See [LICENSE](LICENSE).
 
-Searchlight is an independent pure Dart implementation inspired by Orama.
+Searchlight is an independent pure Dart reimplementation of Orama.
+It is not affiliated with or endorsed by the Orama project.
 See [NOTICE](NOTICE) for attribution.
