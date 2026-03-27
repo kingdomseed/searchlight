@@ -56,7 +56,16 @@ final class Searchlight {
         _tokenizer = tokenizer,
         _sortIndex = sortIndex,
         _hasCustomStemmer = hasCustomStemmer,
-        _hasInjectedTokenizer = hasInjectedTokenizer;
+        _hasInjectedTokenizer = hasInjectedTokenizer {
+    // Keep extension state retained for upcoming lifecycle wiring work.
+    assert(
+      () {
+        final _ = _resolvedExtensions;
+        return true;
+      }(),
+      'Keep resolved extension state retained for future lifecycle wiring.',
+    );
+  }
 
   /// Creates a new Searchlight database.
   ///
