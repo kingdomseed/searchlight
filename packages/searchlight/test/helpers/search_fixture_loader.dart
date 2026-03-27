@@ -24,6 +24,11 @@ final class SearchFixtureExpectation {
     required this.properties,
     required this.expectedTopUrl,
     required this.limit,
+    this.whereField,
+    this.whereEq,
+    this.highlightField,
+    this.assertHighlight = false,
+    this.assertJsonRoundTrip = false,
   });
 
   final String name;
@@ -31,6 +36,11 @@ final class SearchFixtureExpectation {
   final List<String> properties;
   final String expectedTopUrl;
   final int limit;
+  final String? whereField;
+  final String? whereEq;
+  final String? highlightField;
+  final bool assertHighlight;
+  final bool assertJsonRoundTrip;
 }
 
 final class SearchFixture {
@@ -85,6 +95,25 @@ Future<SearchFixture> loadSearchFixture() async {
         properties: _readStringList(expectation, 'properties', context),
         expectedTopUrl: _readString(expectation, 'expectedTopUrl', context),
         limit: _readInt(expectation, 'limit', context, defaultValue: 10),
+        whereField: _readOptionalString(expectation, 'whereField', context),
+        whereEq: _readOptionalString(expectation, 'whereEq', context),
+        highlightField: _readOptionalString(
+          expectation,
+          'highlightField',
+          context,
+        ),
+        assertHighlight: _readBool(
+          expectation,
+          'assertHighlight',
+          context,
+          defaultValue: false,
+        ),
+        assertJsonRoundTrip: _readBool(
+          expectation,
+          'assertJsonRoundTrip',
+          context,
+          defaultValue: false,
+        ),
       ),
     );
   }
@@ -115,8 +144,9 @@ File _resolveFixtureFile(String fileName) {
 
     final parent = current.parent;
     if (parent.path == current.path) {
+      final path = Directory.current.path;
       throw FileSystemException(
-        'Could not locate fixture file "$fileName" from ${Directory.current.path}',
+        'Could not locate fixture file "$fileName" from $path',
       );
     }
     current = parent;
@@ -164,4 +194,37 @@ int _readInt(
     return value;
   }
   throw FormatException('$context field "$key" must be an int');
+}
+
+String? _readOptionalString(
+  Map<String, dynamic> map,
+  String key,
+  String context,
+) {
+  final value = map[key];
+  if (value == null) {
+    return null;
+  }
+  if (value is String) {
+    return value;
+  }
+  throw FormatException('$context field "$key" must be a string');
+}
+
+bool _readBool(
+  Map<String, dynamic> map,
+  String key,
+  String context, {
+  required bool defaultValue,
+}) {
+  final value = map[key];
+  if (value == null) {
+    return defaultValue;
+  }
+  if (value is bool) {
+    return value;
+  }
+  throw FormatException(
+    '$context field "$key" must be a bool',
+  );
 }

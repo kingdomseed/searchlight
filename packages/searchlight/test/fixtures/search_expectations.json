@@ -1,16 +1,35 @@
 [
   {
-    "name": "spell title query",
+    "name": "title match query",
     "term": "ember lance",
-    "properties": ["title", "content"],
+    "properties": ["title"],
     "expectedTopUrl": "/guide/spells/ember-lance",
+    "limit": 5,
+    "assertJsonRoundTrip": true
+  },
+  {
+    "name": "content match query",
+    "term": "charging through shields",
+    "properties": ["content"],
+    "expectedTopUrl": "/guide/creatures/iron-boar",
     "limit": 5
   },
   {
-    "name": "rule body query",
+    "name": "mixed properties query",
     "term": "terrain defense",
-    "properties": ["content"],
+    "properties": ["title", "content"],
     "expectedTopUrl": "/guide/rules/cover",
     "limit": 5
+  },
+  {
+    "name": "enum filter and highlight query",
+    "term": "corridor fog",
+    "properties": ["title", "content"],
+    "expectedTopUrl": "/guide/spells/mist-veil",
+    "limit": 5,
+    "whereField": "type",
+    "whereEq": "spell",
+    "highlightField": "content",
+    "assertHighlight": true
   }
 ]
