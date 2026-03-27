@@ -13,6 +13,7 @@ import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/extensions/components.dart';
 import 'package:searchlight/src/extensions/plugin.dart';
+import 'package:searchlight/src/extensions/resolver.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
 import 'package:searchlight/src/indexing/sort_index.dart';
 import 'package:searchlight/src/persistence/cbor_serializer.dart';
@@ -88,18 +89,13 @@ final class Searchlight {
     List<SearchlightPlugin<Object?>> plugins = const [],
     SearchlightComponents? components,
   }) {
-    if (plugins.isNotEmpty) {
-      throw UnsupportedError(
-        'Searchlight.create plugins are not wired yet. '
-        'Extension resolution is planned for Task 2.',
-      );
-    }
-    if (components != null) {
-      throw UnsupportedError(
-        'Searchlight.create components are not wired yet. '
-        'Extension resolution is planned for Task 2.',
-      );
-    }
+    final resolvedExtensions = resolveExtensions(
+      defaults: const SearchlightComponents(),
+      plugins: plugins,
+      overrides: components,
+    );
+    // Task 2 wires deterministic resolution and validation only.
+    final _ = resolvedExtensions;
 
     if (tokenizer != null && language != null) {
       throw ArgumentError(

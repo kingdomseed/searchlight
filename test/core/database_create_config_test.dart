@@ -307,7 +307,7 @@ void main() {
       expect(result.hits.first.id, 'doc1');
     });
 
-    test('with plugins fails loudly until extension wiring exists', () {
+    test('with plugins accepts configured plugins after resolution step', () {
       expect(
         () => Searchlight.create(
           schema: Schema({
@@ -315,20 +315,47 @@ void main() {
           }),
           plugins: const [SearchlightPlugin(name: 'test-plugin')],
         ),
-        throwsA(isA<UnsupportedError>()),
+        returnsNormally,
       );
     });
 
-    test('with components fails loudly until extension wiring exists', () {
-      expect(
-        () => Searchlight.create(
-          schema: Schema({
-            'title': const TypedField(SchemaType.string),
-          }),
-          components: const SearchlightComponents(),
-        ),
-        throwsA(isA<UnsupportedError>()),
-      );
-    });
+    test(
+      'with plugins throws a deterministic exception for duplicate names',
+      () {
+        expect(
+          () => Searchlight.create(
+            schema: Schema({
+              'title': const TypedField(SchemaType.string),
+            }),
+            plugins: const [
+              SearchlightPlugin(name: 'duplicate'),
+              SearchlightPlugin(name: 'duplicate'),
+            ],
+          ),
+          throwsA(
+            isA<ExtensionResolutionException>().having(
+              (error) => error.message,
+              'message',
+              contains('duplicate'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'with components accepts direct overrides after resolution step',
+      () {
+        expect(
+          () => Searchlight.create(
+            schema: Schema({
+              'title': const TypedField(SchemaType.string),
+            }),
+            components: const SearchlightComponents(),
+          ),
+          returnsNormally,
+        );
+      },
+    );
   });
 }
