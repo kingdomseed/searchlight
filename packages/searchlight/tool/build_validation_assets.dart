@@ -15,7 +15,7 @@ Future<void> buildValidationAssets({
   Directory? packageRoot,
   int contentCap = _defaultContentCap,
 }) async {
-  final root = packageRoot ?? Directory.current.absolute;
+  final root = packageRoot ?? _resolvePackageRoot(Directory.current.absolute);
   final localDir = Directory('${root.path}/.local');
   final sourceDir = Directory('${localDir.path}/source');
   final corpusFile = File('${localDir.path}/generated_search_corpus.json');
@@ -94,7 +94,10 @@ Future<Map<String, Object?>> _toRecord(
 
   final title = _extractTitle(raw, segments.last);
   final typeAndGroup = _deriveTypeAndGroup(segments);
-  final content = raw.length > contentCap ? raw.substring(0, contentCap) : raw;
+  final normalized = _stripLeadingH1(raw);
+  final content = normalized.length > contentCap
+      ? normalized.substring(0, contentCap)
+      : normalized;
 
   return <String, Object?>{
     'url': '/$relativeNoExt',
@@ -150,6 +153,55 @@ String _extractTitle(String raw, String fallbackSlug) {
   }
 
   return ('reference', 'general');
+}
+
+String _stripLeadingH1(String raw) {
+  final lines = raw.split('\n');
+  if (lines.isEmpty) {
+    return raw;
+  }
+
+  if (!lines.first.trimLeft().startsWith('# ')) {
+    return raw;
+  }
+
+  var idx = 1;
+  while (idx < lines.length && lines[idx].trim().isEmpty) {
+    idx++;
+  }
+  return lines.sublist(idx).join('\n');
+}
+
+Directory _resolvePackageRoot(Directory start) {
+  var current = start;
+  while (true) {
+    final packagePubspec = File('${current.path}/pubspec.yaml');
+    if (_isSearchlightPubspec(packagePubspec)) {
+      return current;
+    }
+
+    final monorepoCandidate = Directory('${current.path}/packages/searchlight');
+    final monorepoPubspec = File('${monorepoCandidate.path}/pubspec.yaml');
+    if (_isSearchlightPubspec(monorepoPubspec)) {
+      return monorepoCandidate;
+    }
+
+    final parent = current.parent;
+    if (parent.path == current.path) {
+      throw FileSystemException(
+        'Could not resolve packages/searchlight root from ${start.path}',
+      );
+    }
+    current = parent;
+  }
+}
+
+bool _isSearchlightPubspec(File pubspec) {
+  if (!pubspec.existsSync()) {
+    return false;
+  }
+  final content = pubspec.readAsStringSync();
+  return RegExp(r'^name:\s*searchlight\s*$', multiLine: true).hasMatch(content);
 }
 
 String? _segmentAfter(List<String> segments, int index) {
