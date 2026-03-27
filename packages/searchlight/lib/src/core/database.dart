@@ -91,29 +91,12 @@ final class Searchlight {
     }
 
     final resolvedLanguage = language ?? 'en';
+    final tokenizerLanguage = _resolveTokenizerLanguage(resolvedLanguage);
 
-    // Map short language codes to full names for the tokenizer
-    const languageMap = <String, String>{
-      'en': 'english',
-      'de': 'german',
-      'fi': 'finnish',
-      'fr': 'french',
-      'it': 'italian',
-      'nl': 'dutch',
-      'no': 'norwegian',
-      'pt': 'portuguese',
-      'ru': 'russian',
-      'es': 'spanish',
-      'sv': 'swedish',
-    };
-    final tokenizerLanguage =
-        languageMap[resolvedLanguage] ?? resolvedLanguage;
-
-    final resolvedTokenizer =
-        tokenizer ??
-        Tokenizer(
+    final resolvedTokenizer = tokenizer ??
+        _createTokenizer(
           language: tokenizerLanguage,
-          stemming: stemming ?? false,
+          stemming: stemming,
           stemmer: stemmer,
           stopWords: stopWords,
           useDefaultStopWords: useDefaultStopWords,
@@ -139,16 +122,10 @@ final class Searchlight {
   /// produced by [toJson].
   ///
   /// Matches Orama's `load(orama, raw)` pattern: checks the format version,
-  /// then restores each component from the raw data.
-  ///
-  /// **Design note (A1/A2/B6):** Rather than directly deserializing index
-  /// trees and sort indexes, this method creates a fresh database and
-  /// re-inserts all documents in internal ID order. This re-insertion
-  /// approach is simpler and produces functionally identical search results.
-  /// The trade-off is O(n*m) restore time (n = documents, m = fields)
-  /// compared to O(data_size) for direct tree restoration. For most use
-  /// cases (< 50k documents) this is acceptable. Direct tree serialization
-  /// can be added as a future optimization.
+  /// restores the tokenizer configuration, then restores documents, index,
+  /// and sorting components from the raw data. Legacy snapshots without
+  /// serialized `index`/`sorting` component state are still supported by
+  /// rebuilding those components through document re-insertion.
   ///
   /// Throws [SerializationException] if the format version is incompatible
   /// or the data is corrupt/missing.
@@ -182,27 +159,27 @@ final class Searchlight {
     if (language == null) {
       throw const SerializationException('Missing "language" in JSON');
     }
+    final tokenizerLanguage = _resolveTokenizerLanguage(language);
 
     final tokenizerConfigJson =
         json['tokenizerConfig'] as Map<String, Object?>?;
     final tokenizerStemming = tokenizerConfigJson?['stemming'] as bool?;
     final tokenizerStopWords =
-        (tokenizerConfigJson?['stopWords'] as List<dynamic>?)
-            ?.cast<String>();
+        (tokenizerConfigJson?['stopWords'] as List<dynamic>?)?.cast<String>();
     final tokenizerUseDefaultStopWords =
         tokenizerConfigJson?['useDefaultStopWords'] as bool?;
     final tokenizerAllowDuplicates =
         tokenizerConfigJson?['allowDuplicates'] as bool? ?? false;
     final tokenizeSkipProperties =
         (tokenizerConfigJson?['tokenizeSkipProperties'] as List<dynamic>?)
-            ?.cast<String>()
-            .toSet() ??
-        const <String>{};
+                ?.cast<String>()
+                .toSet() ??
+            const <String>{};
     final stemmerSkipProperties =
         (tokenizerConfigJson?['stemmerSkipProperties'] as List<dynamic>?)
-            ?.cast<String>()
-            .toSet() ??
-        const <String>{};
+                ?.cast<String>()
+                .toSet() ??
+            const <String>{};
 
     // 4. Restore schema
     final schemaJson = json['schema'];
@@ -213,13 +190,11 @@ final class Searchlight {
     }
     final schema = schemaFromJson(schemaJson);
 
-    // 5. Create the database with restored config
-    late final Searchlight db;
+    // 5. Restore tokenizer configuration
+    late final Tokenizer tokenizer;
     try {
-      db = Searchlight.create(
-        schema: schema,
-        algorithm: algorithm,
-        language: language,
+      tokenizer = _createTokenizer(
+        language: tokenizerLanguage,
         stemming: tokenizerStemming,
         stopWords: tokenizerStopWords,
         useDefaultStopWords: tokenizerUseDefaultStopWords,
@@ -236,64 +211,68 @@ final class Searchlight {
       );
     }
 
-    // Collect geopoint field paths for deserialization (I4 fix)
-    final geoFields = schema.fieldPathsOfType(SchemaType.geopoint);
-
-    // 6. Restore documents by re-inserting
-    // I3c fix: throw when documents data is missing instead of silently
-    // returning an empty database, which could mask data corruption.
+    // 6. Validate serialized documents and ID store
     final docsJson = json['documents'];
     if (docsJson is! Map<String, Object?>) {
       throw const SerializationException('Missing documents data');
     }
     final idStoreJson = json['internalDocumentIDStore'];
-    if (idStoreJson is Map<String, Object?>) {
-      final internalToIdJson =
-          idStoreJson['internalIdToId'] as Map<String, Object?>?;
-      final nextId = idStoreJson['nextId'] as int?;
-      final nextGeneratedId = idStoreJson['nextGeneratedId'] as int?;
-
-      if (internalToIdJson != null) {
-        // Re-insert documents in internal ID order to preserve IDs
-        // Sort by internal ID to maintain insertion order
-        final sortedEntries = docsJson.entries.toList()
-          ..sort((a, b) => int.parse(a.key).compareTo(int.parse(b.key)));
-
-        for (final entry in sortedEntries) {
-          final internalIdStr = entry.key;
-          final docData = entry.value;
-          if (docData is! Map<String, Object?>) continue;
-
-          final externalId = internalToIdJson[internalIdStr] as String?;
-          if (externalId == null) continue;
-
-          // Ensure the document data includes the external ID so insert()
-          // uses it rather than generating a new one
-          final dataWithId = <String, Object?>{
-            ...docData,
-            'id': externalId,
-          };
-
-          // Convert serialized {'lat': ..., 'lon': ...} maps back to
-          // GeoPoint objects (I4 fix).
-          for (final geoPath in geoFields) {
-            _convertMapToGeoPoint(dataWithId, geoPath);
-          }
-
-          db.insert(dataWithId);
-        }
-      }
-
-      // Restore counters.
-      // C3 defensive check: ensure _nextInternalId is at least
-      // (number of restored documents + 1) to prevent duplicate internal IDs
-      // from corrupted save data.
-      final minNextId = db._documents.length + 1;
-      if (nextId != null) {
-        db._nextInternalId = nextId < minNextId ? minNextId : nextId;
-      }
-      if (nextGeneratedId != null) db._nextGeneratedId = nextGeneratedId;
+    if (idStoreJson is! Map<String, Object?>) {
+      throw const SerializationException(
+        'Missing or invalid "internalDocumentIDStore" in JSON',
+      );
     }
+
+    final hasSerializedIndex = json.containsKey('index');
+    final hasSerializedSorting = json.containsKey('sorting');
+    if (hasSerializedIndex != hasSerializedSorting) {
+      throw const SerializationException(
+        'Serialized snapshots must contain both "index" and "sorting" '
+        'or neither.',
+      );
+    }
+
+    final index = hasSerializedIndex
+        ? SearchIndex.fromJson(
+            _asObjectMap(json['index'], 'Missing or invalid "index" in JSON'),
+            algorithm: algorithm,
+          )
+        : SearchIndex.create(schema: schema, algorithm: algorithm);
+    final sortIndex = hasSerializedSorting
+        ? SortIndex.fromJson(
+            _asObjectMap(
+              json['sorting'],
+              'Missing or invalid "sorting" in JSON',
+            ),
+            fallbackLanguage: tokenizerLanguage,
+          )
+        : SortIndex(language: tokenizerLanguage);
+
+    final db = Searchlight._(
+      schema: schema,
+      algorithm: algorithm,
+      language: language,
+      hasCustomStemmer: false,
+      hasInjectedTokenizer: false,
+      index: index,
+      tokenizer: tokenizer,
+      sortIndex: sortIndex,
+    );
+
+    if (hasSerializedIndex) {
+      _restoreSerializedDocuments(
+        db,
+        docsJson: docsJson,
+        idStoreJson: idStoreJson,
+      );
+      return db;
+    }
+
+    _restoreLegacyDocuments(
+      db,
+      docsJson: docsJson,
+      idStoreJson: idStoreJson,
+    );
 
     return db;
   }
@@ -329,6 +308,158 @@ final class Searchlight {
 
   List<String>? get _serializedStopWords =>
       _tokenizer.usesDefaultStopWords ? null : _tokenizer.stopWords;
+
+  static const Map<String, String> _languageMap = <String, String>{
+    'en': 'english',
+    'de': 'german',
+    'fi': 'finnish',
+    'fr': 'french',
+    'it': 'italian',
+    'nl': 'dutch',
+    'no': 'norwegian',
+    'pt': 'portuguese',
+    'ru': 'russian',
+    'es': 'spanish',
+    'sv': 'swedish',
+  };
+
+  static String _resolveTokenizerLanguage(String language) {
+    return _languageMap[language] ?? language;
+  }
+
+  static Tokenizer _createTokenizer({
+    required String language,
+    bool? stemming,
+    String Function(String)? stemmer,
+    List<String>? stopWords,
+    bool? useDefaultStopWords,
+    bool allowDuplicates = false,
+    Set<String> tokenizeSkipProperties = const {},
+    Set<String> stemmerSkipProperties = const {},
+  }) {
+    return Tokenizer(
+      language: language,
+      stemming: stemming ?? false,
+      stemmer: stemmer,
+      stopWords: stopWords,
+      useDefaultStopWords: useDefaultStopWords,
+      allowDuplicates: allowDuplicates,
+      tokenizeSkipProperties: tokenizeSkipProperties,
+      stemmerSkipProperties: stemmerSkipProperties,
+    );
+  }
+
+  static void _restoreSerializedDocuments(
+    Searchlight db, {
+    required Map<String, Object?> docsJson,
+    required Map<String, Object?> idStoreJson,
+  }) {
+    final internalToIdJson = _asObjectMap(
+      idStoreJson['internalIdToId'],
+      'Missing or invalid "internalDocumentIDStore.internalIdToId" in JSON',
+    );
+    final geoFields = db.schema.fieldPathsOfType(SchemaType.geopoint);
+    final sortedEntries = docsJson.entries.toList()
+      ..sort((a, b) => int.parse(a.key).compareTo(int.parse(b.key)));
+
+    for (final entry in sortedEntries) {
+      final internalId = int.parse(entry.key);
+      final externalId = internalToIdJson[entry.key] as String?;
+      if (externalId == null) {
+        throw SerializationException(
+          'Missing external ID mapping for internal document ${entry.key}',
+        );
+      }
+
+      final data = _deserializeStoredDocument(
+        entry.value,
+        docKey: entry.key,
+        geoFields: geoFields,
+      );
+      final docId = DocId(internalId);
+
+      db._documents[docId] = Document(data);
+      db._externalToInternal[externalId] = docId;
+      db._internalToExternal[docId] = externalId;
+    }
+
+    db._index.restoreDocsCount(db._documents.length);
+    _restoreCounters(db, idStoreJson);
+  }
+
+  static void _restoreLegacyDocuments(
+    Searchlight db, {
+    required Map<String, Object?> docsJson,
+    required Map<String, Object?> idStoreJson,
+  }) {
+    final internalToIdJson = _asObjectMap(
+      idStoreJson['internalIdToId'],
+      'Missing or invalid "internalDocumentIDStore.internalIdToId" in JSON',
+    );
+    final geoFields = db.schema.fieldPathsOfType(SchemaType.geopoint);
+    final sortedEntries = docsJson.entries.toList()
+      ..sort((a, b) => int.parse(a.key).compareTo(int.parse(b.key)));
+
+    for (final entry in sortedEntries) {
+      final externalId = internalToIdJson[entry.key] as String?;
+      if (externalId == null) {
+        throw SerializationException(
+          'Missing external ID mapping for internal document ${entry.key}',
+        );
+      }
+
+      final dataWithId = _deserializeStoredDocument(
+        entry.value,
+        docKey: entry.key,
+        geoFields: geoFields,
+      )..['id'] = externalId;
+
+      db.insert(dataWithId);
+    }
+
+    _restoreCounters(db, idStoreJson);
+  }
+
+  static Map<String, Object?> _deserializeStoredDocument(
+    Object? rawDocument, {
+    required String docKey,
+    required List<String> geoFields,
+  }) {
+    final data = _asObjectMap(
+      rawDocument,
+      'Invalid document payload for internal document $docKey',
+    );
+    final document = Map<String, Object?>.from(data);
+    for (final geoPath in geoFields) {
+      _convertMapToGeoPoint(document, geoPath);
+    }
+    return document;
+  }
+
+  static void _restoreCounters(
+    Searchlight db,
+    Map<String, Object?> idStoreJson,
+  ) {
+    final nextId = idStoreJson['nextId'] as int?;
+    final nextGeneratedId = idStoreJson['nextGeneratedId'] as int?;
+
+    final minNextId = db._documents.length + 1;
+    if (nextId != null) {
+      db._nextInternalId = nextId < minNextId ? minNextId : nextId;
+    } else {
+      db._nextInternalId = minNextId;
+    }
+    if (nextGeneratedId != null) {
+      db._nextGeneratedId = nextGeneratedId;
+    }
+  }
+
+  static Map<String, Object?> _asObjectMap(Object? raw, String message) {
+    if (raw is! Map) {
+      throw SerializationException(message);
+    }
+    return Map<String, Object?>.from(raw);
+  }
 
   // ---------------------------------------------------------------------------
   // Internal document storage
@@ -1072,17 +1203,6 @@ final class Searchlight {
   /// Matches Orama's `save(orama)` which returns a `RawData` object
   /// containing all component states. Adds `formatVersion` for forward
   /// compatibility.
-  ///
-  /// **Design note (A1/A2/B6):** The index trees and sort index are NOT
-  /// serialized. Instead, [Searchlight.fromJson] rebuilds them by
-  /// re-inserting all documents. This is simpler and more robust than
-  /// serializing each tree
-  /// type, and produces functionally identical results because insertion
-  /// order is preserved (documents are sorted by internal ID before
-  /// re-insertion). The trade-off is O(n*m) restore time vs O(data_size)
-  /// for direct tree restoration. For databases with tens of thousands of
-  /// documents this may be measurably slower. A future optimization could
-  /// add per-tree `toJson`/`fromJson` to enable direct restoration.
   Map<String, Object?> toJson() {
     if (_hasInjectedTokenizer) {
       throw const SerializationException(
@@ -1141,6 +1261,8 @@ final class Searchlight {
         'nextId': _nextInternalId,
         'nextGeneratedId': _nextGeneratedId,
       },
+      'index': _index.toJson(),
+      'sorting': _sortIndex.toJson(),
       'documents': docsJson,
     };
   }

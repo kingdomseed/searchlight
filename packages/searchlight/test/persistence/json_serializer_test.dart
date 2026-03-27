@@ -21,6 +21,20 @@ void main() {
       expect(json['formatVersion'], equals(1));
     });
 
+    test('toJson includes serialized index and sorting state', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'price': const TypedField(SchemaType.number),
+        }),
+      )..insert({'id': 'doc1', 'title': 'Hello', 'price': 5});
+
+      final json = db.toJson();
+
+      expect(json['index'], isA<Map<String, Object?>>());
+      expect(json['sorting'], isA<Map<String, Object?>>());
+    });
+
     test('round-trip empty database preserves schema, algorithm, language', () {
       final schema = Schema({
         'title': const TypedField(SchemaType.string),
@@ -98,6 +112,71 @@ void main() {
       // "Python scripting" / "Slow" should not match "dart"
       expect(ids, isNot(contains('doc3')));
     });
+
+    test(
+      'fromJson restores serialized components without revalidating documents',
+      () {
+        final db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+            'rating': const TypedField(SchemaType.number),
+          }),
+        )..insert({
+            'id': 'doc1',
+            'title': 'Dart Programming',
+            'rating': 5,
+          });
+
+        final json = db.toJson();
+        final documents = json['documents']! as Map<String, Object?>;
+        final doc = documents.values.first! as Map<String, Object?>;
+        doc['rating'] = 'not-a-number';
+
+        final restored = Searchlight.fromJson(json);
+
+        final results = restored.search(term: 'dart');
+        expect(results.count, 1);
+        expect(results.hits.first.id, 'doc1');
+      },
+    );
+
+    test(
+      'fromJson restores serialized sort state without revalidating documents',
+      () {
+        final db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+            'rating': const TypedField(SchemaType.number),
+          }),
+        )
+          ..insert({
+            'id': 'doc1',
+            'title': 'Dart Patterns',
+            'rating': 10,
+          })
+          ..insert({
+            'id': 'doc2',
+            'title': 'Dart Cookbook',
+            'rating': 1,
+          });
+
+        final json = db.toJson();
+        final documents = json['documents']! as Map<String, Object?>;
+        for (final rawDoc in documents.values) {
+          final doc = rawDoc! as Map<String, Object?>;
+          doc['rating'] = 'not-a-number';
+        }
+
+        final restored = Searchlight.fromJson(json);
+        final results = restored.search(
+          term: 'dart',
+          sortBy: const SortBy(field: 'rating', order: SortOrder.asc),
+        );
+
+        expect(results.count, 2);
+        expect(results.hits.map((hit) => hit.id).toList(), ['doc2', 'doc1']);
+      },
+    );
 
     test('round-trip filters work on restored database', () {
       final db = Searchlight.create(

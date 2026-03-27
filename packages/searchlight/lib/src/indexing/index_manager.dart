@@ -131,6 +131,81 @@ final class SearchIndex {
     );
   }
 
+  /// Restores a [SearchIndex] from serialized component state.
+  factory SearchIndex.fromJson(
+    Map<String, Object?> json, {
+    required SearchAlgorithm algorithm,
+  }) {
+    final rawIndexes = json['indexes'];
+    if (rawIndexes is! Map) {
+      throw const SerializationException(
+        'Missing or invalid "index.indexes" in JSON',
+      );
+    }
+
+    final rawSearchableProperties = json['searchableProperties'];
+    if (rawSearchableProperties is! List) {
+      throw const SerializationException(
+        'Missing or invalid "index.searchableProperties" in JSON',
+      );
+    }
+
+    final rawSearchablePropertiesWithTypes =
+        json['searchablePropertiesWithTypes'];
+    if (rawSearchablePropertiesWithTypes is! Map) {
+      throw const SerializationException(
+        'Missing or invalid "index.searchablePropertiesWithTypes" in JSON',
+      );
+    }
+
+    final indexes = <String, IndexTree>{};
+    for (final entry in rawIndexes.entries) {
+      final prop = entry.key as String;
+      final rawTree = entry.value;
+      if (rawTree is! Map) {
+        throw SerializationException('Invalid serialized index for "$prop"');
+      }
+
+      final treeJson = Map<String, Object?>.from(
+        rawTree.cast<Object?, Object?>(),
+      );
+      final rawType = treeJson['type'];
+      if (rawType is! String) {
+        throw SerializationException(
+          'Missing or invalid tree type for "$prop"',
+        );
+      }
+
+      final treeType = _treeTypeFromJsonName(rawType);
+      final rawNode = treeJson['node'];
+      final isArray = treeJson['isArray'] as bool? ?? false;
+
+      indexes[prop] = IndexTree(
+        type: treeType,
+        node: _deserializeTreeNode(treeType, rawNode, prop),
+        isArray: isArray,
+      );
+    }
+
+    return SearchIndex._(
+      algorithm: algorithm,
+      indexes: indexes,
+      searchableProperties: rawSearchableProperties.cast<String>(),
+      searchablePropertiesWithTypes: {
+        for (final entry in rawSearchablePropertiesWithTypes.entries)
+          entry.key as String: _schemaTypeFromJsonName(
+            entry.value as String,
+            property: entry.key as String,
+          ),
+      },
+      frequencies: _deserializeFrequencyMap(json['frequencies']),
+      tokenOccurrences: _deserializeTokenOccurrences(json['tokenOccurrences']),
+      avgFieldLength: _deserializeAvgFieldLength(json['avgFieldLength']),
+      fieldLengths: _deserializeFieldLengths(json['fieldLengths']),
+      qpsStats: _deserializeQpsStats(json['qpsStats']),
+    );
+  }
+
   /// The scoring algorithm used for string field indexing and search.
   final SearchAlgorithm algorithm;
 
@@ -163,6 +238,59 @@ final class SearchIndex {
 
   /// The number of documents currently indexed.
   int get docsCount => _docsCount;
+
+  /// Restores the indexed document count after loading a serialized snapshot.
+  // ignore: use_setters_to_change_properties
+  void restoreDocsCount(int count) {
+    _docsCount = count;
+  }
+
+  /// Serializes the search index to a JSON-compatible map.
+  Map<String, Object?> toJson() {
+    return {
+      'indexes': {
+        for (final entry in indexes.entries)
+          entry.key: {
+            'type': _treeTypeToJsonName(entry.value.type),
+            'node': _serializeTreeNode(entry.value),
+            'isArray': entry.value.isArray,
+          },
+      },
+      'searchableProperties': List<String>.from(searchableProperties),
+      'searchablePropertiesWithTypes': {
+        for (final entry in searchablePropertiesWithTypes.entries)
+          entry.key: entry.value.name,
+      },
+      'frequencies': {
+        for (final propEntry in frequencies.entries)
+          propEntry.key: {
+            for (final docEntry in propEntry.value.entries)
+              docEntry.key.toString(): {
+                for (final tokenEntry in docEntry.value.entries)
+                  tokenEntry.key: tokenEntry.value,
+              },
+          },
+      },
+      'tokenOccurrences': {
+        for (final propEntry in tokenOccurrences.entries)
+          propEntry.key: Map<String, int>.from(propEntry.value),
+      },
+      'avgFieldLength': {
+        for (final entry in avgFieldLength.entries) entry.key: entry.value,
+      },
+      'fieldLengths': {
+        for (final propEntry in fieldLengths.entries)
+          propEntry.key: {
+            for (final docEntry in propEntry.value.entries)
+              docEntry.key.toString(): docEntry.value,
+          },
+      },
+      if (qpsStats.isNotEmpty)
+        'qpsStats': {
+          for (final entry in qpsStats.entries) entry.key: entry.value.toJson(),
+        },
+    };
+  }
 
   /// Returns the [TreeType] for the given field [path].
   TreeType treeTypeAt(String path) => indexes[path]!.type;
@@ -376,8 +504,7 @@ final class SearchIndex {
     final currentAvg = avgFieldLength[prop];
     final safeAvg = currentAvg == null || currentAvg.isNaN ? 0.0 : currentAvg;
     avgFieldLength[prop] =
-        (safeAvg * (_docsCount - 1) + tokens.length) /
-            _docsCount;
+        (safeAvg * (_docsCount - 1) + tokens.length) / _docsCount;
     fieldLengths[prop]![docId] = tokens.length;
     frequencies[prop]![docId] = {};
   }
@@ -1036,5 +1163,283 @@ final class SearchIndex {
           searchablePropertiesWithTypes[path] = type;
       }
     }
+  }
+
+  static Object _serializeTreeNode(IndexTree tree) {
+    return switch (tree.type) {
+      TreeType.radix => (tree.node as RadixTree).toJson(),
+      TreeType.avl => (tree.node as AVLTree<num, int>).toJson(),
+      TreeType.bool => (tree.node as BoolNode<int>).toJson(),
+      TreeType.flat => (tree.node as FlatTree).toJson(),
+      TreeType.bkd => (tree.node as BKDTree).toJson(),
+      TreeType.position => _serializePositionsStorage(
+          tree.node as pt15.PositionsStorage,
+        ),
+    };
+  }
+
+  static Object _deserializeTreeNode(
+    TreeType type,
+    Object? rawNode,
+    String property,
+  ) {
+    return switch (type) {
+      TreeType.radix => RadixTree.fromJson(
+          _asObjectMap(rawNode, 'Invalid Radix tree for "$property"'),
+        ),
+      TreeType.avl => AVLTree<num, int>.fromJson(
+          _asDynamicMap(rawNode, 'Invalid AVL tree for "$property"'),
+          keyFromJson: (value) => value as num,
+          valueFromJson: (value) => value as int,
+        ),
+      TreeType.bool => BoolNode.fromJson<int>(
+          _asObjectMap(rawNode, 'Invalid Bool tree for "$property"'),
+        ),
+      TreeType.flat => FlatTree.fromJson(
+          Map<String, Object>.from(
+            _asObjectMap(rawNode, 'Invalid Flat tree for "$property"'),
+          ),
+        ),
+      TreeType.bkd => BKDTree.fromJson(
+          _asDynamicMap(rawNode, 'Invalid BKD tree for "$property"'),
+        ),
+      TreeType.position => _deserializePositionsStorage(rawNode, property),
+    };
+  }
+
+  static List<Object?> _serializePositionsStorage(
+    pt15.PositionsStorage storage,
+  ) {
+    return [
+      for (final bucket in storage)
+        {
+          for (final entry in bucket.entries)
+            entry.key: List<int>.from(entry.value),
+        },
+    ];
+  }
+
+  static pt15.PositionsStorage _deserializePositionsStorage(
+    Object? raw,
+    String property,
+  ) {
+    if (raw is! List || raw.length != pt15.maxPosition) {
+      throw SerializationException(
+        'Invalid position storage for "$property"',
+      );
+    }
+
+    return [
+      for (final bucket in raw)
+        {
+          for (final entry in _asMap(
+            bucket,
+            'Invalid position bucket for "$property"',
+          ).entries)
+            _asString(
+              entry.key,
+              'Invalid position token for "$property"',
+            ): _asList(
+              entry.value,
+              'Invalid position token list for "$property"',
+            ).cast<int>(),
+        },
+    ];
+  }
+
+  static FrequencyMap _deserializeFrequencyMap(Object? raw) {
+    if (raw == null) return <String, Map<int, Map<String, double>>>{};
+    final rawMap = _asMap(raw, 'Invalid "index.frequencies" payload');
+
+    return {
+      for (final propEntry in rawMap.entries)
+        _asString(
+          propEntry.key,
+          'Invalid indexed property name in frequencies',
+        ): {
+          for (final docEntry in _asMap(
+            propEntry.value,
+            'Invalid frequency map for "${propEntry.key}"',
+          ).entries)
+            int.parse(
+              _asString(
+                docEntry.key,
+                'Invalid frequency document ID for "${propEntry.key}"',
+              ),
+            ): {
+              for (final tokenEntry in _asMap(
+                docEntry.value,
+                'Invalid token frequency map for "${propEntry.key}"',
+              ).entries)
+                _asString(
+                  tokenEntry.key,
+                  'Invalid token key for "${propEntry.key}"',
+                ): _asNum(
+                  tokenEntry.value,
+                  'Invalid token frequency for "${propEntry.key}"',
+                ).toDouble(),
+            },
+        },
+    };
+  }
+
+  static Map<String, Map<String, int>> _deserializeTokenOccurrences(
+    Object? raw,
+  ) {
+    if (raw == null) return <String, Map<String, int>>{};
+    final rawMap = _asMap(raw, 'Invalid "index.tokenOccurrences" payload');
+
+    return {
+      for (final propEntry in rawMap.entries)
+        _asString(
+          propEntry.key,
+          'Invalid indexed property name in token occurrences',
+        ): {
+          for (final tokenEntry in _asMap(
+            propEntry.value,
+            'Invalid token occurrences for "${propEntry.key}"',
+          ).entries)
+            _asString(
+              tokenEntry.key,
+              'Invalid token key for "${propEntry.key}"',
+            ): _asInt(
+              tokenEntry.value,
+              'Invalid token occurrence count for "${propEntry.key}"',
+            ),
+        },
+    };
+  }
+
+  static Map<String, double> _deserializeAvgFieldLength(Object? raw) {
+    if (raw == null) return <String, double>{};
+    final rawMap = _asMap(raw, 'Invalid "index.avgFieldLength" payload');
+
+    return {
+      for (final entry in rawMap.entries)
+        _asString(entry.key, 'Invalid property name in avgFieldLength'): _asNum(
+          entry.value,
+          'Invalid avgFieldLength value for "${entry.key}"',
+        ).toDouble(),
+    };
+  }
+
+  static Map<String, Map<int, int>> _deserializeFieldLengths(Object? raw) {
+    if (raw == null) return <String, Map<int, int>>{};
+    final rawMap = _asMap(raw, 'Invalid "index.fieldLengths" payload');
+
+    return {
+      for (final propEntry in rawMap.entries)
+        _asString(
+          propEntry.key,
+          'Invalid indexed property name in field lengths',
+        ): {
+          for (final docEntry in _asMap(
+            propEntry.value,
+            'Invalid field lengths for "${propEntry.key}"',
+          ).entries)
+            int.parse(
+              _asString(
+                docEntry.key,
+                'Invalid field length document ID for "${propEntry.key}"',
+              ),
+            ): _asInt(
+              docEntry.value,
+              'Invalid field length value for "${propEntry.key}"',
+            ),
+        },
+    };
+  }
+
+  static Map<String, QPSStats> _deserializeQpsStats(Object? raw) {
+    if (raw == null) return <String, QPSStats>{};
+    final rawMap = _asMap(raw, 'Invalid "index.qpsStats" payload');
+
+    return {
+      for (final entry in rawMap.entries)
+        _asString(entry.key, 'Invalid indexed property name in qpsStats'):
+            QPSStats.fromJson(
+          _asObjectMap(entry.value, 'Invalid QPS stats for "${entry.key}"'),
+        ),
+    };
+  }
+
+  static TreeType _treeTypeFromJsonName(String name) {
+    return switch (name) {
+      'Radix' => TreeType.radix,
+      'AVL' => TreeType.avl,
+      'Bool' => TreeType.bool,
+      'Flat' => TreeType.flat,
+      'BKD' => TreeType.bkd,
+      'Position' => TreeType.position,
+      _ => throw SerializationException('Unknown index tree type: $name'),
+    };
+  }
+
+  static String _treeTypeToJsonName(TreeType type) {
+    return switch (type) {
+      TreeType.radix => 'Radix',
+      TreeType.avl => 'AVL',
+      TreeType.bool => 'Bool',
+      TreeType.flat => 'Flat',
+      TreeType.bkd => 'BKD',
+      TreeType.position => 'Position',
+    };
+  }
+
+  static SchemaType _schemaTypeFromJsonName(
+    String name, {
+    required String property,
+  }) {
+    for (final type in SchemaType.values) {
+      if (type.name == name) {
+        return type;
+      }
+    }
+    throw SerializationException(
+      'Unknown schema type "$name" for indexed property "$property"',
+    );
+  }
+
+  static Map<Object?, Object?> _asMap(Object? raw, String message) {
+    if (raw is! Map) {
+      throw SerializationException(message);
+    }
+    return raw.cast<Object?, Object?>();
+  }
+
+  static Map<String, Object?> _asObjectMap(Object? raw, String message) {
+    return Map<String, Object?>.from(_asMap(raw, message));
+  }
+
+  static Map<String, dynamic> _asDynamicMap(Object? raw, String message) {
+    return Map<String, dynamic>.from(_asMap(raw, message));
+  }
+
+  static List<Object?> _asList(Object? raw, String message) {
+    if (raw is! List) {
+      throw SerializationException(message);
+    }
+    return List<Object?>.from(raw);
+  }
+
+  static String _asString(Object? raw, String message) {
+    if (raw is! String) {
+      throw SerializationException(message);
+    }
+    return raw;
+  }
+
+  static int _asInt(Object? raw, String message) {
+    if (raw is! int) {
+      throw SerializationException(message);
+    }
+    return raw;
+  }
+
+  static num _asNum(Object? raw, String message) {
+    if (raw is! num) {
+      throw SerializationException(message);
+    }
+    return raw;
   }
 }

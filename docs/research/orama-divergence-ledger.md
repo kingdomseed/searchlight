@@ -24,6 +24,9 @@ intentional divergence or an unresolved gap.
 - persistence honesty for tokenizer configuration:
   reconstructible built-in tokenizer settings serialize and restore;
   injected tokenizers and custom stemmers fail fast
+- persistence now serializes and restores index and sorter component state
+  directly instead of rebuilding them through reinsertion; legacy snapshots
+  without those component payloads still fall back to reinsertion
 - `reindex()` preserves reconstructible tokenizer settings and rejects
   non-reconstructible tokenizer/stemmer cases
 - locale-aware string sorting now includes explicit non-English ordering
@@ -45,8 +48,6 @@ intentional divergence or an unresolved gap.
 
 - no Orama-style create-time extension surface yet:
   components, hooks, and plugin registration are still missing
-- persistence still rebuilds indexes by reinserting documents rather than
-  restoring index and sorter state directly
 - locale-aware string sort parity is not complete for every supported language;
   current support is targeted rather than a full `localeCompare` equivalent
 - `DocumentAdapter` still needs either stronger stabilization or demotion from

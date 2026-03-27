@@ -13,6 +13,37 @@ import 'package:searchlight/src/trees/radix_tree.dart';
 /// per document. Matches Orama's `QPSIndex.stats[prop]` from
 /// `plugin-qps/src/algorithm.ts`.
 final class QPSStats {
+  /// Creates empty QPS statistics.
+  QPSStats();
+
+  /// Deserializes [QPSStats] from a JSON-compatible map.
+  factory QPSStats.fromJson(Map<String, Object?> json) {
+    final stats = QPSStats();
+
+    final rawTokenQuantums = json['tokenQuantums'];
+    if (rawTokenQuantums is Map) {
+      for (final entry in rawTokenQuantums.entries) {
+        final docId = int.parse(entry.key as String);
+        final rawTokens = entry.value;
+        if (rawTokens is! Map) continue;
+
+        stats.tokenQuantums[docId] = {
+          for (final tokenEntry in rawTokens.entries)
+            tokenEntry.key as String: tokenEntry.value as int,
+        };
+      }
+    }
+
+    final rawTokensLength = json['tokensLength'];
+    if (rawTokensLength is Map) {
+      for (final entry in rawTokensLength.entries) {
+        stats.tokensLength[int.parse(entry.key as String)] = entry.value as int;
+      }
+    }
+
+    return stats;
+  }
+
   /// Per-document token quantum descriptors.
   ///
   /// `tokenQuantums[docId][token]` stores a packed integer: upper bits =
@@ -21,6 +52,20 @@ final class QPSStats {
 
   /// Per-document total token count.
   final Map<int, int> tokensLength = {};
+
+  /// Serializes the QPS statistics to a JSON-compatible map.
+  Map<String, Object?> toJson() {
+    return {
+      'tokenQuantums': {
+        for (final entry in tokenQuantums.entries)
+          entry.key.toString(): Map<String, int>.from(entry.value),
+      },
+      'tokensLength': {
+        for (final entry in tokensLength.entries)
+          entry.key.toString(): entry.value,
+      },
+    };
+  }
 }
 
 /// 20-bit mask: lower 20 bits all set.
