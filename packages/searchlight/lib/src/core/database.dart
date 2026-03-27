@@ -495,6 +495,13 @@ final class Searchlight {
   Map<String, SchemaType> get propertiesWithTypes =>
       _index.searchablePropertiesWithTypes;
 
+  List<String> get _sortableProperties {
+    return _index.searchablePropertiesWithTypes.entries
+        .where((entry) => _sortableTypes.contains(entry.value))
+        .map((entry) => entry.key)
+        .toList();
+  }
+
   /// Internal doc ID -> external string ID mapping — for group computation.
   Map<int, String> get externalIdsMap {
     return _internalToExternal.map((docId, extId) => MapEntry(docId.id, extId));
@@ -904,6 +911,16 @@ final class Searchlight {
       propertiesToSearch = properties;
     } else {
       propertiesToSearch = stringFields;
+    }
+
+    if (sortBy != null) {
+      final sortableProperties = _sortableProperties;
+      if (!sortableProperties.contains(sortBy.field)) {
+        throw QueryException(
+          "Unable to sort on unknown field '${sortBy.field}'. "
+          'Available: ${sortableProperties.join(', ')}',
+        );
+      }
     }
 
     // 2. Evaluate where filters (matching Orama's innerFullTextSearch)

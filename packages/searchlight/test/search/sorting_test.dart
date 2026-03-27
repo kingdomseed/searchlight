@@ -137,6 +137,132 @@ void main() {
 
       expect(sorted.map((entry) => entry.$1).toList(), [2, 4, 5, 3, 1]);
     });
+
+    test('sortBy on danish strings uses locale-aware ordering', () {
+      final sortIndex = SortIndex(language: 'danish')
+        ..insert(property: 'title', docId: 1, value: 'å')
+        ..insert(property: 'title', docId: 2, value: 'a')
+        ..insert(property: 'title', docId: 3, value: 'ø')
+        ..insert(property: 'title', docId: 4, value: 'o')
+        ..insert(property: 'title', docId: 5, value: 'æ');
+
+      final sorted = sortIndex.sortBy(
+        results: const [
+          (1, 1.0),
+          (2, 0.9),
+          (3, 0.8),
+          (4, 0.7),
+          (5, 0.6),
+        ],
+        property: 'title',
+        order: SortOrder.asc,
+      );
+
+      expect(sorted.map((entry) => entry.$1).toList(), [2, 4, 5, 3, 1]);
+    });
+
+    test('sortBy on swedish strings uses locale-aware ordering', () {
+      final sortIndex = SortIndex(language: 'swedish')
+        ..insert(property: 'title', docId: 1, value: 'ö')
+        ..insert(property: 'title', docId: 2, value: 'a')
+        ..insert(property: 'title', docId: 3, value: 'ä')
+        ..insert(property: 'title', docId: 4, value: 'å')
+        ..insert(property: 'title', docId: 5, value: 'o');
+
+      final sorted = sortIndex.sortBy(
+        results: const [
+          (1, 1.0),
+          (2, 0.9),
+          (3, 0.8),
+          (4, 0.7),
+          (5, 0.6),
+        ],
+        property: 'title',
+        order: SortOrder.asc,
+      );
+
+      expect(sorted.map((entry) => entry.$1).toList(), [2, 5, 4, 3, 1]);
+    });
+
+    test('sortBy on german strings normalizes umlauts and sharp s', () {
+      final sortIndex = SortIndex(language: 'german')
+        ..insert(property: 'title', docId: 1, value: 'zebra')
+        ..insert(property: 'title', docId: 2, value: 'äpfel')
+        ..insert(property: 'title', docId: 3, value: 'apfel')
+        ..insert(property: 'title', docId: 4, value: 'straße')
+        ..insert(property: 'title', docId: 5, value: 'strasse');
+
+      final sorted = sortIndex.sortBy(
+        results: const [
+          (1, 1.0),
+          (2, 0.9),
+          (3, 0.8),
+          (4, 0.7),
+          (5, 0.6),
+        ],
+        property: 'title',
+        order: SortOrder.asc,
+      );
+
+      expect(sorted.map((entry) => entry.$1).toList(), [2, 3, 4, 5, 1]);
+    });
+
+    test('sortBy preserves expected ordering after repeated removals', () {
+      final sortIndex = SortIndex()
+        ..insert(property: 'price', docId: 1, value: 5)
+        ..insert(property: 'price', docId: 2, value: 2)
+        ..insert(property: 'price', docId: 3, value: 7)
+        ..insert(property: 'price', docId: 4, value: 10)
+        ..insert(property: 'price', docId: 5, value: -3);
+
+      final original = <TokenScore>[
+        (1, 1.0),
+        (2, 0.9),
+        (3, 0.8),
+        (4, 0.7),
+        (5, 0.6),
+      ];
+
+      expect(
+        sortIndex
+            .sortBy(
+              results: List<TokenScore>.from(original),
+              property: 'price',
+              order: SortOrder.asc,
+            )
+            .map((entry) => entry.$1)
+            .toList(),
+        [5, 2, 1, 3, 4],
+      );
+
+      sortIndex.remove(property: 'price', docId: 2);
+      expect(
+        sortIndex
+            .sortBy(
+              results: original.where((entry) => entry.$1 != 2).toList(),
+              property: 'price',
+              order: SortOrder.asc,
+            )
+            .map((entry) => entry.$1)
+            .toList(),
+        [5, 1, 3, 4],
+      );
+
+      sortIndex.remove(property: 'price', docId: 4);
+      expect(
+        sortIndex
+            .sortBy(
+              results: original
+                  .where((entry) => entry.$1 != 2 && entry.$1 != 4)
+                  .toList(),
+              property: 'price',
+              order: SortOrder.asc,
+            )
+            .map((entry) => entry.$1)
+            .toList(),
+        [5, 1, 3],
+      );
+    });
   });
 
   group('Searchlight.search() with sortBy', () {
@@ -216,5 +342,60 @@ void main() {
         expect(result.hits[2].id, 'cheap'); // price=10
       },
     );
+
+    test('search with nested sortBy sorts on nested numeric field', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+        'meta': const NestedField({
+          'rating': TypedField(SchemaType.number),
+        }),
+      });
+
+      final db = Searchlight.create(schema: schema)
+        ..insert({
+          'id': 'mid',
+          'title': 'hello A',
+          'meta': {'rating': 5},
+        })
+        ..insert({
+          'id': 'low',
+          'title': 'hello B',
+          'meta': {'rating': 2},
+        })
+        ..insert({
+          'id': 'high',
+          'title': 'hello C',
+          'meta': {'rating': 9},
+        });
+
+      final result = db.search(
+        term: 'hello',
+        sortBy: const SortBy(field: 'meta.rating', order: SortOrder.asc),
+      );
+
+      expect(result.hits.map((hit) => hit.id).toList(), ['low', 'mid', 'high']);
+    });
+
+    test('search with unknown sortBy field throws QueryException', () {
+      final schema = Schema({
+        'title': const TypedField(SchemaType.string),
+        'price': const TypedField(SchemaType.number),
+      });
+
+      final db = Searchlight.create(schema: schema)
+        ..insert({
+          'id': 'doc1',
+          'title': 'hello A',
+          'price': 100,
+        });
+
+      expect(
+        () => db.search(
+          term: 'hello',
+          sortBy: const SortBy(field: 'unknown', order: SortOrder.asc),
+        ),
+        throwsA(isA<QueryException>()),
+      );
+    });
   });
 }

@@ -40,8 +40,15 @@ intentional divergence or an unresolved gap.
   Searchlight uses Snowball stemmers for supported non-English languages,
   while Orama only has a built-in English stemmer and otherwise requires a
   custom stemmer.
+- tokenizer configuration uses Dart-native named parameters instead of
+  Orama's nested config-object and callback surface. Core behavior is aligned
+  for the supported options, but shapes such as `stopWords: false` or
+  stop-word callback hooks are intentionally represented differently.
 - some BM25 bookkeeping for repeated tokens and `string[]` fields is hardened
   relative to Orama to avoid corrupted stats after deletes.
+- locale-aware string collation uses targeted rules for Norwegian, Danish,
+  Swedish, and German plus diacritic folding elsewhere; it is not a full
+  host-platform `localeCompare` equivalent across every language.
 - Dart's typed API replaces several JavaScript runtime validation branches.
   Where the type system already forbids the invalid shape, Searchlight does not
   reproduce the exact Orama error path.
@@ -50,11 +57,6 @@ intentional divergence or an unresolved gap.
 
 - no Orama-style create-time extension surface yet:
   components, hooks, and plugin registration are still missing
-- locale-aware string sort parity is not complete for every supported language;
-  current support is targeted rather than a full `localeCompare` equivalent
-- tokenizer/config parity is not complete for every Orama configuration shape;
-  Searchlight exposes a Dart-native surface rather than a direct config-object
-  clone
 
 ## Working references
 
