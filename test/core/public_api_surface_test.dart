@@ -81,5 +81,40 @@ Searchlight buildDatabase() {
         }
       },
     );
+
+    test('searchlight does not expose internal resolved extension state',
+        () async {
+      final tempDir = Directory(
+        '${Directory.current.path}/test/.tmp_extension_internal_surface',
+      );
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+      await tempDir.create(recursive: true);
+      final source = File('${tempDir.path}/internal_surface.dart');
+
+      try {
+        source.writeAsStringSync('''
+import 'package:searchlight/searchlight.dart';
+
+void inspect(Searchlight db) {
+  // Should remain internal implementation detail.
+  db.resolvedExtensions;
+}
+''');
+
+        final result = await Process.run(
+          'dart',
+          ['analyze', source.path],
+          workingDirectory: Directory.current.path,
+        );
+
+        final output = '${result.stdout}\n${result.stderr}';
+        expect(result.exitCode, isNonZero, reason: output);
+        expect(output, contains('undefined_getter'));
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
   });
 }

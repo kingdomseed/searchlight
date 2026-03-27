@@ -340,9 +340,6 @@ final class Searchlight {
   /// Resolved extension configuration captured at construction.
   final ResolvedExtensions _resolvedExtensions;
 
-  /// Exposes resolved extension state for validation and future wiring.
-  ResolvedExtensions get resolvedExtensions => _resolvedExtensions;
-
   /// The search index managing per-field trees and scoring data.
   final SearchIndex _index;
 
