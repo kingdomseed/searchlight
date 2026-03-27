@@ -1003,10 +1003,27 @@ final class Searchlight {
   /// Returns the new [Searchlight] instance. The original instance is
   /// unmodified.
   Searchlight reindex({required SearchAlgorithm algorithm}) {
+    if (_hasInjectedTokenizer) {
+      throw StateError(
+        'Cannot reindex a database created with a custom tokenizer.',
+      );
+    }
+    if (_hasCustomStemmer) {
+      throw StateError(
+        'Cannot reindex a database created with a custom stemmer.',
+      );
+    }
+
     final newDb = Searchlight.create(
       schema: schema,
       algorithm: algorithm,
       language: language,
+      stemming: _tokenizer.stemmingEnabled,
+      stopWords: _tokenizer.stopWords,
+      useDefaultStopWords: _tokenizer.usesDefaultStopWords,
+      allowDuplicates: _tokenizer.allowDuplicates,
+      tokenizeSkipProperties: _tokenizer.tokenizeSkipProperties,
+      stemmerSkipProperties: _tokenizer.stemmerSkipProperties,
     );
 
     // Re-insert all documents from the current instance

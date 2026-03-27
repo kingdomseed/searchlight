@@ -19,6 +19,57 @@ gaps vs Orama are resolved or explicitly accepted.
 
 ## Plan
 
+## Current Status -- 2026-03-27
+
+### Completed since this plan was created
+
+- `Searchlight.create(...)` now wires through create-time tokenizer controls:
+  `stemming`, `stemmer`, `stopWords`, `useDefaultStopWords`,
+  `allowDuplicates`, `tokenizeSkipProperties`, `stemmerSkipProperties`,
+  and injected `tokenizer`
+- added public regression tests covering create-time tokenizer behavior in
+  `packages/searchlight/test/core/database_create_config_test.dart`
+- aligned constructor conflict behavior with Orama:
+  injected `tokenizer` + explicit `language` now throws deterministically
+- aligned default create-time stemming with Orama:
+  default stemming is now off
+- tokenizer config that is reconstructible now round-trips through JSON
+  persistence
+- non-reconstructible tokenizer state is now rejected during persistence:
+  injected `Tokenizer` instances and custom stemmer callbacks fail fast in
+  `toJson()` rather than serializing misleading data
+- package docs updated to describe the current create-time configuration
+  surface and persistence limits
+
+### Immediate next execution block
+
+1. **Reindex parity for tokenizer config**
+   - add failing tests in
+     `packages/searchlight/test/scoring/algorithm_selection_test.dart`
+   - prove `reindex()` preserves built-in tokenizer settings such as
+     `stemming`, `stopWords`, `useDefaultStopWords`, `allowDuplicates`,
+     `tokenizeSkipProperties`, and `stemmerSkipProperties`
+   - decide and test how `reindex()` should behave for injected tokenizers and
+     custom stemmers; minimum acceptable behavior is deterministic rejection
+
+2. **Persistence guard completion**
+   - add failing tests covering `persist()` / `serialize()` and
+     `restore()` / `deserialize()` paths, not only `toJson()`
+   - verify custom-tokenizer/custom-stemmer rejection is consistent across
+     JSON and CBOR entry points
+
+3. **Create-time tokenizer validation parity**
+   - add failing tests for unsupported tokenizer language handling
+   - add failing tests for invalid stop-word configuration and mismatch cases
+     where Searchlight intentionally diverges or still needs parity work
+   - explicitly decide which non-English stemming differences remain accepted
+     enhancements vs must-fix parity gaps
+
+4. **Public divergence ledger**
+   - add a concise document under `docs/research/` listing:
+     matched, intentional divergences, and remaining gaps
+   - use that ledger to gate publish-readiness claims
+
 ### Phase 1: Freeze Publish Scope
 
 - **Goal**: stop premature release work; define gates
