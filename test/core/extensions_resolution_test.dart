@@ -60,5 +60,22 @@ void main() {
 
       expect(identical(resolved.components.hooks, overrideHooks), isTrue);
     });
+
+    test('plugin hooks participate in resolution when components are absent',
+        () {
+      final pluginHooks = SearchlightHooks(afterCreate: (_) {});
+
+      final resolved = resolveExtensions(
+        defaults: const SearchlightComponents(),
+        plugins: [
+          SearchlightPlugin(
+            name: 'plugin',
+            hooks: pluginHooks,
+          ),
+        ],
+      );
+
+      expect(identical(resolved.components.hooks, pluginHooks), isTrue);
+    });
   });
 }

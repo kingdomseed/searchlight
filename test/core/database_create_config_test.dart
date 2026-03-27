@@ -357,5 +357,17 @@ void main() {
         );
       },
     );
+
+    test('stores resolved extension state on created instances', () {
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: const [SearchlightPlugin(name: 'kept')],
+      );
+
+      expect(db!.resolvedExtensions.plugins, hasLength(1));
+      expect(db!.resolvedExtensions.plugins.first.name, 'kept');
+    });
   });
 }

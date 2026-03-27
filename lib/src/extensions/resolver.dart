@@ -30,7 +30,7 @@ ResolvedExtensions resolveExtensions({
 
   var resolvedHooks = defaults.hooks;
   for (final plugin in plugins) {
-    final pluginHooks = plugin.components?.hooks;
+    final pluginHooks = plugin.components?.hooks ?? plugin.hooks;
     if (pluginHooks != null) {
       resolvedHooks = pluginHooks;
     }

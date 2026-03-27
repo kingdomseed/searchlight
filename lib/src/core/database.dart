@@ -45,12 +45,14 @@ final class Searchlight {
     required this.schema,
     required this.algorithm,
     required this.language,
+    required ResolvedExtensions resolvedExtensions,
     required bool hasCustomStemmer,
     required bool hasInjectedTokenizer,
     required SearchIndex index,
     required Tokenizer tokenizer,
     required SortIndex sortIndex,
   })  : _index = index,
+        _resolvedExtensions = resolvedExtensions,
         _tokenizer = tokenizer,
         _sortIndex = sortIndex,
         _hasCustomStemmer = hasCustomStemmer,
@@ -94,9 +96,6 @@ final class Searchlight {
       plugins: plugins,
       overrides: components,
     );
-    // Task 2 wires deterministic resolution and validation only.
-    final _ = resolvedExtensions;
-
     if (tokenizer != null && language != null) {
       throw ArgumentError(
         'Cannot provide both language and a custom tokenizer.',
@@ -136,6 +135,7 @@ final class Searchlight {
       schema: schema,
       algorithm: algorithm,
       language: resolvedLanguage,
+      resolvedExtensions: resolvedExtensions,
       hasCustomStemmer: stemmer != null,
       hasInjectedTokenizer: tokenizer != null,
       index: index,
@@ -299,6 +299,10 @@ final class Searchlight {
       schema: schema,
       algorithm: algorithm,
       language: language,
+      resolvedExtensions: const ResolvedExtensions(
+        plugins: [],
+        components: SearchlightComponents(),
+      ),
       hasCustomStemmer: false,
       hasInjectedTokenizer: false,
       index: index,
@@ -332,6 +336,12 @@ final class Searchlight {
 
   /// The language for tokenization and stemming.
   final String language;
+
+  /// Resolved extension configuration captured at construction.
+  final ResolvedExtensions _resolvedExtensions;
+
+  /// Exposes resolved extension state for validation and future wiring.
+  ResolvedExtensions get resolvedExtensions => _resolvedExtensions;
 
   /// The search index managing per-field trees and scoring data.
   final SearchIndex _index;
