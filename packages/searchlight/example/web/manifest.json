@@ -1,11 +1,11 @@
 {
-    "name": "example",
-    "short_name": "example",
+    "name": "Searchlight Validation",
+    "short_name": "Searchlight",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Validation app for Searchlight corpus and snapshot search behavior.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
