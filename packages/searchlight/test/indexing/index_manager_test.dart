@@ -1,3 +1,4 @@
+import 'package:searchlight/src/core/database.dart' show SearchAlgorithm;
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
@@ -171,6 +172,63 @@ void main() {
         final tree = index.indexes['category']!.node as FlatTree;
         expect(tree.find('electronics'), [1]);
       });
+
+      test('QPS string-array insert retains token quantums across elements',
+          () {
+        final schema = Schema({
+          'tags': const TypedField(SchemaType.stringArray),
+        });
+        final index = SearchIndex.create(
+          schema: schema,
+          algorithm: SearchAlgorithm.qps,
+        );
+        final tokenizer = Tokenizer(allowDuplicates: true);
+
+        index.insertDocument(
+          docId: 1,
+          data: {
+            'tags': ['hello world', 'goodbye moon'],
+          },
+          tokenizer: tokenizer,
+        );
+
+        final quantums = index.qpsStats['tags']!.tokenQuantums[1]!;
+        expect(
+          quantums.keys,
+          containsAll(['hello', 'world', 'goodbye', 'moon']),
+        );
+      });
+
+      test(
+        'QPS string-array search can match tokens from earlier array elements',
+        () {
+          final schema = Schema({
+            'tags': const TypedField(SchemaType.stringArray),
+          });
+          final index = SearchIndex.create(
+            schema: schema,
+            algorithm: SearchAlgorithm.qps,
+          );
+          final tokenizer = Tokenizer(allowDuplicates: true);
+
+          index.insertDocument(
+            docId: 1,
+            data: {
+              'tags': ['hello world', 'goodbye moon'],
+            },
+            tokenizer: tokenizer,
+          );
+
+          final results = index.search(
+            term: 'hel',
+            tokenizer: tokenizer,
+            propertiesToSearch: ['tags'],
+            relevance: const BM25Params(),
+          );
+
+          expect(results.map((result) => result.$1), contains(1));
+        },
+      );
     });
 
     group('removeDocument', () {

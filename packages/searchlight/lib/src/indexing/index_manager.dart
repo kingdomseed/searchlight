@@ -190,8 +190,11 @@ final class SearchIndex {
       if (indexTree == null) continue;
 
       final isArray = indexTree.isArray;
-      final isBm25StringArray =
-          algorithm == SearchAlgorithm.bm25 &&
+      final isBm25StringArray = algorithm == SearchAlgorithm.bm25 &&
+          isArray &&
+          indexTree.type == TreeType.radix &&
+          value is List;
+      final isQpsStringArray = algorithm == SearchAlgorithm.qps &&
           isArray &&
           indexTree.type == TreeType.radix &&
           value is List;
@@ -203,6 +206,17 @@ final class SearchIndex {
           value.cast<Object>(),
           indexTree,
           tokenizer,
+        );
+        continue;
+      }
+      if (isQpsStringArray) {
+        _insertQpsStringArray(
+          prop,
+          docId,
+          value.cast<Object>(),
+          indexTree,
+          tokenizer,
+          language,
         );
         continue;
       }
@@ -252,6 +266,31 @@ final class SearchIndex {
     _insertDocumentScoreParameters(prop, docId, allTokens);
     for (final token in allTokens) {
       _insertTokenScoreParameters(prop, docId, allTokens, token);
+    }
+  }
+
+  void _insertQpsStringArray(
+    String prop,
+    int docId,
+    List<Object> values,
+    IndexTree indexTree,
+    Tokenizer tokenizer,
+    String? language,
+  ) {
+    final node = indexTree.node as RadixTree;
+    final stats = qpsStats[prop]!;
+    stats.tokenQuantums[docId] = {};
+
+    for (final value in values) {
+      qpsInsertString(
+        value: value as String,
+        radixTree: node,
+        stats: stats,
+        prop: prop,
+        internalId: docId,
+        tokenizer: tokenizer,
+        language: language,
+      );
     }
   }
 
@@ -375,8 +414,7 @@ final class SearchIndex {
       final indexTree = indexes[prop];
       if (indexTree == null) continue;
 
-      final isBm25StringArray =
-          algorithm == SearchAlgorithm.bm25 &&
+      final isBm25StringArray = algorithm == SearchAlgorithm.bm25 &&
           indexTree.isArray &&
           indexTree.type == TreeType.radix &&
           value is List;
