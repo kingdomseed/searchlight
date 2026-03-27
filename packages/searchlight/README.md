@@ -14,9 +14,6 @@ Searchlight is especially useful when your app already has content available
 locally or can download and cache it, and you want fast in-app search over
 that data.
 
-Searchlight is a Dart package for Dart and Flutter runtimes. It is not a
-JavaScript or TypeScript library.
-
 Inspired by [Orama](https://github.com/oramasearch/orama).
 
 ## Start Here

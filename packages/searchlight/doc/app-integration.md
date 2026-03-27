@@ -3,9 +3,6 @@
 This guide shows how to integrate `searchlight` into a real Dart or Flutter
 application.
 
-Searchlight is for Dart and Flutter runtimes. It is not a JavaScript or
-TypeScript runtime replacement.
-
 ## What Searchlight Owns
 
 Searchlight owns:
