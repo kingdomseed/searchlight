@@ -112,6 +112,31 @@ void main() {
 
       expect(sorted.map((entry) => entry.$1).toList(), [1, 2, 3]);
     });
+
+    test('sortBy on norwegian strings uses locale-aware ordering', () {
+      final sortIndex = SortIndex(language: 'norwegian')
+        ..insert(property: 'title', docId: 1, value: 'å')
+        ..insert(property: 'title', docId: 2, value: 'a')
+        ..insert(property: 'title', docId: 3, value: 'ø')
+        ..insert(property: 'title', docId: 4, value: 'o')
+        ..insert(property: 'title', docId: 5, value: 'æ');
+
+      final results = <TokenScore>[
+        (1, 1.0),
+        (2, 0.9),
+        (3, 0.8),
+        (4, 0.7),
+        (5, 0.6),
+      ];
+
+      final sorted = sortIndex.sortBy(
+        results: results,
+        property: 'title',
+        order: SortOrder.asc,
+      );
+
+      expect(sorted.map((entry) => entry.$1).toList(), [2, 4, 5, 3, 1]);
+    });
   });
 
   group('Searchlight.search() with sortBy', () {

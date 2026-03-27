@@ -4,6 +4,7 @@
 
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
+import 'package:searchlight/src/text/diacritics.dart';
 
 /// A sort value stored per document.
 typedef SortValue = Object;
@@ -135,7 +136,7 @@ final class SortIndex {
         return va.compareTo(vb);
       }
       if (va is String && vb is String) {
-        return va.compareTo(vb);
+        return _compareStrings(va, vb);
       }
       if (va is bool && vb is bool) {
         if (va == vb) return 0;
@@ -150,6 +151,38 @@ final class SortIndex {
     }
 
     s.isSorted = true;
+  }
+
+  int _compareStrings(String a, String b) {
+    final keyA = _stringSortKey(a);
+    final keyB = _stringSortKey(b);
+    return keyA.compareTo(keyB);
+  }
+
+  String _stringSortKey(String value) {
+    final normalized = value.toLowerCase();
+
+    switch (language) {
+      case 'norwegian':
+      case 'danish':
+        return normalized
+            .replaceAll('æ', '{a')
+            .replaceAll('ø', '{b')
+            .replaceAll('å', '{c');
+      case 'swedish':
+        return normalized
+            .replaceAll('å', '{a')
+            .replaceAll('ä', '{b')
+            .replaceAll('ö', '{c');
+      case 'german':
+        return normalized
+            .replaceAll('ä', 'ae')
+            .replaceAll('ö', 'oe')
+            .replaceAll('ü', 'ue')
+            .replaceAll('ß', 'ss');
+      default:
+        return replaceDiacritics(normalized);
+    }
   }
 
   /// Removes lazily-deleted docs from orderedDocs.

@@ -26,6 +26,8 @@ intentional divergence or an unresolved gap.
   injected tokenizers and custom stemmers fail fast
 - `reindex()` preserves reconstructible tokenizer settings and rejects
   non-reconstructible tokenizer/stemmer cases
+- locale-aware string sorting now includes explicit non-English ordering
+  support for Norwegian, Danish, Swedish, and German-specific cases
 
 ## Intentional divergences
 
@@ -45,7 +47,8 @@ intentional divergence or an unresolved gap.
   components, hooks, and plugin registration are still missing
 - persistence still rebuilds indexes by reinserting documents rather than
   restoring index and sorter state directly
-- locale-aware string sort parity is not complete
+- locale-aware string sort parity is not complete for every supported language;
+  current support is targeted rather than a full `localeCompare` equivalent
 - `DocumentAdapter` still needs either stronger stabilization or demotion from
   the public surface
 - tokenizer/config parity is not complete for every Orama configuration shape;
