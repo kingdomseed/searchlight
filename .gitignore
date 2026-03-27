@@ -2,3 +2,9 @@ reference/
 .dart_tool/
 .dart_tool/
 packages/searchlight/.local/
+.DS_Store
+packages/searchlight/build/
+packages/searchlight/pubspec.lock
+packages/searchlight/findings.md
+packages/searchlight/progress.md
+packages/searchlight/task_plan.md

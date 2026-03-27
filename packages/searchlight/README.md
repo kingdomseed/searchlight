@@ -1,206 +1,277 @@
 # Searchlight
 
-A full-text search engine for Dart with BM25/QPS/PT15 scoring, filters, facets, geosearch, and highlighting.
+[![Pub Version](https://img.shields.io/pub/v/searchlight)](https://pub.dev/packages/searchlight)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![style: very good analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
+[![Repository](https://img.shields.io/badge/repository-kingdomseed%2Fsearchlight-24292f)](https://github.com/kingdomseed/searchlight)
+
+Searchlight is a pure Dart full-text search engine for Dart and Flutter apps.
+It gives you schema-based indexing, scoring, filtering, facets, persistence,
+and standalone highlighting without requiring a server.
+
+Searchlight is especially useful when your app already has content available
+locally or can download and cache it, and you want fast in-app search over
+that data.
 
 Inspired by [Orama](https://github.com/oramasearch/orama).
 
-## Features
+## Start Here
 
-- Full-text search with BM25, QPS, and PT15 scoring algorithms
-- Schema-based document indexing (9 leaf types + nested objects)
-- Typo tolerance via Levenshtein fuzzy matching
-- Filters (eq, gt, lt, between, in, geoRadius, and/or/not)
-- Facets, groups, and field-based sorting
-- Text highlighting with positions and trim
-- JSON and CBOR persistence with format versioning
-- 30 supported tokenizer languages with stemming and opt-in stop words
+- Read [doc/app-integration.md](doc/app-integration.md) for the recommended
+  app architecture.
+- Read [doc/validation-workflow.md](doc/validation-workflow.md) for the local
+  validation loop.
+- Open [example/README.md](example/README.md) for the Flutter validation app.
+
+## What It Provides
+
+- Full-text indexing for structured documents
+- BM25, QPS, and PT15 ranking algorithms
+- Typed filters, sorting, grouping, and facets
+- JSON and CBOR persistence for cached indexes
+- Standalone highlighter utilities for excerpts and marked ranges
+- Tokenization with language support, stemming, and optional stop words
 
 ## Installation
 
-```yaml
-dependencies:
-  searchlight: ^0.1.0
+```bash
+dart pub add searchlight
 ```
 
-## Usage
-
-Create a database with a schema, insert documents, and search:
+## Quick Start
 
 ```dart
 import 'package:searchlight/searchlight.dart';
 
 final db = Searchlight.create(
   schema: Schema({
+    'url': const TypedField(SchemaType.string),
     'title': const TypedField(SchemaType.string),
-    'description': const TypedField(SchemaType.string),
-    'price': const TypedField(SchemaType.number),
-    'category': const TypedField(SchemaType.enumType),
-    'meta': const NestedField({
-      'rating': TypedField(SchemaType.number),
-    }),
+    'content': const TypedField(SchemaType.string),
+    'type': const TypedField(SchemaType.enumType),
   }),
 );
 
 db.insert({
-  'title': 'Noise cancelling headphones',
-  'description': 'Comfortable over-ear headphones with active noise cancelling',
-  'price': 99.99,
-  'category': 'electronics',
-  'meta': {'rating': 4.5},
+  'id': 'ember-lance',
+  'url': '/spells/ember-lance',
+  'title': 'Ember Lance',
+  'content': 'A focused lance of heat that ignites dry brush.',
+  'type': 'spell',
 });
 
 db.insert({
-  'title': 'Wireless earbuds',
-  'description': 'Compact earbuds with noise isolation',
-  'price': 49.99,
-  'category': 'electronics',
-  'meta': {'rating': 4.2},
+  'id': 'iron-boar',
+  'url': '/creatures/iron-boar',
+  'title': 'Iron Boar',
+  'content': 'A plated beast known for explosive charges.',
+  'type': 'monster',
 });
 
-final results = db.search(term: 'noise cancelling');
-// results.count == 2
-// results.hits[0].document.getString('title') == 'Noise cancelling headphones'
-// results.hits[0].score > results.hits[1].score
+final results = db.search(
+  term: 'ember',
+  properties: const ['title', 'content'],
+);
+
+for (final hit in results.hits) {
+  print('${hit.score.toStringAsFixed(2)} ${hit.document.getString('title')}');
+}
+
+await db.dispose();
 ```
 
-## Supported Types
+## Core Workflow
 
-| SchemaType      | Dart Type       | Description                          |
-|-----------------|-----------------|--------------------------------------|
-| `string`        | `String`        | Full-text indexed, searchable        |
-| `number`        | `num`           | Range filtering, sorting             |
-| `boolean`       | `bool`          | Boolean filtering                    |
-| `enumType`      | `String`/`num`  | Faceted filtering, aggregation       |
-| `geopoint`      | `GeoPoint`      | Radius and polygon geosearch         |
-| `stringArray`   | `List<String>`  | Multi-value full-text search         |
-| `numberArray`   | `List<num>`     | Multi-value range filtering          |
-| `booleanArray`  | `List<bool>`    | Multi-value boolean filtering        |
-| `enumArray`     | `List<String>`  | Multi-value faceted filtering        |
-| Nested objects  | `NestedField`   | Dot-path access (e.g. `meta.rating`) |
+Searchlight does not extract your source data for you. Your app or tooling is
+responsible for turning content into records, and Searchlight handles the
+indexing and querying.
 
-## Filters
+The common integration flow is:
+
+1. Read or receive source content.
+2. Convert it into structured records.
+3. Insert those records into a `Searchlight` database.
+4. Persist the built index if you want fast startup later.
+5. Restore the persisted index and query it at runtime.
+
+This applies equally to:
+
+- App-bundled JSON or markdown content
+- Remote content downloaded and cached on device
+- User-imported files such as PDFs after text extraction
+
+## Choose the Right Runtime Pattern
+
+There are two common integration modes:
+
+1. Build in memory from records
+   - best for tests, small corpora, and validation
+   - create `Searchlight`, insert records, search immediately
+2. Restore from a persisted snapshot
+   - best for production apps with a non-trivial corpus
+   - build once, persist, then restore on future launches
+
+The package supports both paths directly.
+
+## Defining a Schema
+
+Every database is created from a schema. String fields are searchable by full
+text. Other field types support filtering, grouping, sorting, or geosearch.
+
+| SchemaType | Dart type | Primary use |
+| --- | --- | --- |
+| `string` | `String` | Full-text search |
+| `number` | `num` | Range filters and sorting |
+| `boolean` | `bool` | Boolean filters |
+| `enumType` | `String` or `num` | Facets and exact-match filters |
+| `geopoint` | `GeoPoint` | Geo radius and polygon filters |
+| `stringArray` | `List<String>` | Full-text search over multiple values |
+| `numberArray` | `List<num>` | Numeric filtering |
+| `booleanArray` | `List<bool>` | Boolean filtering |
+| `enumArray` | `List<String>` or `List<num>` | Facets and filters |
+| `NestedField` | nested object | Dot-path access such as `meta.rating` |
+
+## Searching
+
+Searchlight supports full-text search with optional filters and result shaping.
 
 ```dart
-final results = db.search(
-  term: 'headphones',
+final result = db.search(
+  term: 'ember lance',
+  properties: const ['title', 'content'],
+  tolerance: 1,
+  limit: 10,
+  offset: 0,
   where: {
-    'price': between(20, 100),
-    'category': eq('electronics'),
+    'type': eq('spell'),
   },
+  sortBy: const SortBy(field: 'title', order: SortOrder.asc),
 );
 ```
 
-Supported filter operations: `eq`, `gt`, `gte`, `lt`, `lte`, `between`, `inFilter`, `ninFilter`, `geoRadius`, `geoPolygon`. Combine with `and`, `or`, `not`.
+Useful search options:
 
-## Facets
+- `properties`: limit search to specific string fields
+- `where`: apply typed filters
+- `tolerance`: allow fuzzy term matches
+- `exact`: require whole-word matches after scoring
+- `limit` and `offset`: paginate
+- `sortBy`: sort on sortable fields
+- `facets`: collect counts for enum and numeric fields
+- `groupBy`: group matching hits by one or more fields
+
+## Filtering, Facets, and Grouping
 
 ```dart
-final results = db.search(
-  term: 'headphones',
-  facets: {'category': const FacetConfig()},
+final result = db.search(
+  term: 'boar',
+  where: {
+    'type': eq('monster'),
+  },
+  facets: {
+    'type': const FacetConfig(),
+  },
+  groupBy: const GroupBy(field: 'type', limit: 5),
 );
-
-// results.facets['category'] contains value counts
 ```
 
-## Scoring Algorithms
-
-Choose the scoring algorithm at database creation:
-
-```dart
-// BM25 (default) -- term frequency + inverse document frequency
-final db = Searchlight.create(schema: schema);
-
-// QPS -- scores based on proximity of search terms within documents
-final db = Searchlight.create(schema: schema, algorithm: SearchAlgorithm.qps);
-
-// PT15 -- scores based on token position (earlier = higher)
-final db = Searchlight.create(schema: schema, algorithm: SearchAlgorithm.pt15);
-```
-
-Switch algorithms on an existing database with `reindex`:
-
-```dart
-final qpsDb = db.reindex(algorithm: SearchAlgorithm.qps);
-```
-
-## Highlighting
-
-```dart
-final highlighter = Highlighter();
-const text = 'Comfortable over-ear headphones with active noise cancelling';
-final result = highlighter.highlight(text, 'noise cancelling');
-
-// result.positions -- [{start: 44, end: 49}, {start: 50, end: 60}]
-// result.trim(text, 30) -- "...with active noise cancelling"
-```
+Supported filters include `eq`, `gt`, `gte`, `lt`, `lte`, `between`,
+`inFilter`, `ninFilter`, `geoRadius`, `geoPolygon`, `and`, `or`, and `not`.
 
 ## Persistence
 
+If you have a non-trivial corpus, build the index once and persist it.
+Restoring a saved index is usually the right runtime path for production apps.
+
 ```dart
-// JSON (human-readable)
+final storage = FileStorage(path: 'search-index.cbor');
+
+await db.persist(storage: storage);
+
+final restored = await Searchlight.restore(storage: storage);
+final result = restored.search(term: 'ember');
+```
+
+`FileStorage` is intended for `dart:io` platforms. On web or in a custom app
+storage layer, use `toJson()` and `fromJson()` or implement your own
+`SearchlightStorage`.
+
+You can also work directly with JSON-compatible maps:
+
+```dart
 final json = db.toJson();
 final restored = Searchlight.fromJson(json);
-
-// CBOR (compact binary)
-final bytes = db.serialize();
-final restored = Searchlight.deserialize(bytes);
-
-// File-based storage
-final storage = FileStorage(path: 'index.cbor');
-await db.persist(storage: storage);
-final restored = await Searchlight.restore(storage: storage);
 ```
 
-## Document IDs
+## Highlighting and Excerpts
 
-Documents can have user-supplied string IDs or get auto-generated ones:
+The `Highlighter` is a standalone utility. It does not change how documents are
+indexed. Use it after search to build excerpts or render marked matches.
 
 ```dart
-db.insert({'id': 'my-custom-id', 'title': 'My Document'});
-// Returns 'my-custom-id'
-
-db.insert({'title': 'Auto ID Document'});
-// Returns an auto-generated string ID
+final highlighter = Highlighter();
+final text = hit.document.getString('content');
+final highlight = highlighter.highlight(text, 'ember');
+final excerpt = highlight.trim(text, 160);
 ```
 
-## Validation Workflow
+This is a good fit for:
 
-Searchlight validation mirrors Orama's integration model:
+- Search result snippets
+- Inline `<mark>` or `TextSpan` rendering
+- Page-level excerpt generation in Flutter UI
 
-1. Extract source content into plain records (`url`, `title`, `content`, `type`, `group`)
-2. Build an index from those records
-3. Persist and reload for runtime validation
+## App Integration Pattern
 
-Validation data is intentionally split:
+For most apps, you will want a small indexing layer that sits above
+Searchlight.
 
-- Public, committed fixture data lives under `test/fixtures/` and must remain
-  public-safe (no proprietary or copyrighted corpora)
-- Private local validation content lives under `.local/` and is gitignored
+Example pattern:
 
-To generate local assets from copied local source content:
+1. Define the record shape your app will search.
+2. Convert your content into that shape.
+3. Build or restore the index in a repository/service.
+4. Query from your UI layer.
+5. Use `Highlighter` to render excerpts.
 
-```bash
-dart run tool/build_validation_assets.dart
-```
+The package includes a practical reference implementation:
 
-This writes:
+- `example/` shows a Flutter web validation app
+- `tool/build_validation_assets.dart` shows a simple extraction-to-index flow
 
-- `.local/generated_search_corpus.json`
-- `.local/generated_search_snapshot.json`
+For a fuller walkthrough, see [doc/app-integration.md](doc/app-integration.md).
 
-The Flutter validation app in `example/` can load the public fixture by
-default and optionally use these local generated assets when copied into the
-example's local asset folder.
+## PDF Support
 
-Planned package split remains:
+`searchlight` is the core indexing engine. It does not currently parse PDF
+files. To search PDFs in an app today, you need an extraction step that turns
+PDF text into searchable records before inserting them into Searchlight.
 
-- `searchlight` (core, this package)
-- `searchlight_flutter` (future)
-- `searchlight_pdf` (future)
+Planned package boundaries:
+
+- `searchlight`: core indexing, querying, persistence, highlighting
+- `searchlight_flutter`: Flutter UI helpers and widgets
+- `searchlight_pdf`: PDF extraction and PDF-specific indexing helpers
+
+## Validation Example
+
+The package includes a validation workflow with:
+
+- Public-safe fixture data under `test/fixtures/`
+- A local-only `.local/` corpus flow for private validation
+- A Flutter example app that can load either raw records or a persisted
+  snapshot
+
+See:
+
+- [example/README.md](example/README.md)
+- [test/fixtures/README.md](test/fixtures/README.md)
+- [doc/README.md](doc/README.md)
+- [doc/validation-workflow.md](doc/validation-workflow.md)
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE).
 
-This project is inspired by [Orama](https://github.com/oramasearch/orama) (Apache 2.0, Copyright Orama contributors). Searchlight is an independent pure Dart reimplementation. See [NOTICE](NOTICE) for attribution.
+Searchlight is an independent pure Dart implementation inspired by Orama.
+See [NOTICE](NOTICE) for attribution.
