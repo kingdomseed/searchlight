@@ -46,6 +46,9 @@ dart analyze
 dart test
 ```
 
+The root `dart analyze` intentionally excludes the nested Flutter `example/`
+package. Analyze the example separately with Flutter tooling.
+
 Integration coverage includes:
 
 - fixture loading and schema validation
@@ -58,6 +61,7 @@ From `example/`:
 
 ```bash
 flutter pub get
+flutter analyze
 flutter run -d chrome
 ```
 
