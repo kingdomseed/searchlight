@@ -12,10 +12,10 @@ Future<void> main() async {
 }
 
 Future<void> buildValidationAssets({
-  Directory? packageRoot,
+  Directory? exampleRoot,
   int contentCap = _defaultContentCap,
 }) async {
-  final root = packageRoot ?? _resolvePackageRoot(Directory.current.absolute);
+  final root = exampleRoot ?? _resolveExampleRoot(Directory.current.absolute);
   final localDir = Directory('${root.path}/.local');
   final sourceDir = Directory('${localDir.path}/source');
   final corpusFile = File('${localDir.path}/generated_search_corpus.json');
@@ -172,36 +172,39 @@ String _stripLeadingH1(String raw) {
   return lines.sublist(idx).join('\n');
 }
 
-Directory _resolvePackageRoot(Directory start) {
+Directory _resolveExampleRoot(Directory start) {
   var current = start;
   while (true) {
-    final packagePubspec = File('${current.path}/pubspec.yaml');
-    if (_isSearchlightPubspec(packagePubspec)) {
+    final examplePubspec = File('${current.path}/pubspec.yaml');
+    if (_isExamplePubspec(examplePubspec)) {
       return current;
     }
 
-    final monorepoCandidate = Directory('${current.path}/packages/searchlight');
+    final monorepoCandidate = Directory('${current.path}/packages/searchlight/example');
     final monorepoPubspec = File('${monorepoCandidate.path}/pubspec.yaml');
-    if (_isSearchlightPubspec(monorepoPubspec)) {
+    if (_isExamplePubspec(monorepoPubspec)) {
       return monorepoCandidate;
     }
 
     final parent = current.parent;
     if (parent.path == current.path) {
       throw FileSystemException(
-        'Could not resolve packages/searchlight root from ${start.path}',
+        'Could not resolve packages/searchlight/example root from ${start.path}',
       );
     }
     current = parent;
   }
 }
 
-bool _isSearchlightPubspec(File pubspec) {
+bool _isExamplePubspec(File pubspec) {
   if (!pubspec.existsSync()) {
     return false;
   }
   final content = pubspec.readAsStringSync();
-  return RegExp(r'^name:\s*searchlight\s*$', multiLine: true).hasMatch(content);
+  return RegExp(
+    r'^name:\s*searchlight_example\s*$',
+    multiLine: true,
+  ).hasMatch(content);
 }
 
 String? _segmentAfter(List<String> segments, int index) {

@@ -1,7 +1,11 @@
 # Documentation
 
 This folder contains package-level integration and validation guidance for
-`searchlight`.
+`searchlight`, a Dart reimplementation of Orama-style in-memory search and
+indexing.
+
+Searchlight is for Dart and Flutter runtimes. It is not a JavaScript or
+TypeScript package.
 
 ## Start here
 

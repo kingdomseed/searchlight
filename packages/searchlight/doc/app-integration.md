@@ -3,6 +3,9 @@
 This guide shows how to integrate `searchlight` into a real Dart or Flutter
 application.
 
+Searchlight is for Dart and Flutter runtimes. It is not a JavaScript or
+TypeScript runtime replacement.
+
 ## What Searchlight Owns
 
 Searchlight owns:
@@ -21,6 +24,11 @@ Your app owns:
 
 That separation is intentional. It keeps the core package portable and makes it
 easy to reuse with local assets, remote content, or user-imported files.
+
+At the `Searchlight` database level, the public configuration surface is
+currently `schema`, `algorithm`, and `language`. Standalone tokenizer features
+such as explicit stop words or stemming configuration are not yet wired through
+`Searchlight.create()`.
 
 ## Recommended Record Shape
 
@@ -53,6 +61,11 @@ final schema = Schema({
 This shape maps well to docs, glossaries, bestiaries, notes, and extracted PDF
 pages.
 
+If you want a reusable extraction layer, implement `DocumentAdapter<T>` for
+your source type and return record maps in your app's schema shape. If your
+extraction logic is small and app-specific, ad hoc conversion functions are
+often simpler.
+
 ## Build the Index
 
 Create the database once, then insert records as they are prepared.
@@ -74,11 +87,14 @@ For production apps, do the heavier indexing work once, persist the result, and
 restore it on later launches.
 
 ```dart
-final storage = FileStorage(path: 'search-index.cbor');
+Future<void> persistAndRestore(Searchlight db) async {
+  final storage = FileStorage(path: 'search-index.cbor');
 
-await db.persist(storage: storage);
+  await db.persist(storage: storage);
 
-final restored = await Searchlight.restore(storage: storage);
+  final restored = await Searchlight.restore(storage: storage);
+  await restored.dispose();
+}
 ```
 
 `FileStorage` is a good default on desktop and mobile. For web or for custom
@@ -172,6 +188,21 @@ shape looks like this:
 }
 ```
 
+If you want to filter or sort on `documentId` or `page`, declare those fields
+in the schema. Only schema-declared fields participate in indexing, filtering,
+faceting, grouping, and sorting.
+
+For example:
+
+```dart
+final pdfSchema = Schema({
+  'documentId': const TypedField(SchemaType.enumType),
+  'page': const TypedField(SchemaType.number),
+  'title': const TypedField(SchemaType.string),
+  'content': const TypedField(SchemaType.string),
+});
+```
+
 Then:
 
 1. extract text and page metadata from the PDF
@@ -187,8 +218,8 @@ layer must preserve that PDF positioning data. That work belongs in a future
 
 This repository includes a validation setup you can study or reuse:
 
-- `tool/build_validation_assets.dart`: simple corpus extraction and snapshot
-  generation
+- `example/tool/build_validation_assets.dart`: simple corpus extraction and
+  snapshot generation
 - `example/`: Flutter validation app that loads either raw records or a saved
   snapshot
 - `test/integration/search_fixture_integration_test.dart`: realistic corpus

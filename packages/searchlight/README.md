@@ -5,13 +5,17 @@
 [![style: very good analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
 [![Repository](https://img.shields.io/badge/repository-kingdomseed%2Fsearchlight-24292f)](https://github.com/kingdomseed/searchlight)
 
-Searchlight is a pure Dart full-text search engine for Dart and Flutter apps.
-It gives you schema-based indexing, scoring, filtering, facets, persistence,
-and standalone highlighting without requiring a server.
+Searchlight is a pure Dart reimplementation of Orama-style in-memory search
+and indexing for Dart and Flutter apps. It gives you schema-based indexing,
+scoring, filtering, facets, persistence, and standalone highlighting without
+requiring a server.
 
 Searchlight is especially useful when your app already has content available
 locally or can download and cache it, and you want fast in-app search over
 that data.
+
+Searchlight is a Dart package for Dart and Flutter runtimes. It is not a
+JavaScript or TypeScript library.
 
 Inspired by [Orama](https://github.com/oramasearch/orama).
 
@@ -30,7 +34,13 @@ Inspired by [Orama](https://github.com/oramasearch/orama).
 - Typed filters, sorting, grouping, and facets
 - JSON and CBOR persistence for cached indexes
 - Standalone highlighter utilities for excerpts and marked ranges
-- Tokenization with language support, stemming, and optional stop words
+- Standalone tokenizer utilities with language support, stemming, and optional
+  stop words
+
+At the `Searchlight` database level, the public configuration surface is
+currently `schema`, `algorithm`, and `language`. Custom tokenizer options such
+as explicit stop words or stemming toggles are available on the standalone
+`Tokenizer` API, but are not yet plumbed through `Searchlight.create()`.
 
 ## Installation
 
@@ -43,41 +53,43 @@ dart pub add searchlight
 ```dart
 import 'package:searchlight/searchlight.dart';
 
-final db = Searchlight.create(
-  schema: Schema({
-    'url': const TypedField(SchemaType.string),
-    'title': const TypedField(SchemaType.string),
-    'content': const TypedField(SchemaType.string),
-    'type': const TypedField(SchemaType.enumType),
-  }),
-);
+Future<void> main() async {
+  final db = Searchlight.create(
+    schema: Schema({
+      'url': const TypedField(SchemaType.string),
+      'title': const TypedField(SchemaType.string),
+      'content': const TypedField(SchemaType.string),
+      'type': const TypedField(SchemaType.enumType),
+    }),
+  );
 
-db.insert({
-  'id': 'ember-lance',
-  'url': '/spells/ember-lance',
-  'title': 'Ember Lance',
-  'content': 'A focused lance of heat that ignites dry brush.',
-  'type': 'spell',
-});
+  db.insert({
+    'id': 'ember-lance',
+    'url': '/spells/ember-lance',
+    'title': 'Ember Lance',
+    'content': 'A focused lance of heat that ignites dry brush.',
+    'type': 'spell',
+  });
 
-db.insert({
-  'id': 'iron-boar',
-  'url': '/creatures/iron-boar',
-  'title': 'Iron Boar',
-  'content': 'A plated beast known for explosive charges.',
-  'type': 'monster',
-});
+  db.insert({
+    'id': 'iron-boar',
+    'url': '/creatures/iron-boar',
+    'title': 'Iron Boar',
+    'content': 'A plated beast known for explosive charges.',
+    'type': 'monster',
+  });
 
-final results = db.search(
-  term: 'ember',
-  properties: const ['title', 'content'],
-);
+  final results = db.search(
+    term: 'ember',
+    properties: const ['title', 'content'],
+  );
 
-for (final hit in results.hits) {
-  print('${hit.score.toStringAsFixed(2)} ${hit.document.getString('title')}');
+  for (final hit in results.hits) {
+    print('${hit.score.toStringAsFixed(2)} ${hit.document.getString('title')}');
+  }
+
+  await db.dispose();
 }
-
-await db.dispose();
 ```
 
 ## Core Workflow
@@ -99,6 +111,10 @@ This applies equally to:
 - App-bundled JSON or markdown content
 - Remote content downloaded and cached on device
 - User-imported files such as PDFs after text extraction
+
+If you want a reusable extraction layer, implement `DocumentAdapter<T>` for
+your source type. If your extraction logic is small and app-specific, simple
+record-conversion functions are often enough.
 
 ## Choose the Right Runtime Pattern
 
@@ -184,12 +200,15 @@ If you have a non-trivial corpus, build the index once and persist it.
 Restoring a saved index is usually the right runtime path for production apps.
 
 ```dart
-final storage = FileStorage(path: 'search-index.cbor');
+Future<void> example(Searchlight db) async {
+  final storage = FileStorage(path: 'search-index.cbor');
 
-await db.persist(storage: storage);
+  await db.persist(storage: storage);
 
-final restored = await Searchlight.restore(storage: storage);
-final result = restored.search(term: 'ember');
+  final restored = await Searchlight.restore(storage: storage);
+  final result = restored.search(term: 'ember');
+  await restored.dispose();
+}
 ```
 
 `FileStorage` is intended for `dart:io` platforms. On web or in a custom app
@@ -199,8 +218,11 @@ storage layer, use `toJson()` and `fromJson()` or implement your own
 You can also work directly with JSON-compatible maps:
 
 ```dart
-final json = db.toJson();
-final restored = Searchlight.fromJson(json);
+void example(Searchlight db) {
+  final json = db.toJson();
+  final restored = Searchlight.fromJson(json);
+  restored.dispose();
+}
 ```
 
 ## Highlighting and Excerpts
@@ -209,10 +231,12 @@ The `Highlighter` is a standalone utility. It does not change how documents are
 indexed. Use it after search to build excerpts or render marked matches.
 
 ```dart
-final highlighter = Highlighter();
-final text = hit.document.getString('content');
-final highlight = highlighter.highlight(text, 'ember');
-final excerpt = highlight.trim(text, 160);
+String buildExcerpt(SearchHit hit) {
+  final highlighter = Highlighter();
+  final text = hit.document.getString('content');
+  final highlight = highlighter.highlight(text, 'ember');
+  return highlight.trim(text, 160);
+}
 ```
 
 This is a good fit for:
@@ -237,7 +261,8 @@ Example pattern:
 The package includes a practical reference implementation:
 
 - `example/` shows a Flutter web validation app
-- `tool/build_validation_assets.dart` shows a simple extraction-to-index flow
+- `example/tool/build_validation_assets.dart` shows a simple
+  extraction-to-index flow used by the example
 
 For a fuller walkthrough, see [doc/app-integration.md](doc/app-integration.md).
 
@@ -258,7 +283,7 @@ Planned package boundaries:
 The package includes a validation workflow with:
 
 - Public-safe fixture data under `test/fixtures/`
-- A local-only `.local/` corpus flow for private validation
+- An example-owned local-only `.local/` corpus flow for private validation
 - A Flutter example app that can load either raw records or a persisted
   snapshot
 

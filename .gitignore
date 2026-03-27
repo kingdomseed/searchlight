@@ -2,6 +2,7 @@ reference/
 .dart_tool/
 .dart_tool/
 packages/searchlight/.local/
+packages/searchlight/example/.local/
 .DS_Store
 packages/searchlight/build/
 packages/searchlight/pubspec.lock

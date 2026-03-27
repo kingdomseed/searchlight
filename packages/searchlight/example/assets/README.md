@@ -9,9 +9,9 @@ Optional local validation modes are available for:
 
 To validate with copied local content:
 
-1. Generate assets from the package root with
+1. Generate assets from `example/` with
    `dart run tool/build_validation_assets.dart`.
-2. Copy these files from `../.local/`:
+2. Copy these files from `.local/`:
    `generated_search_corpus.json`
    `generated_search_snapshot.json`
 3. Replace the placeholder files in `assets/local/`.

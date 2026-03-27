@@ -1,5 +1,5 @@
 name: searchlight
-description: Full-text search for Dart and Flutter with schema-based indexing, filters, facets, persistence, and highlighting.
+description: Pure Dart reimplementation of Orama-style in-memory search and indexing for Dart and Flutter.
 version: 0.1.0
 homepage: https://github.com/kingdomseed/searchlight/tree/main/packages/searchlight
 repository: https://github.com/kingdomseed/searchlight

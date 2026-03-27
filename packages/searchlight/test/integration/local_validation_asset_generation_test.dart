@@ -4,15 +4,15 @@ import 'dart:io';
 import 'package:searchlight/searchlight.dart';
 import 'package:test/test.dart';
 
-import '../../tool/build_validation_assets.dart';
+import '../../example/tool/build_validation_assets.dart';
 
 void main() {
   group('local validation asset generation', () {
     test('generator writes corpus and restorable snapshot', () async {
-      final packageRoot = await Directory.systemTemp.createTemp(
+      final exampleRoot = await Directory.systemTemp.createTemp(
         'searchlight_validation_assets_',
       );
-      final localDir = Directory('${packageRoot.path}/.local');
+      final localDir = Directory('${exampleRoot.path}/.local');
       final sourceDir = Directory('${localDir.path}/source');
       final corpusFile = File('${localDir.path}/generated_search_corpus.json');
       final snapshotFile = File(
@@ -30,7 +30,7 @@ void main() {
           'A precise fire spell that launches a concentrated spear of heat.\n',
         );
 
-        await buildValidationAssets(packageRoot: packageRoot);
+        await buildValidationAssets(exampleRoot: exampleRoot);
 
         expect(corpusFile.existsSync(), isTrue);
         expect(snapshotFile.existsSync(), isTrue);
@@ -66,7 +66,7 @@ void main() {
         );
         await restored.dispose();
       } finally {
-        await packageRoot.delete(recursive: true);
+        await exampleRoot.delete(recursive: true);
       }
     });
 
@@ -76,20 +76,22 @@ void main() {
       final sandboxRepo = await Directory.systemTemp.createTemp(
         'searchlight_validation_repo_',
       );
-      final packageRoot = Directory('${sandboxRepo.path}/packages/searchlight');
-      final localDir = Directory('${packageRoot.path}/.local');
+      final exampleRoot = Directory(
+        '${sandboxRepo.path}/packages/searchlight/example',
+      );
+      final localDir = Directory('${exampleRoot.path}/.local');
       final sourceDir = Directory('${localDir.path}/source');
       final corpusFile = File('${localDir.path}/generated_search_corpus.json');
       final snapshotFile = File(
         '${localDir.path}/generated_search_snapshot.json',
       );
-      final pubspec = File('${packageRoot.path}/pubspec.yaml');
+      final pubspec = File('${exampleRoot.path}/pubspec.yaml');
       final originalCurrent = Directory.current;
 
       try {
         await sourceDir.create(recursive: true);
         await pubspec.create(recursive: true);
-        pubspec.writeAsStringSync('name: searchlight\n');
+        pubspec.writeAsStringSync('name: searchlight_example\n');
 
         final rulesDir = Directory('${sourceDir.path}/rules');
         await rulesDir.create(recursive: true);
