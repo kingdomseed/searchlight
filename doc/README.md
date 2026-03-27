@@ -17,7 +17,9 @@ understand intentional differences from Orama.
 ## What these docs cover
 
 - how to shape records for Searchlight
+- what the core package does and does not parse for you
 - when indexes are built and when to persist them
+- how to choose among BM25, QPS, and PT15
 - how to structure a repository or service layer around Searchlight
 - how to validate behavior with fixture data and local corpora
 

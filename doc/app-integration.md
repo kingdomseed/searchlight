@@ -33,6 +33,30 @@ Persisted snapshots can restore those built-in tokenizer settings. Injected
 `Tokenizer` instances and custom stemmer callbacks must be recreated by the
 app instead of serialized.
 
+## Source and File-Type Support
+
+Searchlight's core API works on structured records, not on raw files.
+
+Direct core inputs:
+
+- records inserted with `insert()`
+- persisted snapshots restored with `restore()` or `fromJson()`
+
+Source formats your app can support with an extraction layer:
+
+- Markdown
+- HTML
+- PDF
+- CSV, XML, JSON, or custom formats
+
+That distinction matters. Searchlight does not currently ship a public
+Markdown, HTML, or PDF parser. Your app or a companion package is responsible
+for turning those inputs into record maps that match your schema.
+
+If you insert raw HTML or Markdown strings into searchable fields without
+cleaning them first, Searchlight treats them as plain text. Markup tokens,
+attribute names, and link destinations may therefore become searchable.
+
 ## Recommended Record Shape
 
 Use a small, explicit record shape first. For content-heavy apps, this is a
@@ -83,6 +107,39 @@ for (final record in records) {
 
 Searchlight indexes records during `insert()`. You do not need a separate
 "build index" command inside the database itself.
+
+## Choose an Algorithm
+
+Searchlight exposes the ranking algorithm directly on `Searchlight.create()`.
+
+```dart
+final db = Searchlight.create(
+  schema: schema,
+  algorithm: SearchAlgorithm.bm25,
+);
+```
+
+Available options:
+
+- `SearchAlgorithm.bm25`: the default general-purpose ranking algorithm
+- `SearchAlgorithm.qps`: optimized for proximity-aware scoring, faster search,
+  and smaller indexes
+- `SearchAlgorithm.pt15`: position-aware scoring that can be useful when
+  earlier tokens and token order matter
+
+You can also rebuild an existing database with a different algorithm:
+
+```dart
+final pt15Db = db.reindex(algorithm: SearchAlgorithm.pt15);
+```
+
+PT15 is intentionally more constrained than BM25:
+
+- no `tolerance`
+- no `exact`
+- no string-property `where` filters
+
+If you need the least surprising search feature surface, use BM25 first.
 
 ## Restore Instead of Rebuilding at Runtime
 
@@ -225,9 +282,11 @@ This repository includes a validation setup you can study or reuse:
 
 - `example/tool/build_validation_assets.dart`: simple corpus extraction and
   snapshot generation
-- `example/`: Flutter validation app that loads either raw records or a saved
-  snapshot
+- `example/`: Flutter validation app that loads a fixture corpus, a live `.md`
+  folder on desktop, or a saved snapshot
 - `test/integration/search_fixture_integration_test.dart`: realistic corpus
   assertions
+- `test/integration/source_format_behavior_test.dart`: raw HTML/Markdown
+  tokenization behavior
 
 Use those as implementation references when wiring Searchlight into your app.

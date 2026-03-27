@@ -7,9 +7,12 @@ environment:
   sdk: ^3.11.4
 
 dependencies:
+  cupertino_icons: ^1.0.8
+  file_selector: ^1.0.3
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
+  flutter_markdown_plus: ^1.0.3
+  path: ^1.9.1
   searchlight:
     path: ..
 

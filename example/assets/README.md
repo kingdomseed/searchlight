@@ -7,7 +7,10 @@ Optional local validation modes are available for:
 - `assets/local/generated_search_corpus.json`
 - `assets/local/generated_search_snapshot.json`
 
-To validate with copied local content:
+The desktop app can also index a live markdown folder directly without these
+copied assets.
+
+To validate the local asset modes with copied content:
 
 1. Generate assets from `example/` with
    `dart run tool/build_validation_assets.dart`.

@@ -64,6 +64,14 @@ flutter run -d chrome
 The example app can validate:
 
 - raw fixture corpus loading
+- desktop folder indexing from live `.md` files on macOS, Windows, and Linux
 - local generated corpus loading
 - local generated snapshot restore
 - highlighted excerpt rendering over search hits
+
+For desktop folder validation on macOS:
+
+```bash
+cd example
+flutter run -d macos
+```

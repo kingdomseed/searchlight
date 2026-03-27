@@ -7,10 +7,7 @@ void main() {
     const excerpt = 'fire';
     final result = const Highlighter().highlight(excerpt, 'fire fir');
 
-    final spans = buildHighlightedExcerptSpans(
-      excerpt,
-      result.positions,
-    );
+    final spans = buildHighlightedExcerptSpans(excerpt, result.positions);
     final text = spans.map((span) => span.text ?? '').join();
 
     expect(text, excerpt);

@@ -134,6 +134,35 @@ If your app needs reusable extraction, keep that conversion layer in your app
 or in a companion package. For small integrations, simple record-conversion
 functions are often enough.
 
+## What Searchlight Can Index
+
+Searchlight indexes schema-shaped records, not raw files.
+
+That means the core package directly supports:
+
+- `Map<String, Object?>` records inserted with `insert()`
+- persisted snapshots restored with `restore()` or `fromJson()`
+- any source format that your app converts into those records first
+
+The core package does not currently include built-in parsers for:
+
+- Markdown files
+- HTML files
+- PDF files
+- CSV, XML, or other file formats
+
+If you insert raw HTML or Markdown into a `string` field yourself, Searchlight
+will tokenize that raw text. It will not strip tags, ignore attributes, or
+understand Markdown structure automatically. In practice, that means markup
+tokens and link-destination fragments can become searchable unless you clean or
+extract the text first.
+
+In this repository specifically:
+
+- the core package accepts records and snapshots only
+- the validation example's live folder mode currently reads `.md` files only
+- the validation assets are JSON corpus and JSON snapshot files
+
 ## Choose the Right Runtime Pattern
 
 There are two common integration modes:
@@ -193,6 +222,39 @@ Useful search options:
 - `sortBy`: sort on sortable fields
 - `facets`: collect counts for enum and numeric fields
 - `groupBy`: group matching hits by one or more fields
+
+## Choosing a Search Algorithm
+
+Searchlight supports three ranking algorithms:
+
+- `SearchAlgorithm.bm25`: default general-purpose relevance ranking
+- `SearchAlgorithm.qps`: proximity-aware scoring optimized for faster search
+  and smaller indexes
+- `SearchAlgorithm.pt15`: position-aware scoring that can work well when term
+  order and early-token placement matter
+
+Choose the algorithm when creating the database:
+
+```dart
+final db = Searchlight.create(
+  schema: schema,
+  algorithm: SearchAlgorithm.qps,
+);
+```
+
+Or rebuild an existing database with a different algorithm:
+
+```dart
+final qpsDb = db.reindex(algorithm: SearchAlgorithm.qps);
+```
+
+PT15 has important query limitations:
+
+- `tolerance` is not supported
+- `exact` is not supported
+- string-field `where` filters are not supported
+
+If you need the broadest query feature support, stay with `bm25`.
 
 ## Filtering, Facets, and Grouping
 
@@ -285,7 +347,8 @@ Example pattern:
 
 The package includes a practical reference implementation:
 
-- `example/` shows a Flutter web validation app
+- `example/` shows a Flutter validation app for fixture, snapshot, and
+  desktop-folder indexing flows
 - `example/tool/build_validation_assets.dart` shows a simple
   extraction-to-index flow used by the example
 
