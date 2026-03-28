@@ -41,11 +41,6 @@ enum SearchAlgorithm {
   pt15,
 }
 
-typedef _SearchlightSyncSingleHook = void Function(
-  Object,
-  String,
-  SearchlightRecord?,
-);
 typedef _SearchlightFutureSingleHook<T extends Object?> = Future<T> Function(
   Object,
   String,
@@ -445,7 +440,7 @@ final class Searchlight {
     required String id,
     required SearchlightRecord? doc,
   }) {
-    final syncHooks = <_SearchlightSyncSingleHook>[];
+    final syncHooks = <void Function(Object, String, SearchlightRecord?)>[];
     for (final hook in hooks) {
       if (hook is _SearchlightFutureSingleHook<Object?> ||
           hook is _SearchlightFutureSingleHook<void>) {

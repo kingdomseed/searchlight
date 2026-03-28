@@ -55,8 +55,8 @@ void main() {
         ],
       );
 
-      db.insert({'id': 'doc-1', 'title': 'Hello'});
-      final removed = db.remove('doc-1');
+      final removed = (db..insert({'id': 'doc-1', 'title': 'Hello'}))
+          .remove('doc-1');
 
       expect(removed, isTrue);
       expect(calls, <String>['beforeRemove:doc-1', 'afterRemove:doc-1']);
@@ -105,9 +105,8 @@ void main() {
         ],
       );
 
-      db.insert({'id': 'old-doc', 'title': 'Old'});
+      (db..insert({'id': 'old-doc', 'title': 'Old'}));
       calls.clear();
-
       final newId = db.update('old-doc', {'id': 'new-doc', 'title': 'New'});
 
       expect(newId, 'new-doc');
