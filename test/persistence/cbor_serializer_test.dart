@@ -7,6 +7,23 @@ import 'dart:typed_data';
 import 'package:searchlight/searchlight.dart';
 import 'package:test/test.dart';
 
+SearchlightIndexComponent _testIndexComponent(String id) {
+  return SearchlightIndexComponent(
+    id: id,
+    create: ({
+      required schema,
+      required algorithm,
+    }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+  );
+}
+
+SearchlightSorterComponent _testSorterComponent(String id) {
+  return SearchlightSorterComponent(
+    id: id,
+    create: ({required language}) => SortIndex(language: language),
+  );
+}
+
 void main() {
   group('CBOR serialization', () {
     test('serialize() returns Uint8List', () {
@@ -113,6 +130,57 @@ void main() {
 
       expect(
         () => Searchlight.deserialize(corruptBytes),
+        throwsA(isA<SerializationException>()),
+      );
+    });
+
+    test('deserialize restores with a compatible component graph', () {
+      final index = _testIndexComponent('test.index.cbor');
+      final sorter = _testSorterComponent('test.sorter.cbor');
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: const [
+          SearchlightPlugin(name: 'alpha'),
+        ],
+        components: SearchlightComponents(index: index, sorter: sorter),
+      )..insert({'id': 'doc-1', 'title': 'Hello'});
+
+      final bytes = db.serialize();
+      final restored = Searchlight.deserialize(
+        bytes,
+        plugins: const [
+          SearchlightPlugin(name: 'alpha'),
+        ],
+        components: SearchlightComponents(index: index, sorter: sorter),
+      );
+
+      expect(restored.count, 1);
+      expect(restored.getById('doc-1'), isNotNull);
+    });
+
+    test('deserialize rejects incompatible component graph', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        components: SearchlightComponents(
+          index: _testIndexComponent('test.index.expected'),
+          sorter: _testSorterComponent('test.sorter.expected'),
+        ),
+      )..insert({'id': 'doc-1', 'title': 'Hello'});
+
+      final bytes = db.serialize();
+
+      expect(
+        () => Searchlight.deserialize(
+          bytes,
+          components: SearchlightComponents(
+            index: _testIndexComponent('test.index.actual'),
+            sorter: _testSorterComponent('test.sorter.actual'),
+          ),
+        ),
         throwsA(isA<SerializationException>()),
       );
     });

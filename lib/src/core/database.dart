@@ -269,6 +269,10 @@ final class Searchlight {
       plugins: plugins,
       overrides: components,
     );
+    _validateExtensionCompatibility(
+      raw: json['extensionCompatibility'],
+      resolvedExtensions: resolvedExtensions,
+    );
 
     // 5. Restore tokenizer configuration
     late final Tokenizer tokenizer;
@@ -451,6 +455,73 @@ final class Searchlight {
       hookSets.add(finalHooks);
     }
     return SearchlightHookRuntime.fromHooks(hookSets);
+  }
+
+  static void _validateExtensionCompatibility({
+    required Object? raw,
+    required ResolvedExtensions resolvedExtensions,
+  }) {
+    if (raw == null) {
+      return;
+    }
+
+    final compatibility = _asObjectMap(
+      raw,
+      'Missing or invalid "extensionCompatibility" in JSON',
+    );
+    final plugins = compatibility['plugins'];
+    if (plugins is! List || plugins.any((plugin) => plugin is! String)) {
+      throw const SerializationException(
+        'Missing or invalid "extensionCompatibility.plugins" in JSON',
+      );
+    }
+    final actualPluginNames = plugins.cast<String>();
+    final expectedPluginNames = [
+      for (final plugin in resolvedExtensions.plugins) plugin.name,
+    ];
+    if (!_sameStringList(actualPluginNames, expectedPluginNames)) {
+      throw SerializationException(
+        'Incompatible plugin graph: expected ${expectedPluginNames.join(", ")} '
+        'but restore was given ${actualPluginNames.join(", ")}.',
+      );
+    }
+
+    final components = _asObjectMap(
+      compatibility['components'],
+      'Missing or invalid "extensionCompatibility.components" in JSON',
+    );
+    final actualIndexId = components['index'];
+    final actualSorterId = components['sorter'];
+    if (actualIndexId is! String || actualSorterId is! String) {
+      throw const SerializationException(
+        'Missing or invalid "extensionCompatibility.components" in JSON',
+      );
+    }
+    final expectedIndexId =
+        resolvedExtensions.components.index?.id ??
+            defaultSearchlightIndexComponent.id;
+    final expectedSorterId =
+        resolvedExtensions.components.sorter?.id ??
+            defaultSearchlightSorterComponent.id;
+    if (actualIndexId != expectedIndexId || actualSorterId != expectedSorterId) {
+      throw SerializationException(
+        'Incompatible component graph: expected index=$expectedIndexId, '
+        'sorter=$expectedSorterId but restore was given '
+        'index=$actualIndexId, sorter=$actualSorterId.',
+      );
+    }
+  }
+
+  static bool _sameStringList(List<String> left, List<String> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var i = 0; i < left.length; i++) {
+      if (left[i] != right[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   static const _singleHookAsyncError =
@@ -1654,6 +1725,19 @@ final class Searchlight {
       'formatVersion': currentFormatVersion,
       'algorithm': algorithm.name,
       'language': language,
+      'extensionCompatibility': {
+        'plugins': [
+          for (final plugin in _resolvedExtensions.plugins) plugin.name,
+        ],
+        'components': {
+          'index':
+              _resolvedExtensions.components.index?.id ??
+                  defaultSearchlightIndexComponent.id,
+          'sorter':
+              _resolvedExtensions.components.sorter?.id ??
+                  defaultSearchlightSorterComponent.id,
+        },
+      },
       'tokenizerConfig': {
         'stemming': _tokenizer.stemmingEnabled,
         'stopWords': _serializedStopWords,

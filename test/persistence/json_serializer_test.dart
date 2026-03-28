@@ -7,6 +7,23 @@ import 'dart:convert';
 import 'package:searchlight/searchlight.dart';
 import 'package:test/test.dart';
 
+SearchlightIndexComponent _testIndexComponent(String id) {
+  return SearchlightIndexComponent(
+    id: id,
+    create: ({
+      required schema,
+      required algorithm,
+    }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+  );
+}
+
+SearchlightSorterComponent _testSorterComponent(String id) {
+  return SearchlightSorterComponent(
+    id: id,
+    create: ({required language}) => SortIndex(language: language),
+  );
+}
+
 void main() {
   group('JSON serialization', () {
     test('toJson includes formatVersion field', () {
@@ -33,6 +50,38 @@ void main() {
 
       expect(json['index'], isA<Map<String, Object?>>());
       expect(json['sorting'], isA<Map<String, Object?>>());
+    });
+
+    test('toJson records active plugin names and component identities', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: const [
+          SearchlightPlugin(name: 'alpha'),
+          SearchlightPlugin(name: 'beta'),
+        ],
+        components: SearchlightComponents(
+          index: _testIndexComponent('test.index.json'),
+          sorter: _testSorterComponent('test.sorter.json'),
+        ),
+      );
+
+      final json = db.toJson();
+      final compatibility =
+          json['extensionCompatibility']! as Map<String, Object?>;
+
+      expect(
+        compatibility['plugins'],
+        <String>['alpha', 'beta'],
+      );
+      expect(
+        compatibility['components'],
+        <String, String>{
+          'index': 'test.index.json',
+          'sorter': 'test.sorter.json',
+        },
+      );
     });
 
     test('round-trip empty database preserves schema, algorithm, language', () {
@@ -95,6 +144,15 @@ void main() {
         schema: Schema({
           'title': const TypedField(SchemaType.string),
         }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeLoad: (_, __) => calls.add('beforeLoad'),
+              afterLoad: (_, __) => calls.add('afterLoad'),
+            ),
+          ),
+        ],
       )..insert({'id': 'doc-1', 'title': 'Hello'});
       final json = db.toJson();
 
@@ -116,6 +174,94 @@ void main() {
       expect(restored.getById('doc-1'), isNotNull);
     });
 
+    test('fromJson restores with a compatible plugin and component graph', () {
+      final index = _testIndexComponent('test.index.compat');
+      final sorter = _testSorterComponent('test.sorter.compat');
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: const [
+          SearchlightPlugin(name: 'alpha'),
+          SearchlightPlugin(name: 'beta'),
+        ],
+        components: SearchlightComponents(index: index, sorter: sorter),
+      )..insert({'id': 'doc-1', 'title': 'Hello'});
+      final json = db.toJson();
+
+      final restored = Searchlight.fromJson(
+        json,
+        plugins: const [
+          SearchlightPlugin(name: 'alpha'),
+          SearchlightPlugin(name: 'beta'),
+        ],
+        components: SearchlightComponents(index: index, sorter: sorter),
+      );
+
+      expect(restored.count, 1);
+      expect(restored.getById('doc-1'), isNotNull);
+    });
+
+    test('fromJson rejects mismatched plugin order clearly', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: const [
+          SearchlightPlugin(name: 'alpha'),
+          SearchlightPlugin(name: 'beta'),
+        ],
+      )..insert({'id': 'doc-1', 'title': 'Hello'});
+      final json = db.toJson();
+
+      expect(
+        () => Searchlight.fromJson(
+          json,
+          plugins: const [
+            SearchlightPlugin(name: 'beta'),
+            SearchlightPlugin(name: 'alpha'),
+          ],
+        ),
+        throwsA(
+          isA<SerializationException>().having(
+            (error) => error.message,
+            'message',
+            contains('plugin'),
+          ),
+        ),
+      );
+    });
+
+    test('fromJson rejects mismatched component identities clearly', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        components: SearchlightComponents(
+          index: _testIndexComponent('test.index.expected'),
+          sorter: _testSorterComponent('test.sorter.expected'),
+        ),
+      )..insert({'id': 'doc-1', 'title': 'Hello'});
+      final json = db.toJson();
+
+      expect(
+        () => Searchlight.fromJson(
+          json,
+          components: SearchlightComponents(
+            index: _testIndexComponent('test.index.actual'),
+            sorter: _testSorterComponent('test.sorter.actual'),
+          ),
+        ),
+        throwsA(
+          isA<SerializationException>().having(
+            (error) => error.message,
+            'message',
+            contains('component'),
+          ),
+        ),
+      );
+    });
+
     test('fromJson ignores async load hooks because load hooks are not wired',
         () {
       var sideEffectRan = false;
@@ -123,6 +269,16 @@ void main() {
         schema: Schema({
           'title': const TypedField(SchemaType.string),
         }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeLoad: (_, __) async {
+                sideEffectRan = true;
+              },
+            ),
+          ),
+        ],
       )..insert({'id': 'doc-1', 'title': 'Hello'});
       final json = db.toJson();
 
