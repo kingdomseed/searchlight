@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:searchlight/src/core/database.dart' show SearchAlgorithm;
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
+import 'package:searchlight/src/core/search_algorithm.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/scoring/bm25.dart';
 import 'package:searchlight/src/scoring/pt15.dart' as pt15;

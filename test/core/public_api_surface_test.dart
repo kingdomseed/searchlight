@@ -82,6 +82,54 @@ Searchlight buildDatabase() {
       },
     );
 
+    test('searchlight barrel exports component types for overrides', () async {
+      final tempDir = Directory(
+        '${Directory.current.path}/test/.tmp_component_api_surface',
+      );
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+      await tempDir.create(recursive: true);
+      final source = File('${tempDir.path}/component_surface.dart');
+
+      try {
+        source.writeAsStringSync('''
+import 'package:searchlight/searchlight.dart';
+
+Searchlight buildDatabase() {
+  final index = SearchlightIndexComponent(
+    id: 'test.index',
+    create: ({
+      required schema,
+      required algorithm,
+    }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+  );
+  final sorter = SearchlightSorterComponent(
+    id: 'test.sorter',
+    create: ({required language}) => SortIndex(language: language),
+  );
+  return Searchlight.create(
+    schema: Schema({
+      'title': TypedField(SchemaType.string),
+    }),
+    components: SearchlightComponents(index: index, sorter: sorter),
+  );
+}
+''');
+
+        final result = await Process.run(
+          'dart',
+          ['analyze', source.path],
+          workingDirectory: Directory.current.path,
+        );
+
+        final output = '${result.stdout}\n${result.stderr}';
+        expect(result.exitCode, 0, reason: output);
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
     test('searchlight does not expose internal resolved extension state',
         () async {
       final tempDir = Directory(

@@ -29,11 +29,25 @@ ResolvedExtensions resolveExtensions({
   }
 
   var resolvedHooks = defaults.hooks;
+  var resolvedIndex = defaults.index;
+  var resolvedSorter = defaults.sorter;
   for (final plugin in plugins) {
+    if (plugin.components?.index case final index?) {
+      resolvedIndex = index;
+    }
+    if (plugin.components?.sorter case final sorter?) {
+      resolvedSorter = sorter;
+    }
     final pluginHooks = plugin.components?.hooks ?? plugin.hooks;
     if (pluginHooks != null) {
       resolvedHooks = pluginHooks;
     }
+  }
+  if (overrides?.index case final overrideIndex?) {
+    resolvedIndex = overrideIndex;
+  }
+  if (overrides?.sorter case final overrideSorter?) {
+    resolvedSorter = overrideSorter;
   }
   if (overrides?.hooks case final overrideHooks?) {
     resolvedHooks = overrideHooks;
@@ -41,6 +55,10 @@ ResolvedExtensions resolveExtensions({
 
   return ResolvedExtensions(
     plugins: List.unmodifiable(plugins),
-    components: SearchlightComponents(hooks: resolvedHooks),
+    components: SearchlightComponents(
+      index: resolvedIndex,
+      sorter: resolvedSorter,
+      hooks: resolvedHooks,
+    ),
   );
 }

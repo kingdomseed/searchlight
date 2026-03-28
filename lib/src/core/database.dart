@@ -10,7 +10,9 @@ import 'package:searchlight/src/core/doc_id.dart';
 import 'package:searchlight/src/core/document.dart';
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
+import 'package:searchlight/src/core/search_algorithm.dart';
 import 'package:searchlight/src/core/types.dart';
+import 'package:searchlight/src/extensions/component_ids.dart';
 import 'package:searchlight/src/extensions/components.dart';
 import 'package:searchlight/src/extensions/hooks.dart';
 import 'package:searchlight/src/extensions/plugin.dart';
@@ -29,17 +31,8 @@ import 'package:searchlight/src/search/grouping.dart' as grouping_lib;
 import 'package:searchlight/src/text/tokenizer.dart';
 import 'package:searchlight/src/trees/bkd_tree.dart';
 
-/// The search algorithm used for scoring.
-enum SearchAlgorithm {
-  /// Best Match 25 — the default probabilistic ranking function.
-  bm25,
-
-  /// Query-per-second optimized scoring.
-  qps,
-
-  /// PT-15 scoring algorithm.
-  pt15,
-}
+export 'package:searchlight/src/core/search_algorithm.dart'
+    show SearchAlgorithm;
 
 typedef _SearchlightFutureSingleHook<T extends Object?> = Future<T> Function(
   Object,
@@ -112,7 +105,7 @@ final class Searchlight {
     SearchlightComponents? components,
   }) {
     final resolvedExtensions = resolveExtensions(
-      defaults: const SearchlightComponents(),
+      defaults: defaultSearchlightComponents,
       plugins: plugins,
       overrides: components,
     );
@@ -149,7 +142,15 @@ final class Searchlight {
           tokenizeSkipProperties: tokenizeSkipProperties,
           stemmerSkipProperties: stemmerSkipProperties,
         );
-    final index = SearchIndex.create(schema: schema, algorithm: algorithm);
+    final resolvedIndexComponent =
+        resolvedExtensions.components.index ?? defaultSearchlightIndexComponent;
+    final resolvedSorterComponent =
+        resolvedExtensions.components.sorter ??
+            defaultSearchlightSorterComponent;
+    final index = resolvedIndexComponent.create(
+      schema: schema,
+      algorithm: algorithm,
+    );
 
     final db = Searchlight._(
       schema: schema,
@@ -161,7 +162,7 @@ final class Searchlight {
       hasInjectedTokenizer: tokenizer != null,
       index: index,
       tokenizer: resolvedTokenizer,
-      sortIndex: SortIndex(language: tokenizerLanguage),
+      sortIndex: resolvedSorterComponent.create(language: tokenizerLanguage),
     );
     db._runAfterCreateHooks(db._hookRuntime.afterCreate);
     return db;
@@ -264,7 +265,7 @@ final class Searchlight {
     }
     final schema = schemaFromJson(schemaJson);
     final resolvedExtensions = resolveExtensions(
-      defaults: const SearchlightComponents(),
+      defaults: defaultSearchlightComponents,
       plugins: plugins,
       overrides: components,
     );
@@ -368,7 +369,7 @@ final class Searchlight {
 
   /// Resolved extension configuration captured at construction.
   // TODO(extension-runtime): consume retained extension state in hook/runtime wiring.
-  final ResolvedExtensions _resolvedExtensions; // ignore: unused_field
+  final ResolvedExtensions _resolvedExtensions;
   final SearchlightHookRuntime _hookRuntime;
 
   /// The search index managing per-field trees and scoring data.
@@ -1575,6 +1576,8 @@ final class Searchlight {
       allowDuplicates: _tokenizer.allowDuplicates,
       tokenizeSkipProperties: _tokenizer.tokenizeSkipProperties,
       stemmerSkipProperties: _tokenizer.stemmerSkipProperties,
+      plugins: _resolvedExtensions.plugins,
+      components: _resolvedExtensions.components,
     );
 
     // Re-insert all documents from the current instance
