@@ -110,12 +110,36 @@ final class SearchlightHookRuntime {
   final List<SearchlightLoadHook> beforeLoad;
   final List<SearchlightLoadHook> afterLoad;
 
+  Future<void> runAfterCreate({required Object db}) =>
+      _runAfterCreateHook(afterCreate, db: db);
+
   Future<void> runBeforeInsert({
     required Object db,
     required String id,
     required SearchlightRecord? doc,
   }) =>
       _runSingleHook(beforeInsert, db: db, id: id, doc: doc);
+
+  Future<void> runAfterInsert({
+    required Object db,
+    required String id,
+    required SearchlightRecord? doc,
+  }) =>
+      _runSingleHook(afterInsert, db: db, id: id, doc: doc);
+
+  Future<void> runBeforeRemove({
+    required Object db,
+    required String id,
+    required SearchlightRecord? doc,
+  }) =>
+      _runSingleHook(beforeRemove, db: db, id: id, doc: doc);
+
+  Future<void> runAfterRemove({
+    required Object db,
+    required String id,
+    required SearchlightRecord? doc,
+  }) =>
+      _runSingleHook(afterRemove, db: db, id: id, doc: doc);
 
   Future<void> runBeforeUpdate({
     required Object db,
@@ -124,12 +148,68 @@ final class SearchlightHookRuntime {
   }) =>
       _runSingleHook(beforeUpdate, db: db, id: id, doc: doc);
 
+  Future<void> runAfterUpdate({
+    required Object db,
+    required String id,
+    required SearchlightRecord? doc,
+  }) =>
+      _runSingleHook(afterUpdate, db: db, id: id, doc: doc);
+
+  Future<void> runBeforeUpsert({
+    required Object db,
+    required String id,
+    required SearchlightRecord? doc,
+  }) =>
+      _runSingleHook(beforeUpsert, db: db, id: id, doc: doc);
+
+  Future<void> runAfterUpsert({
+    required Object db,
+    required String id,
+    required SearchlightRecord? doc,
+  }) =>
+      _runSingleHook(afterUpsert, db: db, id: id, doc: doc);
+
   Future<void> runBeforeInsertMultiple({
     required Object db,
     required List<String> ids,
     required List<SearchlightRecord>? docs,
   }) =>
       _runMultipleHook(beforeInsertMultiple, db: db, ids: ids, docs: docs);
+
+  Future<void> runAfterInsertMultiple({
+    required Object db,
+    required List<String> ids,
+    required List<SearchlightRecord>? docs,
+  }) =>
+      _runMultipleHook(afterInsertMultiple, db: db, ids: ids, docs: docs);
+
+  Future<void> runBeforeRemoveMultiple({
+    required Object db,
+    required List<String> ids,
+    required List<SearchlightRecord>? docs,
+  }) =>
+      _runMultipleHook(beforeRemoveMultiple, db: db, ids: ids, docs: docs);
+
+  Future<void> runAfterRemoveMultiple({
+    required Object db,
+    required List<String> ids,
+    required List<SearchlightRecord>? docs,
+  }) =>
+      _runMultipleHook(afterRemoveMultiple, db: db, ids: ids, docs: docs);
+
+  Future<void> runBeforeUpdateMultiple({
+    required Object db,
+    required List<String> ids,
+    required List<SearchlightRecord>? docs,
+  }) =>
+      _runMultipleHook(beforeUpdateMultiple, db: db, ids: ids, docs: docs);
+
+  Future<void> runAfterUpdateMultiple({
+    required Object db,
+    required List<String> ids,
+    required List<SearchlightRecord>? docs,
+  }) =>
+      _runMultipleHook(afterUpdateMultiple, db: db, ids: ids, docs: docs);
 
   Future<void> runBeforeSearch({
     required Object db,
@@ -152,9 +232,30 @@ final class SearchlightHookRuntime {
     }
   }
 
+  Future<void> runBeforeLoad({
+    required Object db,
+    required Object raw,
+  }) =>
+      _runLoadHook(beforeLoad, db: db, raw: raw);
+
+  Future<void> runAfterLoad({
+    required Object db,
+    required Object raw,
+  }) =>
+      _runLoadHook(afterLoad, db: db, raw: raw);
+
   static void _addIfPresent<T>(List<T> target, T? candidate) {
     if (candidate != null) {
       target.add(candidate);
+    }
+  }
+
+  static Future<void> _runAfterCreateHook(
+    List<SearchlightAfterCreateHook> hooks, {
+    required Object db,
+  }) async {
+    for (final hook in hooks) {
+      await hook(db);
     }
   }
 
@@ -177,6 +278,16 @@ final class SearchlightHookRuntime {
   }) async {
     for (final hook in hooks) {
       await hook(db, ids, docs);
+    }
+  }
+
+  static Future<void> _runLoadHook(
+    List<SearchlightLoadHook> hooks, {
+    required Object db,
+    required Object raw,
+  }) async {
+    for (final hook in hooks) {
+      await hook(db, raw);
     }
   }
 }

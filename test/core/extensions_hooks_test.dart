@@ -131,5 +131,129 @@ void main() {
       expect(capturedLanguage, 'english');
       expect(identical(capturedResults, results), isTrue);
     });
+
+    test('all declared hook buckets are dispatchable', () async {
+      final calls = <String>[];
+      final runtime = SearchlightHookRuntime.fromHooks([
+        SearchlightHooks(
+          afterCreate: (_) {
+            calls.add('afterCreate');
+          },
+          beforeInsert: (_, __, ___) {
+            calls.add('beforeInsert');
+          },
+          afterInsert: (_, __, ___) {
+            calls.add('afterInsert');
+          },
+          beforeRemove: (_, __, ___) {
+            calls.add('beforeRemove');
+          },
+          afterRemove: (_, __, ___) {
+            calls.add('afterRemove');
+          },
+          beforeUpdate: (_, __, ___) {
+            calls.add('beforeUpdate');
+          },
+          afterUpdate: (_, __, ___) {
+            calls.add('afterUpdate');
+          },
+          beforeUpsert: (_, __, ___) {
+            calls.add('beforeUpsert');
+          },
+          afterUpsert: (_, __, ___) {
+            calls.add('afterUpsert');
+          },
+          beforeInsertMultiple: (_, __, ___) {
+            calls.add('beforeInsertMultiple');
+          },
+          afterInsertMultiple: (_, __, ___) {
+            calls.add('afterInsertMultiple');
+          },
+          beforeRemoveMultiple: (_, __, ___) {
+            calls.add('beforeRemoveMultiple');
+          },
+          afterRemoveMultiple: (_, __, ___) {
+            calls.add('afterRemoveMultiple');
+          },
+          beforeUpdateMultiple: (_, __, ___) {
+            calls.add('beforeUpdateMultiple');
+          },
+          afterUpdateMultiple: (_, __, ___) {
+            calls.add('afterUpdateMultiple');
+          },
+          beforeSearch: (_, __, ___) {
+            calls.add('beforeSearch');
+          },
+          afterSearch: (_, __, ___, ____) {
+            calls.add('afterSearch');
+          },
+          beforeLoad: (_, __) {
+            calls.add('beforeLoad');
+          },
+          afterLoad: (_, __) {
+            calls.add('afterLoad');
+          },
+        ),
+      ]);
+
+      final db = Object();
+      final record = <String, Object?>{'title': 'A'};
+      final params = <String, Object?>{'term': 'ember'};
+      final ids = <String>['1', '2'];
+      final docs = <SearchlightRecord>[record, record];
+      final raw = Object();
+      final results = Object();
+
+      await runtime.runAfterCreate(db: db);
+      await runtime.runBeforeInsert(db: db, id: '1', doc: record);
+      await runtime.runAfterInsert(db: db, id: '1', doc: record);
+      await runtime.runBeforeRemove(db: db, id: '1', doc: null);
+      await runtime.runAfterRemove(db: db, id: '1', doc: null);
+      await runtime.runBeforeUpdate(db: db, id: '1', doc: record);
+      await runtime.runAfterUpdate(db: db, id: '1', doc: record);
+      await runtime.runBeforeUpsert(db: db, id: '1', doc: record);
+      await runtime.runAfterUpsert(db: db, id: '1', doc: record);
+      await runtime.runBeforeInsertMultiple(db: db, ids: ids, docs: docs);
+      await runtime.runAfterInsertMultiple(db: db, ids: ids, docs: docs);
+      await runtime.runBeforeRemoveMultiple(db: db, ids: ids, docs: null);
+      await runtime.runAfterRemoveMultiple(db: db, ids: ids, docs: null);
+      await runtime.runBeforeUpdateMultiple(db: db, ids: ids, docs: docs);
+      await runtime.runAfterUpdateMultiple(db: db, ids: ids, docs: docs);
+      await runtime.runBeforeSearch(
+        db: db,
+        params: params,
+        language: 'english',
+      );
+      await runtime.runAfterSearch(
+        db: db,
+        params: params,
+        language: 'english',
+        results: results,
+      );
+      await runtime.runBeforeLoad(db: db, raw: raw);
+      await runtime.runAfterLoad(db: db, raw: raw);
+
+      expect(calls, [
+        'afterCreate',
+        'beforeInsert',
+        'afterInsert',
+        'beforeRemove',
+        'afterRemove',
+        'beforeUpdate',
+        'afterUpdate',
+        'beforeUpsert',
+        'afterUpsert',
+        'beforeInsertMultiple',
+        'afterInsertMultiple',
+        'beforeRemoveMultiple',
+        'afterRemoveMultiple',
+        'beforeUpdateMultiple',
+        'afterUpdateMultiple',
+        'beforeSearch',
+        'afterSearch',
+        'beforeLoad',
+        'afterLoad',
+      ]);
+    });
   });
 }
