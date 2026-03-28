@@ -64,42 +64,43 @@ void main() {
       expect(sideEffectRan, isFalse);
     });
 
-    test('insertMultiple runs beforeInsertMultiple then afterInsertMultiple',
-        () {
-      db = Searchlight.create(
-        schema: Schema({
-          'title': const TypedField(SchemaType.string),
-        }),
-        plugins: [
-          SearchlightPlugin(
-            name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeInsertMultiple: (_, ids, docs) {
-                calls.add('beforeInsertMultiple:${ids.join(",")}');
-                calls.add('beforeInsertMultipleDocs:${docs?.length ?? -1}');
-              },
-              afterInsertMultiple: (_, ids, docs) {
-                calls.add('afterInsertMultiple:${ids.join(",")}');
-                calls.add('afterInsertMultipleDocs:${docs?.length ?? -1}');
-              },
+    test(
+      'insertMultiple dispatches only afterInsertMultiple with inserted docs',
+      () {
+        db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: [
+            SearchlightPlugin(
+              name: 'hooks',
+              hooks: SearchlightHooks(
+                beforeInsertMultiple: (_, docs) {
+                  calls.add('beforeInsertMultiple:${docs.length}');
+                },
+                afterInsertMultiple: (_, docs) {
+                  calls.add(
+                    'afterInsertMultiple:${docs.map((doc) => doc['id']).join(",")}',
+                  );
+                  calls.add('afterInsertMultipleDocs:${docs.length}');
+                },
+              ),
             ),
-          ),
-        ],
-      );
+          ],
+        );
 
-      final ids = db.insertMultiple([
-        {'id': 'doc-1', 'title': 'One'},
-        {'id': 'doc-2', 'title': 'Two'},
-      ]);
+        final ids = db.insertMultiple([
+          {'id': 'doc-1', 'title': 'One'},
+          {'id': 'doc-2', 'title': 'Two'},
+        ]);
 
-      expect(ids, <String>['doc-1', 'doc-2']);
-      expect(calls, <String>[
-        'beforeInsertMultiple:doc-1,doc-2',
-        'beforeInsertMultipleDocs:2',
-        'afterInsertMultiple:doc-1,doc-2',
-        'afterInsertMultipleDocs:2',
-      ]);
-    });
+        expect(ids, <String>['doc-1', 'doc-2']);
+        expect(calls, <String>[
+          'afterInsertMultiple:doc-1,doc-2',
+          'afterInsertMultipleDocs:2',
+        ]);
+      },
+    );
 
     test('removeMultiple runs beforeRemoveMultiple then afterRemoveMultiple',
         () {
@@ -111,13 +112,11 @@ void main() {
           SearchlightPlugin(
             name: 'hooks',
             hooks: SearchlightHooks(
-              beforeRemoveMultiple: (_, ids, docs) {
+              beforeRemoveMultiple: (_, ids) {
                 calls.add('beforeRemoveMultiple:${ids.join(",")}');
-                calls.add('beforeRemoveMultipleDocs:${docs?.length ?? -1}');
               },
-              afterRemoveMultiple: (_, ids, docs) {
+              afterRemoveMultiple: (_, ids) {
                 calls.add('afterRemoveMultiple:${ids.join(",")}');
-                calls.add('afterRemoveMultipleDocs:${docs?.length ?? -1}');
               },
             ),
           ),
@@ -134,9 +133,7 @@ void main() {
       expect(removed, 2);
       expect(calls, <String>[
         'beforeRemoveMultiple:doc-1,doc-2',
-        'beforeRemoveMultipleDocs:-1',
         'afterRemoveMultiple:doc-1,doc-2',
-        'afterRemoveMultipleDocs:-1',
       ]);
     });
 
@@ -149,18 +146,19 @@ void main() {
           SearchlightPlugin(
             name: 'hooks',
             hooks: SearchlightHooks(
-              beforeUpdateMultiple: (_, ids, __) =>
+              beforeUpdateMultiple: (_, ids) =>
                   calls.add('beforeUpdateMultiple:${ids.join(",")}'),
-              afterUpdateMultiple: (_, ids, __) =>
+              afterUpdateMultiple: (_, ids) =>
                   calls.add('afterUpdateMultiple:${ids.join(",")}'),
-              beforeRemoveMultiple: (_, ids, __) =>
+              beforeRemoveMultiple: (_, ids) =>
                   calls.add('beforeRemoveMultiple:${ids.join(",")}'),
-              afterRemoveMultiple: (_, ids, __) =>
+              afterRemoveMultiple: (_, ids) =>
                   calls.add('afterRemoveMultiple:${ids.join(",")}'),
-              beforeInsertMultiple: (_, ids, __) =>
-                  calls.add('beforeInsertMultiple:${ids.join(",")}'),
-              afterInsertMultiple: (_, ids, __) =>
-                  calls.add('afterInsertMultiple:${ids.join(",")}'),
+              beforeInsertMultiple: (_, docs) =>
+                  calls.add('beforeInsertMultiple:${docs.length}'),
+              afterInsertMultiple: (_, docs) => calls.add(
+                'afterInsertMultiple:${docs.map((doc) => doc['id']).join(",")}',
+              ),
             ),
           ),
         ],
@@ -184,7 +182,6 @@ void main() {
         'beforeUpdateMultiple:old-1,old-2',
         'beforeRemoveMultiple:old-1,old-2',
         'afterRemoveMultiple:old-1,old-2',
-        'beforeInsertMultiple:new-1,new-2',
         'afterInsertMultiple:new-1,new-2',
         'afterUpdateMultiple:new-1,new-2',
       ]);
@@ -203,7 +200,7 @@ void main() {
             SearchlightPlugin(
               name: 'hooks',
               hooks: SearchlightHooks(
-                beforeInsertMultiple: (_, __, ___) async {
+                afterInsertMultiple: (_, __) async {
                   sideEffectRan = true;
                 },
               ),
@@ -224,11 +221,7 @@ void main() {
 
     test('insertMultiple rejects non-async Future-returning top-level hooks',
         () {
-      Future<void> futureHook(
-        Object _,
-        List<String> __,
-        List<SearchlightRecord>? ___,
-      ) {
+      Future<void> futureHook(Object _, List<SearchlightRecord> __) {
         return Future<void>.value();
       }
 
@@ -239,7 +232,7 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(beforeInsertMultiple: futureHook),
+            hooks: SearchlightHooks(afterInsertMultiple: futureHook),
           ),
         ],
       );
@@ -252,5 +245,191 @@ void main() {
       );
       expect(db.count, 0);
     });
+
+    test(
+      'insertMultiple ignores beforeInsertMultiple hooks because they are not wired',
+      () {
+        var hookRan = false;
+
+        db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: [
+            SearchlightPlugin(
+              name: 'hooks',
+              hooks: SearchlightHooks(
+                beforeInsertMultiple: (_, __) async {
+                  hookRan = true;
+                },
+              ),
+            ),
+          ],
+        );
+
+        final ids = db.insertMultiple([
+          {'id': 'doc-1', 'title': 'One'},
+        ]);
+
+        expect(ids, <String>['doc-1']);
+        expect(hookRan, isFalse);
+        expect(db.count, 1);
+      },
+    );
+
+    test('insert rejects async afterInsert hooks before any side effects', () {
+      var sideEffectRan = false;
+
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              afterInsert: (_, __, ___) async {
+                sideEffectRan = true;
+              },
+            ),
+          ),
+        ],
+      );
+
+      expect(
+        () => db.insert({'id': 'doc-1', 'title': 'One'}),
+        throwsA(isA<UnsupportedError>()),
+      );
+      expect(sideEffectRan, isFalse);
+      expect(db.count, 0);
+    });
+
+    test('remove rejects async afterRemove hooks before any side effects', () {
+      var sideEffectRan = false;
+
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              afterRemove: (_, __, ___) async {
+                sideEffectRan = true;
+              },
+            ),
+          ),
+        ],
+      )..insert({'id': 'doc-1', 'title': 'One'});
+
+      expect(
+        () => db.remove('doc-1'),
+        throwsA(isA<UnsupportedError>()),
+      );
+      expect(sideEffectRan, isFalse);
+      expect(db.getById('doc-1'), isNotNull);
+    });
+
+    test('update rejects async afterUpdate hooks before any side effects', () {
+      var sideEffectRan = false;
+
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              afterUpdate: (_, __, ___) async {
+                sideEffectRan = true;
+              },
+            ),
+          ),
+        ],
+      )..insert({'id': 'old-1', 'title': 'Old'});
+
+      expect(
+        () => db.update('old-1', {'id': 'new-1', 'title': 'New'}),
+        throwsA(isA<UnsupportedError>()),
+      );
+      expect(sideEffectRan, isFalse);
+      expect(db.getById('old-1'), isNotNull);
+      expect(db.getById('new-1'), isNull);
+    });
+
+    test(
+      'removeMultiple rejects async afterRemoveMultiple before side effects',
+      () {
+        var sideEffectRan = false;
+
+        db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: [
+            SearchlightPlugin(
+              name: 'hooks',
+              hooks: SearchlightHooks(
+                afterRemoveMultiple: (_, __) async {
+                  sideEffectRan = true;
+                },
+              ),
+            ),
+          ],
+        )
+          ..insert({'id': 'doc-1', 'title': 'One'})
+          ..insert({'id': 'doc-2', 'title': 'Two'});
+
+        expect(
+          () => db.removeMultiple(<String>['doc-1', 'doc-2']),
+          throwsA(isA<UnsupportedError>()),
+        );
+        expect(sideEffectRan, isFalse);
+        expect(db.count, 2);
+      },
+    );
+
+    test(
+      'updateMultiple rejects async afterUpdateMultiple before side effects',
+      () {
+        var sideEffectRan = false;
+
+        db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: [
+            SearchlightPlugin(
+              name: 'hooks',
+              hooks: SearchlightHooks(
+                afterUpdateMultiple: (_, __) async {
+                  sideEffectRan = true;
+                },
+              ),
+            ),
+          ],
+        )
+          ..insert({'id': 'old-1', 'title': 'Old 1'})
+          ..insert({'id': 'old-2', 'title': 'Old 2'});
+
+        expect(
+          () => db.updateMultiple(
+            <String>['old-1', 'old-2'],
+            <Map<String, Object?>>[
+              {'id': 'new-1', 'title': 'New 1'},
+              {'id': 'new-2', 'title': 'New 2'},
+            ],
+          ),
+          throwsA(isA<UnsupportedError>()),
+        );
+        expect(sideEffectRan, isFalse);
+        expect(db.getById('old-1'), isNotNull);
+        expect(db.getById('old-2'), isNotNull);
+        expect(db.getById('new-1'), isNull);
+        expect(db.getById('new-2'), isNull);
+      },
+    );
   });
 }

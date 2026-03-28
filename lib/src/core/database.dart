@@ -46,21 +46,16 @@ typedef _SearchlightFutureSingleHook<T extends Object?> = Future<T> Function(
   String,
   SearchlightRecord?,
 );
-typedef _SearchlightFutureMultipleHook<T extends Object?> = Future<T> Function(
-  Object,
-  List<String>,
-  List<SearchlightRecord>?,
-);
+typedef _SearchlightFutureMultipleIdsHook<T extends Object?> = Future<T>
+    Function(Object, List<String>);
+typedef _SearchlightFutureMultipleDocsHook<T extends Object?> = Future<T>
+    Function(Object, List<SearchlightRecord>);
 typedef _SearchlightFutureAfterCreateHook<T extends Object?> = Future<T>
     Function(Object);
 typedef _SearchlightFutureBeforeSearchHook<T extends Object?> = Future<T>
     Function(Object, SearchlightSearchParams, String);
 typedef _SearchlightFutureAfterSearchHook<T extends Object?> = Future<T>
     Function(Object, SearchlightSearchParams, String, Object);
-typedef _SearchlightFutureLoadHook<T extends Object?> = Future<T> Function(
-  Object,
-  Object,
-);
 
 /// A full-text search engine instance.
 final class Searchlight {
@@ -344,10 +339,6 @@ final class Searchlight {
       tokenizer: tokenizer,
       sortIndex: sortIndex,
     );
-    db._runLoadHooks(
-      db._hookRuntime.beforeLoad,
-      raw: json,
-    );
 
     if (hasSerializedIndex) {
       _restoreSerializedDocuments(
@@ -362,10 +353,6 @@ final class Searchlight {
         idStoreJson: idStoreJson,
       );
     }
-    db._runLoadHooks(
-      db._hookRuntime.afterLoad,
-      raw: json,
-    );
 
     return db;
   }
@@ -465,64 +452,148 @@ final class Searchlight {
     return SearchlightHookRuntime.fromHooks(hookSets);
   }
 
+  static const _singleHookAsyncError =
+      'Async single-record lifecycle hooks are not supported in synchronous '
+      'Searchlight operations.';
+  static const _multipleHookAsyncError =
+      'Async multi-record lifecycle hooks are not supported in synchronous '
+      'Searchlight operations.';
+  static const _createHookAsyncError =
+      'Async create lifecycle hooks are not supported in synchronous '
+      'Searchlight operations.';
+  static const _searchHookAsyncError =
+      'Async search lifecycle hooks are not supported in synchronous '
+      'Searchlight operations.';
+
+  void _ensureSyncAfterCreateHooks(List<SearchlightAfterCreateHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureAfterCreateHook<Object?> ||
+          hook is _SearchlightFutureAfterCreateHook<void>) {
+        throw UnsupportedError(_createHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncSingleHooks(List<SearchlightSingleHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureSingleHook<Object?> ||
+          hook is _SearchlightFutureSingleHook<void>) {
+        throw UnsupportedError(_singleHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncMultipleIdsHooks(List<SearchlightMultipleIdsHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureMultipleIdsHook<Object?> ||
+          hook is _SearchlightFutureMultipleIdsHook<void>) {
+        throw UnsupportedError(_multipleHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncMultipleDocsHooks(List<SearchlightMultipleDocsHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureMultipleDocsHook<Object?> ||
+          hook is _SearchlightFutureMultipleDocsHook<void>) {
+        throw UnsupportedError(_multipleHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncBeforeSearchHooks(List<SearchlightBeforeSearchHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureBeforeSearchHook<Object?> ||
+          hook is _SearchlightFutureBeforeSearchHook<void>) {
+        throw UnsupportedError(_searchHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncAfterSearchHooks(List<SearchlightAfterSearchHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureAfterSearchHook<Object?> ||
+          hook is _SearchlightFutureAfterSearchHook<void>) {
+        throw UnsupportedError(_searchHookAsyncError);
+      }
+    }
+  }
+
+  void _preflightInsertLifecycleHooks() {
+    _ensureSyncSingleHooks(_hookRuntime.beforeInsert);
+    _ensureSyncSingleHooks(_hookRuntime.afterInsert);
+  }
+
+  void _preflightRemoveLifecycleHooks() {
+    _ensureSyncSingleHooks(_hookRuntime.beforeRemove);
+    _ensureSyncSingleHooks(_hookRuntime.afterRemove);
+  }
+
+  void _preflightUpdateLifecycleHooks() {
+    _ensureSyncSingleHooks(_hookRuntime.beforeUpdate);
+    _ensureSyncSingleHooks(_hookRuntime.afterUpdate);
+    _preflightRemoveLifecycleHooks();
+    _preflightInsertLifecycleHooks();
+  }
+
+  void _preflightInsertMultipleLifecycleHooks() {
+    _ensureSyncMultipleDocsHooks(_hookRuntime.afterInsertMultiple);
+    _preflightInsertLifecycleHooks();
+  }
+
+  void _preflightRemoveMultipleLifecycleHooks() {
+    _ensureSyncMultipleIdsHooks(_hookRuntime.beforeRemoveMultiple);
+    _ensureSyncMultipleIdsHooks(_hookRuntime.afterRemoveMultiple);
+    _preflightRemoveLifecycleHooks();
+  }
+
+  void _preflightUpdateMultipleLifecycleHooks() {
+    _ensureSyncMultipleIdsHooks(_hookRuntime.beforeUpdateMultiple);
+    _ensureSyncMultipleIdsHooks(_hookRuntime.afterUpdateMultiple);
+    _preflightRemoveMultipleLifecycleHooks();
+    _preflightInsertMultipleLifecycleHooks();
+  }
+
+  void _preflightSearchLifecycleHooks() {
+    _ensureSyncBeforeSearchHooks(_hookRuntime.beforeSearch);
+    _ensureSyncAfterSearchHooks(_hookRuntime.afterSearch);
+  }
+
   void _runSingleLifecycleHooks(
     List<SearchlightSingleHook> hooks, {
     required String id,
     required SearchlightRecord? doc,
   }) {
-    final syncHooks = <void Function(Object, String, SearchlightRecord?)>[];
-    for (final hook in hooks) {
-      if (hook is _SearchlightFutureSingleHook<Object?> ||
-          hook is _SearchlightFutureSingleHook<void>) {
-        throw UnsupportedError(
-          'Async single-record lifecycle hooks are not supported in '
-          'synchronous Searchlight operations.',
-        );
-      }
-      syncHooks.add(hook);
-    }
-
+    final syncHooks = hooks.cast<void Function(Object, String, SearchlightRecord?)>();
     for (final hook in syncHooks) {
       hook(this, id, doc);
     }
   }
 
-  void _runMultipleLifecycleHooks(
-    List<SearchlightMultipleHook> hooks, {
+  void _runMultipleIdsLifecycleHooks(
+    List<SearchlightMultipleIdsHook> hooks, {
     required List<String> ids,
-    required List<SearchlightRecord>? docs,
+  }) {
+    final syncHooks = hooks.cast<void Function(Object, List<String>)>();
+    for (final hook in syncHooks) {
+      hook(this, ids);
+    }
+  }
+
+  void _runMultipleDocsLifecycleHooks(
+    List<SearchlightMultipleDocsHook> hooks, {
+    required List<SearchlightRecord> docs,
   }) {
     final syncHooks =
-        <void Function(Object, List<String>, List<SearchlightRecord>?)>[];
-    for (final hook in hooks) {
-      if (hook is _SearchlightFutureMultipleHook<Object?> ||
-          hook is _SearchlightFutureMultipleHook<void>) {
-        throw UnsupportedError(
-          'Async multi-record lifecycle hooks are not supported in '
-          'synchronous Searchlight operations.',
-        );
-      }
-      syncHooks.add(hook);
-    }
-
+        hooks.cast<void Function(Object, List<SearchlightRecord>)>();
     for (final hook in syncHooks) {
-      hook(this, ids, docs);
+      hook(this, docs);
     }
   }
 
   void _runAfterCreateHooks(List<SearchlightAfterCreateHook> hooks) {
-    final syncHooks = <void Function(Object)>[];
-    for (final hook in hooks) {
-      if (hook is _SearchlightFutureAfterCreateHook<Object?> ||
-          hook is _SearchlightFutureAfterCreateHook<void>) {
-        throw UnsupportedError(
-          'Async create lifecycle hooks are not supported in synchronous '
-          'Searchlight operations.',
-        );
-      }
-      syncHooks.add(hook);
-    }
-
+    _ensureSyncAfterCreateHooks(hooks);
+    final syncHooks = hooks.cast<void Function(Object)>();
     for (final hook in syncHooks) {
       hook(this);
     }
@@ -532,19 +603,8 @@ final class Searchlight {
     required SearchlightSearchParams params,
     required String language,
   }) {
-    final syncHooks =
-        <void Function(Object, SearchlightSearchParams, String)>[];
-    for (final hook in _hookRuntime.beforeSearch) {
-      if (hook is _SearchlightFutureBeforeSearchHook<Object?> ||
-          hook is _SearchlightFutureBeforeSearchHook<void>) {
-        throw UnsupportedError(
-          'Async search lifecycle hooks are not supported in synchronous '
-          'Searchlight operations.',
-        );
-      }
-      syncHooks.add(hook);
-    }
-
+    final syncHooks = _hookRuntime.beforeSearch
+        .cast<void Function(Object, SearchlightSearchParams, String)>();
     for (final hook in syncHooks) {
       hook(this, params, language);
     }
@@ -555,60 +615,11 @@ final class Searchlight {
     required String language,
     required Object results,
   }) {
-    final syncHooks =
-        <void Function(Object, SearchlightSearchParams, String, Object)>[];
-    for (final hook in _hookRuntime.afterSearch) {
-      if (hook is _SearchlightFutureAfterSearchHook<Object?> ||
-          hook is _SearchlightFutureAfterSearchHook<void>) {
-        throw UnsupportedError(
-          'Async search lifecycle hooks are not supported in synchronous '
-          'Searchlight operations.',
-        );
-      }
-      syncHooks.add(hook);
-    }
-
+    final syncHooks = _hookRuntime.afterSearch
+        .cast<void Function(Object, SearchlightSearchParams, String, Object)>();
     for (final hook in syncHooks) {
       hook(this, params, language, results);
     }
-  }
-
-  void _runLoadHooks(List<SearchlightLoadHook> hooks, {required Object raw}) {
-    final syncHooks = <void Function(Object, Object)>[];
-    for (final hook in hooks) {
-      if (hook is _SearchlightFutureLoadHook<Object?> ||
-          hook is _SearchlightFutureLoadHook<void>) {
-        throw UnsupportedError(
-          'Async load lifecycle hooks are not supported in synchronous '
-          'Searchlight operations.',
-        );
-      }
-      syncHooks.add(hook);
-    }
-
-    for (final hook in syncHooks) {
-      hook(this, raw);
-    }
-  }
-
-  List<String> _previewBatchDocumentIds(List<Map<String, Object?>> documents) {
-    var nextGeneratedId = _nextGeneratedId;
-    final ids = <String>[];
-    for (final data in documents) {
-      final id = data['id'];
-      if (id == null) {
-        ids.add('${nextGeneratedId++}');
-        continue;
-      }
-      if (id is! String) {
-        throw DocumentValidationException(
-          'Document ID must be a string, got ${id.runtimeType}',
-          field: 'id',
-        );
-      }
-      ids.add(id);
-    }
-    return ids;
   }
 
   static void _restoreSerializedDocuments(
@@ -824,6 +835,7 @@ final class Searchlight {
   /// to the schema, or if a document with the same external ID already exists.
   String insert(Map<String, Object?> data) {
     _validateDocument(data, schema.fields, '');
+    _preflightInsertLifecycleHooks();
 
     // Determine external ID (Fix 1)
     final externalId = _getDocumentIndexId(data);
@@ -1001,21 +1013,15 @@ final class Searchlight {
     List<Map<String, Object?>> documents, {
     int batchSize = 1000,
   }) {
-    final batchIds = _previewBatchDocumentIds(documents);
-    _runMultipleLifecycleHooks(
-      _hookRuntime.beforeInsertMultiple,
-      ids: batchIds,
-      docs: documents,
-    );
+    _preflightInsertMultipleLifecycleHooks();
     final ids = <String>[];
 
     for (final doc in documents) {
       final id = insert(doc);
       ids.add(id);
     }
-    _runMultipleLifecycleHooks(
+    _runMultipleDocsLifecycleHooks(
       _hookRuntime.afterInsertMultiple,
-      ids: ids,
       docs: documents,
     );
 
@@ -1042,6 +1048,7 @@ final class Searchlight {
   /// Returns `true` if the document was found and removed,
   /// `false` if the [id] was not found.
   bool remove(String id) {
+    _preflightRemoveLifecycleHooks();
     final internalId = _externalToInternal[id];
     if (internalId == null) return false;
 
@@ -1081,19 +1088,18 @@ final class Searchlight {
   /// Returns the count of documents actually removed. Silently ignores IDs
   /// that are not found.
   int removeMultiple(List<String> ids) {
-    _runMultipleLifecycleHooks(
+    _preflightRemoveMultipleLifecycleHooks();
+    _runMultipleIdsLifecycleHooks(
       _hookRuntime.beforeRemoveMultiple,
       ids: ids,
-      docs: null,
     );
     var count = 0;
     for (final id in ids) {
       if (remove(id)) count++;
     }
-    _runMultipleLifecycleHooks(
+    _runMultipleIdsLifecycleHooks(
       _hookRuntime.afterRemoveMultiple,
       ids: ids,
-      docs: null,
     );
     return count;
   }
@@ -1118,6 +1124,7 @@ final class Searchlight {
   /// Throws [DocumentValidationException] if [newDoc] does not conform
   /// to the schema.
   String update(String id, Map<String, Object?> newDoc) {
+    _preflightUpdateLifecycleHooks();
     _runSingleLifecycleHooks(_hookRuntime.beforeUpdate, id: id, doc: newDoc);
     remove(id);
     final newId = insert(newDoc);
@@ -1147,14 +1154,14 @@ final class Searchlight {
     List<Map<String, Object?>> newDocs, {
     int batchSize = 1000,
   }) {
+    _preflightUpdateMultipleLifecycleHooks();
     // Step 1: Validate ALL docs against schema FIRST (before any removes)
     for (final doc in newDocs) {
       _validateDocument(doc, schema.fields, '');
     }
-    _runMultipleLifecycleHooks(
+    _runMultipleIdsLifecycleHooks(
       _hookRuntime.beforeUpdateMultiple,
       ids: ids,
-      docs: newDocs,
     );
 
     // Step 2: Remove all old documents
@@ -1162,10 +1169,9 @@ final class Searchlight {
 
     // Step 3: Insert all new documents
     final updatedIds = insertMultiple(newDocs, batchSize: batchSize);
-    _runMultipleLifecycleHooks(
+    _runMultipleIdsLifecycleHooks(
       _hookRuntime.afterUpdateMultiple,
       ids: updatedIds,
-      docs: newDocs,
     );
     return updatedIds;
   }
@@ -1266,6 +1272,7 @@ final class Searchlight {
       if (groupBy != null) 'groupBy': groupBy,
       if (sortBy != null) 'sortBy': sortBy,
     };
+    _preflightSearchLifecycleHooks();
     _runBeforeSearchHooks(
       params: searchParams,
       language: language,

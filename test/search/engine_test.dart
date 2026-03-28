@@ -479,5 +479,46 @@ void main() {
       );
       expect(sideEffectRan, isFalse);
     });
+
+    test(
+      'search rejects async afterSearch hook before running any search hooks',
+      () {
+        var beforeHookRan = false;
+        var afterHookRan = false;
+        final hookedDb = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+            'body': const TypedField(SchemaType.string),
+            'price': const TypedField(SchemaType.number),
+          }),
+          plugins: [
+            SearchlightPlugin(
+              name: 'hooks',
+              hooks: SearchlightHooks(
+                beforeSearch: (_, __, ___) {
+                  beforeHookRan = true;
+                },
+                afterSearch: (_, __, ___, ____) async {
+                  afterHookRan = true;
+                },
+              ),
+            ),
+          ],
+        )..insert({
+            'id': 'doc-1',
+            'title': 'hello world',
+            'body': 'x',
+            'price': 1,
+          });
+        addTearDown(hookedDb.dispose);
+
+        expect(
+          () => hookedDb.search(term: 'hello'),
+          throwsA(isA<UnsupportedError>()),
+        );
+        expect(beforeHookRan, isFalse);
+        expect(afterHookRan, isFalse);
+      },
+    );
   });
 }

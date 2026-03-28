@@ -32,12 +32,12 @@ void main() {
       final calls = <String>[];
       final runtime = SearchlightHookRuntime.fromHooks([
         SearchlightHooks(
-          beforeInsertMultiple: (_, __, ___) {
+          beforeInsertMultiple: (_, __) {
             calls.add('sync-first');
           },
         ),
         SearchlightHooks(
-          beforeInsertMultiple: (_, __, ___) {
+          beforeInsertMultiple: (_, __) {
             calls.add('sync-second');
           },
         ),
@@ -45,7 +45,6 @@ void main() {
 
       await runtime.runBeforeInsertMultiple(
         db: Object(),
-        ids: const ['a', 'b'],
         docs: const [
           {'title': 'A'},
           {'title': 'B'},
@@ -163,22 +162,22 @@ void main() {
           afterUpsert: (_, __, ___) {
             calls.add('afterUpsert');
           },
-          beforeInsertMultiple: (_, __, ___) {
+          beforeInsertMultiple: (_, __) {
             calls.add('beforeInsertMultiple');
           },
-          afterInsertMultiple: (_, __, ___) {
+          afterInsertMultiple: (_, __) {
             calls.add('afterInsertMultiple');
           },
-          beforeRemoveMultiple: (_, __, ___) {
+          beforeRemoveMultiple: (_, __) {
             calls.add('beforeRemoveMultiple');
           },
-          afterRemoveMultiple: (_, __, ___) {
+          afterRemoveMultiple: (_, __) {
             calls.add('afterRemoveMultiple');
           },
-          beforeUpdateMultiple: (_, __, ___) {
+          beforeUpdateMultiple: (_, __) {
             calls.add('beforeUpdateMultiple');
           },
-          afterUpdateMultiple: (_, __, ___) {
+          afterUpdateMultiple: (_, __) {
             calls.add('afterUpdateMultiple');
           },
           beforeSearch: (_, __, ___) {
@@ -213,12 +212,12 @@ void main() {
       await runtime.runAfterUpdate(db: db, id: '1', doc: record);
       await runtime.runBeforeUpsert(db: db, id: '1', doc: record);
       await runtime.runAfterUpsert(db: db, id: '1', doc: record);
-      await runtime.runBeforeInsertMultiple(db: db, ids: ids, docs: docs);
-      await runtime.runAfterInsertMultiple(db: db, ids: ids, docs: docs);
-      await runtime.runBeforeRemoveMultiple(db: db, ids: ids, docs: null);
-      await runtime.runAfterRemoveMultiple(db: db, ids: ids, docs: null);
-      await runtime.runBeforeUpdateMultiple(db: db, ids: ids, docs: docs);
-      await runtime.runAfterUpdateMultiple(db: db, ids: ids, docs: docs);
+      await runtime.runBeforeInsertMultiple(db: db, docs: docs);
+      await runtime.runAfterInsertMultiple(db: db, docs: docs);
+      await runtime.runBeforeRemoveMultiple(db: db, ids: ids);
+      await runtime.runAfterRemoveMultiple(db: db, ids: ids);
+      await runtime.runBeforeUpdateMultiple(db: db, ids: ids);
+      await runtime.runAfterUpdateMultiple(db: db, ids: ids);
       await runtime.runBeforeSearch(
         db: db,
         params: params,

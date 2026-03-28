@@ -34,12 +34,12 @@ final class SearchlightHookRuntime {
     final afterUpdate = <SearchlightSingleHook>[];
     final beforeUpsert = <SearchlightSingleHook>[];
     final afterUpsert = <SearchlightSingleHook>[];
-    final beforeInsertMultiple = <SearchlightMultipleHook>[];
-    final afterInsertMultiple = <SearchlightMultipleHook>[];
-    final beforeRemoveMultiple = <SearchlightMultipleHook>[];
-    final afterRemoveMultiple = <SearchlightMultipleHook>[];
-    final beforeUpdateMultiple = <SearchlightMultipleHook>[];
-    final afterUpdateMultiple = <SearchlightMultipleHook>[];
+    final beforeInsertMultiple = <SearchlightMultipleDocsHook>[];
+    final afterInsertMultiple = <SearchlightMultipleDocsHook>[];
+    final beforeRemoveMultiple = <SearchlightMultipleIdsHook>[];
+    final afterRemoveMultiple = <SearchlightMultipleIdsHook>[];
+    final beforeUpdateMultiple = <SearchlightMultipleIdsHook>[];
+    final afterUpdateMultiple = <SearchlightMultipleIdsHook>[];
     final beforeSearch = <SearchlightBeforeSearchHook>[];
     final afterSearch = <SearchlightAfterSearchHook>[];
     final beforeLoad = <SearchlightLoadHook>[];
@@ -99,12 +99,12 @@ final class SearchlightHookRuntime {
   final List<SearchlightSingleHook> afterUpdate;
   final List<SearchlightSingleHook> beforeUpsert;
   final List<SearchlightSingleHook> afterUpsert;
-  final List<SearchlightMultipleHook> beforeInsertMultiple;
-  final List<SearchlightMultipleHook> afterInsertMultiple;
-  final List<SearchlightMultipleHook> beforeRemoveMultiple;
-  final List<SearchlightMultipleHook> afterRemoveMultiple;
-  final List<SearchlightMultipleHook> beforeUpdateMultiple;
-  final List<SearchlightMultipleHook> afterUpdateMultiple;
+  final List<SearchlightMultipleDocsHook> beforeInsertMultiple;
+  final List<SearchlightMultipleDocsHook> afterInsertMultiple;
+  final List<SearchlightMultipleIdsHook> beforeRemoveMultiple;
+  final List<SearchlightMultipleIdsHook> afterRemoveMultiple;
+  final List<SearchlightMultipleIdsHook> beforeUpdateMultiple;
+  final List<SearchlightMultipleIdsHook> afterUpdateMultiple;
   final List<SearchlightBeforeSearchHook> beforeSearch;
   final List<SearchlightAfterSearchHook> afterSearch;
   final List<SearchlightLoadHook> beforeLoad;
@@ -171,45 +171,39 @@ final class SearchlightHookRuntime {
 
   Future<void> runBeforeInsertMultiple({
     required Object db,
-    required List<String> ids,
-    required List<SearchlightRecord>? docs,
+    required List<SearchlightRecord> docs,
   }) =>
-      _runMultipleHook(beforeInsertMultiple, db: db, ids: ids, docs: docs);
+      _runMultipleDocsHook(beforeInsertMultiple, db: db, docs: docs);
 
   Future<void> runAfterInsertMultiple({
     required Object db,
-    required List<String> ids,
-    required List<SearchlightRecord>? docs,
+    required List<SearchlightRecord> docs,
   }) =>
-      _runMultipleHook(afterInsertMultiple, db: db, ids: ids, docs: docs);
+      _runMultipleDocsHook(afterInsertMultiple, db: db, docs: docs);
 
   Future<void> runBeforeRemoveMultiple({
     required Object db,
     required List<String> ids,
-    required List<SearchlightRecord>? docs,
   }) =>
-      _runMultipleHook(beforeRemoveMultiple, db: db, ids: ids, docs: docs);
+      _runMultipleIdsHook(beforeRemoveMultiple, db: db, ids: ids);
 
   Future<void> runAfterRemoveMultiple({
     required Object db,
     required List<String> ids,
-    required List<SearchlightRecord>? docs,
   }) =>
-      _runMultipleHook(afterRemoveMultiple, db: db, ids: ids, docs: docs);
+      _runMultipleIdsHook(afterRemoveMultiple, db: db, ids: ids);
 
   Future<void> runBeforeUpdateMultiple({
     required Object db,
     required List<String> ids,
-    required List<SearchlightRecord>? docs,
   }) =>
-      _runMultipleHook(beforeUpdateMultiple, db: db, ids: ids, docs: docs);
+      _runMultipleIdsHook(beforeUpdateMultiple, db: db, ids: ids);
 
   Future<void> runAfterUpdateMultiple({
     required Object db,
     required List<String> ids,
-    required List<SearchlightRecord>? docs,
   }) =>
-      _runMultipleHook(afterUpdateMultiple, db: db, ids: ids, docs: docs);
+      _runMultipleIdsHook(afterUpdateMultiple, db: db, ids: ids);
 
   Future<void> runBeforeSearch({
     required Object db,
@@ -270,14 +264,23 @@ final class SearchlightHookRuntime {
     }
   }
 
-  static Future<void> _runMultipleHook(
-    List<SearchlightMultipleHook> hooks, {
+  static Future<void> _runMultipleDocsHook(
+    List<SearchlightMultipleDocsHook> hooks, {
     required Object db,
-    required List<String> ids,
-    required List<SearchlightRecord>? docs,
+    required List<SearchlightRecord> docs,
   }) async {
     for (final hook in hooks) {
-      await hook(db, ids, docs);
+      await hook(db, docs);
+    }
+  }
+
+  static Future<void> _runMultipleIdsHook(
+    List<SearchlightMultipleIdsHook> hooks, {
+    required Object db,
+    required List<String> ids,
+  }) async {
+    for (final hook in hooks) {
+      await hook(db, ids);
     }
   }
 

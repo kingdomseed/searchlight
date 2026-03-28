@@ -10,10 +10,13 @@ typedef SearchlightSingleHook = FutureOr<void> Function(
   String id,
   SearchlightRecord? doc,
 );
-typedef SearchlightMultipleHook = FutureOr<void> Function(
+typedef SearchlightMultipleDocsHook = FutureOr<void> Function(
+  Object db,
+  List<SearchlightRecord> docs,
+);
+typedef SearchlightMultipleIdsHook = FutureOr<void> Function(
   Object db,
   List<String> ids,
-  List<SearchlightRecord>? docs,
 );
 typedef SearchlightBeforeSearchHook = FutureOr<void> Function(
   Object db,
@@ -61,12 +64,12 @@ final class SearchlightHooks {
   final SearchlightSingleHook? afterUpdate;
   final SearchlightSingleHook? beforeUpsert;
   final SearchlightSingleHook? afterUpsert;
-  final SearchlightMultipleHook? beforeInsertMultiple;
-  final SearchlightMultipleHook? afterInsertMultiple;
-  final SearchlightMultipleHook? beforeRemoveMultiple;
-  final SearchlightMultipleHook? afterRemoveMultiple;
-  final SearchlightMultipleHook? beforeUpdateMultiple;
-  final SearchlightMultipleHook? afterUpdateMultiple;
+  final SearchlightMultipleDocsHook? beforeInsertMultiple;
+  final SearchlightMultipleDocsHook? afterInsertMultiple;
+  final SearchlightMultipleIdsHook? beforeRemoveMultiple;
+  final SearchlightMultipleIdsHook? afterRemoveMultiple;
+  final SearchlightMultipleIdsHook? beforeUpdateMultiple;
+  final SearchlightMultipleIdsHook? afterUpdateMultiple;
   final SearchlightBeforeSearchHook? beforeSearch;
   final SearchlightAfterSearchHook? afterSearch;
   final SearchlightLoadHook? beforeLoad;

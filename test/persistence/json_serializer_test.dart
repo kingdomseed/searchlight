@@ -89,7 +89,7 @@ void main() {
       expect(doc2.getNumber('rating'), equals(3));
     });
 
-    test('fromJson runs beforeLoad then afterLoad hooks', () {
+    test('fromJson restores without dispatching load hooks', () {
       final calls = <String>[];
       final db = Searchlight.create(
         schema: Schema({
@@ -111,12 +111,13 @@ void main() {
         ],
       );
 
-      expect(calls, <String>['beforeLoad', 'afterLoad']);
+      expect(calls, isEmpty);
       expect(restored.count, 1);
       expect(restored.getById('doc-1'), isNotNull);
     });
 
-    test('fromJson rejects async beforeLoad hooks before invocation', () {
+    test('fromJson ignores async load hooks because load hooks are not wired',
+        () {
       var sideEffectRan = false;
       final db = Searchlight.create(
         schema: Schema({
@@ -125,23 +126,21 @@ void main() {
       )..insert({'id': 'doc-1', 'title': 'Hello'});
       final json = db.toJson();
 
-      expect(
-        () => Searchlight.fromJson(
-          json,
-          plugins: [
-            SearchlightPlugin(
-              name: 'hooks',
-              hooks: SearchlightHooks(
-                beforeLoad: (_, __) async {
-                  sideEffectRan = true;
-                },
-              ),
+      final restored = Searchlight.fromJson(
+        json,
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeLoad: (_, __) async {
+                sideEffectRan = true;
+              },
             ),
-          ],
-        ),
-        throwsA(isA<UnsupportedError>()),
+          ),
+        ],
       );
       expect(sideEffectRan, isFalse);
+      expect(restored.count, 1);
     });
 
     test('round-trip search works on restored database (BM25)', () {
