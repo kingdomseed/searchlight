@@ -89,6 +89,61 @@ void main() {
       expect(doc2.getNumber('rating'), equals(3));
     });
 
+    test('fromJson runs beforeLoad then afterLoad hooks', () {
+      final calls = <String>[];
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      )..insert({'id': 'doc-1', 'title': 'Hello'});
+      final json = db.toJson();
+
+      final restored = Searchlight.fromJson(
+        json,
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeLoad: (_, __) => calls.add('beforeLoad'),
+              afterLoad: (_, __) => calls.add('afterLoad'),
+            ),
+          ),
+        ],
+      );
+
+      expect(calls, <String>['beforeLoad', 'afterLoad']);
+      expect(restored.count, 1);
+      expect(restored.getById('doc-1'), isNotNull);
+    });
+
+    test('fromJson rejects async beforeLoad hooks before invocation', () {
+      var sideEffectRan = false;
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      )..insert({'id': 'doc-1', 'title': 'Hello'});
+      final json = db.toJson();
+
+      expect(
+        () => Searchlight.fromJson(
+          json,
+          plugins: [
+            SearchlightPlugin(
+              name: 'hooks',
+              hooks: SearchlightHooks(
+                beforeLoad: (_, __) async {
+                  sideEffectRan = true;
+                },
+              ),
+            ),
+          ],
+        ),
+        throwsA(isA<UnsupportedError>()),
+      );
+      expect(sideEffectRan, isFalse);
+    });
+
     test('round-trip search works on restored database (BM25)', () {
       final db = Searchlight.create(
         schema: Schema({
@@ -663,8 +718,7 @@ void main() {
       expect(db.remove('c'), isTrue);
 
       final json = db.toJson();
-      final idStore =
-          json['internalDocumentIDStore']! as Map<String, Object?>;
+      final idStore = json['internalDocumentIDStore']! as Map<String, Object?>;
       idStore['nextId'] = 3;
 
       final restored = Searchlight.fromJson(json)

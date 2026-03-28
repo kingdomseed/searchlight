@@ -46,6 +46,21 @@ typedef _SearchlightFutureSingleHook<T extends Object?> = Future<T> Function(
   String,
   SearchlightRecord?,
 );
+typedef _SearchlightFutureMultipleHook<T extends Object?> = Future<T> Function(
+  Object,
+  List<String>,
+  List<SearchlightRecord>?,
+);
+typedef _SearchlightFutureAfterCreateHook<T extends Object?> = Future<T>
+    Function(Object);
+typedef _SearchlightFutureBeforeSearchHook<T extends Object?> = Future<T>
+    Function(Object, SearchlightSearchParams, String);
+typedef _SearchlightFutureAfterSearchHook<T extends Object?> = Future<T>
+    Function(Object, SearchlightSearchParams, String, Object);
+typedef _SearchlightFutureLoadHook<T extends Object?> = Future<T> Function(
+  Object,
+  Object,
+);
 
 /// A full-text search engine instance.
 final class Searchlight {
@@ -141,7 +156,7 @@ final class Searchlight {
         );
     final index = SearchIndex.create(schema: schema, algorithm: algorithm);
 
-    return Searchlight._(
+    final db = Searchlight._(
       schema: schema,
       algorithm: algorithm,
       language: resolvedLanguage,
@@ -153,6 +168,8 @@ final class Searchlight {
       tokenizer: resolvedTokenizer,
       sortIndex: SortIndex(language: tokenizerLanguage),
     );
+    db._runAfterCreateHooks(db._hookRuntime.afterCreate);
+    return db;
   }
 
   /// Deserializes a [Searchlight] instance from a JSON-compatible map
@@ -166,7 +183,11 @@ final class Searchlight {
   ///
   /// Throws [SerializationException] if the format version is incompatible
   /// or the data is corrupt/missing.
-  factory Searchlight.fromJson(Map<String, Object?> json) {
+  factory Searchlight.fromJson(
+    Map<String, Object?> json, {
+    List<SearchlightPlugin<Object?>> plugins = const [],
+    SearchlightComponents? components,
+  }) {
     // 1. Check format version.
     // E2 fix: reject future versions but accept current and past versions.
     // When a future version bump adds structural changes, add migration logic
@@ -247,6 +268,11 @@ final class Searchlight {
       );
     }
     final schema = schemaFromJson(schemaJson);
+    final resolvedExtensions = resolveExtensions(
+      defaults: const SearchlightComponents(),
+      plugins: plugins,
+      overrides: components,
+    );
 
     // 5. Restore tokenizer configuration
     late final Tokenizer tokenizer;
@@ -310,16 +336,17 @@ final class Searchlight {
       schema: schema,
       algorithm: algorithm,
       language: language,
-      resolvedExtensions: const ResolvedExtensions(
-        plugins: [],
-        components: SearchlightComponents(),
-      ),
-      hookRuntime: SearchlightHookRuntime.fromHooks(const []),
+      resolvedExtensions: resolvedExtensions,
+      hookRuntime: _createHookRuntime(resolvedExtensions),
       hasCustomStemmer: false,
       hasInjectedTokenizer: false,
       index: index,
       tokenizer: tokenizer,
       sortIndex: sortIndex,
+    );
+    db._runLoadHooks(
+      db._hookRuntime.beforeLoad,
+      raw: json,
     );
 
     if (hasSerializedIndex) {
@@ -328,13 +355,16 @@ final class Searchlight {
         docsJson: docsJson,
         idStoreJson: idStoreJson,
       );
-      return db;
+    } else {
+      _restoreLegacyDocuments(
+        db,
+        docsJson: docsJson,
+        idStoreJson: idStoreJson,
+      );
     }
-
-    _restoreLegacyDocuments(
-      db,
-      docsJson: docsJson,
-      idStoreJson: idStoreJson,
+    db._runLoadHooks(
+      db._hookRuntime.afterLoad,
+      raw: json,
     );
 
     return db;
@@ -455,6 +485,130 @@ final class Searchlight {
     for (final hook in syncHooks) {
       hook(this, id, doc);
     }
+  }
+
+  void _runMultipleLifecycleHooks(
+    List<SearchlightMultipleHook> hooks, {
+    required List<String> ids,
+    required List<SearchlightRecord>? docs,
+  }) {
+    final syncHooks =
+        <void Function(Object, List<String>, List<SearchlightRecord>?)>[];
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureMultipleHook<Object?> ||
+          hook is _SearchlightFutureMultipleHook<void>) {
+        throw UnsupportedError(
+          'Async multi-record lifecycle hooks are not supported in '
+          'synchronous Searchlight operations.',
+        );
+      }
+      syncHooks.add(hook);
+    }
+
+    for (final hook in syncHooks) {
+      hook(this, ids, docs);
+    }
+  }
+
+  void _runAfterCreateHooks(List<SearchlightAfterCreateHook> hooks) {
+    final syncHooks = <void Function(Object)>[];
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureAfterCreateHook<Object?> ||
+          hook is _SearchlightFutureAfterCreateHook<void>) {
+        throw UnsupportedError(
+          'Async create lifecycle hooks are not supported in synchronous '
+          'Searchlight operations.',
+        );
+      }
+      syncHooks.add(hook);
+    }
+
+    for (final hook in syncHooks) {
+      hook(this);
+    }
+  }
+
+  void _runBeforeSearchHooks({
+    required SearchlightSearchParams params,
+    required String language,
+  }) {
+    final syncHooks =
+        <void Function(Object, SearchlightSearchParams, String)>[];
+    for (final hook in _hookRuntime.beforeSearch) {
+      if (hook is _SearchlightFutureBeforeSearchHook<Object?> ||
+          hook is _SearchlightFutureBeforeSearchHook<void>) {
+        throw UnsupportedError(
+          'Async search lifecycle hooks are not supported in synchronous '
+          'Searchlight operations.',
+        );
+      }
+      syncHooks.add(hook);
+    }
+
+    for (final hook in syncHooks) {
+      hook(this, params, language);
+    }
+  }
+
+  void _runAfterSearchHooks({
+    required SearchlightSearchParams params,
+    required String language,
+    required Object results,
+  }) {
+    final syncHooks =
+        <void Function(Object, SearchlightSearchParams, String, Object)>[];
+    for (final hook in _hookRuntime.afterSearch) {
+      if (hook is _SearchlightFutureAfterSearchHook<Object?> ||
+          hook is _SearchlightFutureAfterSearchHook<void>) {
+        throw UnsupportedError(
+          'Async search lifecycle hooks are not supported in synchronous '
+          'Searchlight operations.',
+        );
+      }
+      syncHooks.add(hook);
+    }
+
+    for (final hook in syncHooks) {
+      hook(this, params, language, results);
+    }
+  }
+
+  void _runLoadHooks(List<SearchlightLoadHook> hooks, {required Object raw}) {
+    final syncHooks = <void Function(Object, Object)>[];
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureLoadHook<Object?> ||
+          hook is _SearchlightFutureLoadHook<void>) {
+        throw UnsupportedError(
+          'Async load lifecycle hooks are not supported in synchronous '
+          'Searchlight operations.',
+        );
+      }
+      syncHooks.add(hook);
+    }
+
+    for (final hook in syncHooks) {
+      hook(this, raw);
+    }
+  }
+
+  List<String> _previewBatchDocumentIds(List<Map<String, Object?>> documents) {
+    var nextGeneratedId = _nextGeneratedId;
+    final ids = <String>[];
+    for (final data in documents) {
+      final id = data['id'];
+      if (id == null) {
+        ids.add('${nextGeneratedId++}');
+        continue;
+      }
+      if (id is! String) {
+        throw DocumentValidationException(
+          'Document ID must be a string, got ${id.runtimeType}',
+          field: 'id',
+        );
+      }
+      ids.add(id);
+    }
+    return ids;
   }
 
   static void _restoreSerializedDocuments(
@@ -847,12 +1001,23 @@ final class Searchlight {
     List<Map<String, Object?>> documents, {
     int batchSize = 1000,
   }) {
+    final batchIds = _previewBatchDocumentIds(documents);
+    _runMultipleLifecycleHooks(
+      _hookRuntime.beforeInsertMultiple,
+      ids: batchIds,
+      docs: documents,
+    );
     final ids = <String>[];
 
     for (final doc in documents) {
       final id = insert(doc);
       ids.add(id);
     }
+    _runMultipleLifecycleHooks(
+      _hookRuntime.afterInsertMultiple,
+      ids: ids,
+      docs: documents,
+    );
 
     return ids;
   }
@@ -916,10 +1081,20 @@ final class Searchlight {
   /// Returns the count of documents actually removed. Silently ignores IDs
   /// that are not found.
   int removeMultiple(List<String> ids) {
+    _runMultipleLifecycleHooks(
+      _hookRuntime.beforeRemoveMultiple,
+      ids: ids,
+      docs: null,
+    );
     var count = 0;
     for (final id in ids) {
       if (remove(id)) count++;
     }
+    _runMultipleLifecycleHooks(
+      _hookRuntime.afterRemoveMultiple,
+      ids: ids,
+      docs: null,
+    );
     return count;
   }
 
@@ -976,12 +1151,23 @@ final class Searchlight {
     for (final doc in newDocs) {
       _validateDocument(doc, schema.fields, '');
     }
+    _runMultipleLifecycleHooks(
+      _hookRuntime.beforeUpdateMultiple,
+      ids: ids,
+      docs: newDocs,
+    );
 
     // Step 2: Remove all old documents
     removeMultiple(ids);
 
     // Step 3: Insert all new documents
-    return insertMultiple(newDocs, batchSize: batchSize);
+    final updatedIds = insertMultiple(newDocs, batchSize: batchSize);
+    _runMultipleLifecycleHooks(
+      _hookRuntime.afterUpdateMultiple,
+      ids: updatedIds,
+      docs: newDocs,
+    );
+    return updatedIds;
   }
 
   // ---------------------------------------------------------------------------
@@ -1066,6 +1252,24 @@ final class Searchlight {
     SortBy? sortBy,
   }) {
     final stopwatch = Stopwatch()..start();
+    final searchParams = <String, Object?>{
+      'term': term,
+      if (where != null) 'where': where,
+      if (properties != null) 'properties': properties,
+      'exact': exact,
+      'tolerance': tolerance,
+      if (boost != null) 'boost': boost,
+      'threshold': threshold,
+      'limit': limit,
+      'offset': offset,
+      if (facets != null) 'facets': facets,
+      if (groupBy != null) 'groupBy': groupBy,
+      if (sortBy != null) 'sortBy': sortBy,
+    };
+    _runBeforeSearchHooks(
+      params: searchParams,
+      language: language,
+    );
 
     // 1. Resolve properties: default = all string fields in the schema
     final stringFields = schema.fieldPathsOfType(SchemaType.string);
@@ -1231,13 +1435,19 @@ final class Searchlight {
 
     stopwatch.stop();
 
-    return SearchResult(
+    final result = SearchResult(
       hits: hits,
       count: totalCount,
       elapsed: stopwatch.elapsed,
       facets: facetResults,
       groups: groupResults,
     );
+    _runAfterSearchHooks(
+      params: searchParams,
+      language: language,
+      results: result,
+    );
+    return result;
   }
 
   // ---------------------------------------------------------------------------
@@ -1528,10 +1738,18 @@ final class Searchlight {
   ///
   /// Throws [SerializationException] if the bytes are not valid CBOR or
   /// the decoded data is incompatible.
-  static Searchlight deserialize(Uint8List bytes) {
+  static Searchlight deserialize(
+    Uint8List bytes, {
+    List<SearchlightPlugin<Object?>> plugins = const [],
+    SearchlightComponents? components,
+  }) {
     try {
       final map = cborDecode(bytes);
-      return Searchlight.fromJson(map);
+      return Searchlight.fromJson(
+        map,
+        plugins: plugins,
+        components: components,
+      );
     } on FormatException catch (e) {
       throw SerializationException('Invalid CBOR data: ${e.message}');
     }
@@ -1568,6 +1786,8 @@ final class Searchlight {
   static Future<Searchlight> restore({
     required SearchlightStorage storage,
     PersistenceFormat format = PersistenceFormat.cbor,
+    List<SearchlightPlugin<Object?>> plugins = const [],
+    SearchlightComponents? components,
   }) async {
     final bytes = await storage.load();
     if (bytes == null) {
@@ -1575,11 +1795,19 @@ final class Searchlight {
     }
     switch (format) {
       case PersistenceFormat.cbor:
-        return deserialize(bytes);
+        return deserialize(
+          bytes,
+          plugins: plugins,
+          components: components,
+        );
       case PersistenceFormat.json:
         final jsonString = utf8.decode(bytes);
         final map = jsonDecode(jsonString) as Map<String, Object?>;
-        return Searchlight.fromJson(map);
+        return Searchlight.fromJson(
+          map,
+          plugins: plugins,
+          components: components,
+        );
     }
   }
 

@@ -399,5 +399,85 @@ void main() {
       expect(newResult.count, 1);
       expect(newResult.hits.first.id, 'a');
     });
+
+    test('search runs beforeSearch then afterSearch hooks', () {
+      final calls = <String>[];
+      late SearchlightSearchParams capturedParams;
+      late SearchResult capturedResults;
+      late String capturedLanguage;
+      final hookedDb = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'body': const TypedField(SchemaType.string),
+          'price': const TypedField(SchemaType.number),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeSearch: (_, params, language) {
+                calls.add('beforeSearch');
+                capturedParams = params;
+                capturedLanguage = language;
+              },
+              afterSearch: (_, params, language, results) {
+                calls.add('afterSearch');
+                capturedParams = params;
+                capturedLanguage = language;
+                capturedResults = results as SearchResult;
+              },
+            ),
+          ),
+        ],
+      )..insert({
+          'id': 'doc-1',
+          'title': 'hello world',
+          'body': 'x',
+          'price': 1,
+        });
+      addTearDown(hookedDb.dispose);
+
+      final result = hookedDb.search(term: 'hello', limit: 1, offset: 0);
+
+      expect(calls, <String>['beforeSearch', 'afterSearch']);
+      expect(capturedParams['term'], 'hello');
+      expect(capturedParams['limit'], 1);
+      expect(capturedLanguage, 'en');
+      expect(capturedResults.count, result.count);
+      expect(capturedResults.hits.first.id, result.hits.first.id);
+    });
+
+    test('search rejects async beforeSearch hook before invocation', () {
+      var sideEffectRan = false;
+      final hookedDb = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'body': const TypedField(SchemaType.string),
+          'price': const TypedField(SchemaType.number),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeSearch: (_, __, ___) async {
+                sideEffectRan = true;
+              },
+            ),
+          ),
+        ],
+      )..insert({
+          'id': 'doc-1',
+          'title': 'hello world',
+          'body': 'x',
+          'price': 1,
+        });
+      addTearDown(hookedDb.dispose);
+
+      expect(
+        () => hookedDb.search(term: 'hello'),
+        throwsA(isA<UnsupportedError>()),
+      );
+      expect(sideEffectRan, isFalse);
+    });
   });
 }
