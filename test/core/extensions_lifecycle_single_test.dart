@@ -183,5 +183,34 @@ void main() {
         expect(db.count, 0);
       },
     );
+
+    test('insert accepts non-async void-returning top-level style hook', () {
+      var sideEffectRan = false;
+      void syncHook(
+        Object _,
+        String __,
+        SearchlightRecord? ___,
+      ) {
+        sideEffectRan = true;
+      }
+
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(beforeInsert: syncHook),
+          ),
+        ],
+      );
+
+      final id = db.insert({'id': 'doc-3', 'title': 'Hello'});
+
+      expect(id, 'doc-3');
+      expect(sideEffectRan, isTrue);
+      expect(db.count, 1);
+    });
   });
 }
