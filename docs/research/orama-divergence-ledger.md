@@ -1,6 +1,6 @@
 # Searchlight vs Orama Divergence Ledger
 
-**Last updated:** 2026-03-27
+**Last updated:** 2026-03-28
 
 This document is the publish gate for Orama-related claims in `searchlight`.
 If a behavior is not listed here as matched, it should be treated as either an
@@ -33,6 +33,14 @@ intentional divergence or an unresolved gap.
   support for Norwegian, Danish, Swedish, and German-specific cases
 - the public barrel no longer exports Searchlight-only `DocumentAdapter`;
   adapter-style extraction remains an internal concern for future extensions
+- create-time extension registration now exists for ordered plugins, named
+  plugin metadata, lifecycle hooks, and `index` / `sorter` component
+  replacement
+- plugin-provided index replacement is now proven end-to-end in tests,
+  including QPS/PT15 behavior routed through the plugin component path
+- persisted snapshots now record extension compatibility metadata and restore
+  validates plugin order plus component IDs before loading extension-backed
+  state
 
 ## Intentional divergences
 
@@ -52,11 +60,31 @@ intentional divergence or an unresolved gap.
 - Dart's typed API replaces several JavaScript runtime validation branches.
   Where the type system already forbids the invalid shape, Searchlight does not
   reproduce the exact Orama error path.
+- extension hooks are currently sync-only in Searchlight's core runtime.
+  Orama's type/runtime surface supports async hook batches; Searchlight rejects
+  async hooks before side effects.
+- persisted snapshots are more self-describing than Orama's current helper
+  path. Searchlight records extension compatibility metadata and fails fast on
+  mismatched restore graphs instead of relying on the caller to recreate the
+  right plugin/component setup manually.
 
 ## Remaining gaps before publish-ready parity claims
 
-- no Orama-style create-time extension surface yet:
-  components, hooks, and plugin registration are still missing
+- Searchlight's extension component surface is still narrower than Orama's:
+  no tokenizer, documents store, pinning, or function-component replacement
+- component merge semantics still diverge from Orama:
+  later plugins override earlier contributions and direct `components:`
+  overrides win, where Orama throws component-conflict errors
+- no async plugin initialization or async component factories
+- no `upsert()` / `upsertMultiple()` APIs yet, so related Orama hook paths are
+  not implemented end-to-end
+- `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` are public in the
+  Searchlight hook surface but are not currently dispatched
+
+## Extension detail
+
+See [Searchlight extension status](searchlight-extension-status.md) for the
+current implementation matrix and restore contract notes.
 
 ## Working references
 
