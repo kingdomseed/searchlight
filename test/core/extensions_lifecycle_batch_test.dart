@@ -80,10 +80,9 @@ void main() {
                 },
                 afterInsertMultiple: (_, docs) {
                   final ids = docs.map((doc) => doc['id']).join(',');
-                  calls.add(
-                    'afterInsertMultiple:$ids',
-                  );
-                  calls.add('afterInsertMultipleDocs:${docs.length}');
+                  calls
+                    ..add('afterInsertMultiple:$ids')
+                    ..add('afterInsertMultipleDocs:${docs.length}');
                 },
               ),
             ),
@@ -189,6 +188,58 @@ void main() {
       ]);
     });
 
+    test('upsertMultiple runs upsertMultiple hooks around nested operations',
+        () {
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeUpsertMultiple: (_, docs) =>
+                  calls.add('beforeUpsertMultiple:${docs.length}'),
+              afterUpsertMultiple: (_, ids) =>
+                  calls.add('afterUpsertMultiple:${ids.join(",")}'),
+              beforeUpdateMultiple: (_, ids) =>
+                  calls.add('beforeUpdateMultiple:${ids.join(",")}'),
+              afterUpdateMultiple: (_, ids) =>
+                  calls.add('afterUpdateMultiple:${ids.join(",")}'),
+              beforeRemoveMultiple: (_, ids) =>
+                  calls.add('beforeRemoveMultiple:${ids.join(",")}'),
+              afterRemoveMultiple: (_, ids) =>
+                  calls.add('afterRemoveMultiple:${ids.join(",")}'),
+              afterInsertMultiple: (_, docs) {
+                final ids = docs.map((doc) => doc['id']).join(',');
+                calls.add('afterInsertMultiple:$ids');
+              },
+            ),
+          ),
+        ],
+      );
+
+      db..insert({'id': 'doc-1', 'title': 'Old'});
+      calls.clear();
+
+      final ids = db.upsertMultiple([
+        {'id': 'doc-1', 'title': 'Updated'},
+        {'id': 'doc-2', 'title': 'Inserted'},
+      ]);
+
+      expect(ids, <String>['doc-1', 'doc-2']);
+      expect(calls, <String>[
+        'beforeUpsertMultiple:2',
+        'beforeUpdateMultiple:doc-1',
+        'beforeRemoveMultiple:doc-1',
+        'afterRemoveMultiple:doc-1',
+        'afterInsertMultiple:doc-1',
+        'afterUpdateMultiple:doc-1',
+        'afterInsertMultiple:doc-2',
+        'afterUpsertMultiple:doc-1,doc-2',
+      ]);
+    });
+
     test(
       'insertMultiple rejects async multiple hooks before any side effects',
       () {
@@ -277,6 +328,39 @@ void main() {
         expect(ids, <String>['doc-1']);
         expect(hookRan, isFalse);
         expect(db.count, 1);
+      },
+    );
+
+    test(
+      'upsertMultiple rejects async nested batch hooks before any hook runs',
+      () {
+        var beforeUpsertMultipleRan = false;
+
+        db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: [
+            SearchlightPlugin(
+              name: 'hooks',
+              hooks: SearchlightHooks(
+                beforeUpsertMultiple: (_, __) {
+                  beforeUpsertMultipleRan = true;
+                },
+                afterUpdateMultiple: (_, __) async {},
+              ),
+            ),
+          ],
+        )..insert({'id': 'doc-1', 'title': 'Old'});
+
+        expect(
+          () => db.upsertMultiple([
+            {'id': 'doc-1', 'title': 'Updated'},
+          ]),
+          throwsA(isA<UnsupportedError>()),
+        );
+        expect(beforeUpsertMultipleRan, isFalse);
+        expect(db.getById('doc-1')?.getString('title'), 'Old');
       },
     );
 

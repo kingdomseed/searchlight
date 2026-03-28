@@ -180,6 +180,12 @@ void main() {
           afterUpdateMultiple: (_, __) {
             calls.add('afterUpdateMultiple');
           },
+          beforeUpsertMultiple: (_, __) {
+            calls.add('beforeUpsertMultiple');
+          },
+          afterUpsertMultiple: (_, __) {
+            calls.add('afterUpsertMultiple');
+          },
           beforeSearch: (_, __, ___) {
             calls.add('beforeSearch');
           },
@@ -218,6 +224,8 @@ void main() {
       await runtime.runAfterRemoveMultiple(db: db, ids: ids);
       await runtime.runBeforeUpdateMultiple(db: db, ids: ids);
       await runtime.runAfterUpdateMultiple(db: db, ids: ids);
+      await runtime.runBeforeUpsertMultiple(db: db, docs: docs);
+      await runtime.runAfterUpsertMultiple(db: db, ids: ids);
       await runtime.runBeforeSearch(
         db: db,
         params: params,
@@ -248,6 +256,8 @@ void main() {
         'afterRemoveMultiple',
         'beforeUpdateMultiple',
         'afterUpdateMultiple',
+        'beforeUpsertMultiple',
+        'afterUpsertMultiple',
         'beforeSearch',
         'afterSearch',
         'beforeLoad',

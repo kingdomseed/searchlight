@@ -49,6 +49,8 @@ final class SearchlightHooks {
     this.afterRemoveMultiple,
     this.beforeUpdateMultiple,
     this.afterUpdateMultiple,
+    this.beforeUpsertMultiple,
+    this.afterUpsertMultiple,
     this.beforeSearch,
     this.afterSearch,
     this.beforeLoad,
@@ -70,6 +72,8 @@ final class SearchlightHooks {
   final SearchlightMultipleIdsHook? afterRemoveMultiple;
   final SearchlightMultipleIdsHook? beforeUpdateMultiple;
   final SearchlightMultipleIdsHook? afterUpdateMultiple;
+  final SearchlightMultipleDocsHook? beforeUpsertMultiple;
+  final SearchlightMultipleIdsHook? afterUpsertMultiple;
   final SearchlightBeforeSearchHook? beforeSearch;
   final SearchlightAfterSearchHook? afterSearch;
   final SearchlightLoadHook? beforeLoad;

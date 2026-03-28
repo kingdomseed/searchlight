@@ -38,6 +38,8 @@ intentional divergence or an unresolved gap.
   replacement
 - plugin-provided index replacement is now proven end-to-end in tests,
   including QPS/PT15 behavior routed through the plugin component path
+- `upsert()` / `upsertMultiple()` now exist with Orama-style nested lifecycle
+  behavior and the corresponding upsert hook paths
 - persisted snapshots now record extension compatibility metadata and restore
   validates plugin order plus component IDs before loading extension-backed
   state
@@ -76,8 +78,6 @@ intentional divergence or an unresolved gap.
   only `index` and `sorter` currently use Orama-style conflict errors;
   Searchlight still lacks the rest of Orama's broader component graph
 - no async plugin initialization or async component factories
-- no `upsert()` / `upsertMultiple()` APIs yet, so related Orama hook paths are
-  not implemented end-to-end
 - `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` are public in the
   Searchlight hook surface but are not currently dispatched because the current
   Orama runtime does not visibly dispatch them either

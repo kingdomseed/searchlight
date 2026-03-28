@@ -37,9 +37,11 @@ still incomplete.
 
 - `afterCreate` dispatch
 - single-record insert/remove/update lifecycle dispatch
+- single-record upsert lifecycle dispatch
 - `afterInsertMultiple` dispatch
 - `beforeRemoveMultiple` / `afterRemoveMultiple` dispatch
 - `beforeUpdateMultiple` / `afterUpdateMultiple` dispatch
+- `beforeUpsertMultiple` / `afterUpsertMultiple` dispatch
 - `beforeSearch` / `afterSearch` dispatch
 - deterministic hook ordering based on plugin registration order
 - sync preflight before side effects for supported lifecycle paths
@@ -120,20 +122,14 @@ database runtime:
 - `beforeInsertMultiple`
 - `beforeLoad`
 - `afterLoad`
-- `beforeUpsert`
-- `afterUpsert`
-
-The last two are inert because Searchlight does not yet expose `upsert()`.
 
 `beforeInsertMultiple` is intentionally left reserved because the current
 Orama source declares it but does not dispatch it inside `insertMultiple()`.
 
 ### Missing Orama hook names
 
-Searchlight does not yet expose:
-
-- `beforeUpsertMultiple`
-- `afterUpsertMultiple`
+No currently-tracked hook names are missing from Searchlight's public
+extension surface. The remaining gaps are about dispatch behavior, not naming.
 
 ### Async plugin/component initialization
 

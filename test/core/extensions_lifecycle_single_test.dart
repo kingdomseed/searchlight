@@ -105,7 +105,7 @@ void main() {
         ],
       );
 
-      (db..insert({'id': 'old-doc', 'title': 'Old'}));
+      db..insert({'id': 'old-doc', 'title': 'Old'});
       calls.clear();
       final newId = db.update('old-doc', {'id': 'new-doc', 'title': 'New'});
 
@@ -117,6 +117,75 @@ void main() {
         'beforeInsert:new-doc',
         'afterInsert:new-doc',
         'afterUpdate:new-doc',
+      ]);
+    });
+
+    test('upsert inserts missing documents and wraps nested insert hooks', () {
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeUpsert: (_, id, __) => calls.add('beforeUpsert:$id'),
+              afterUpsert: (_, id, __) => calls.add('afterUpsert:$id'),
+              beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
+              afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
+            ),
+          ),
+        ],
+      );
+
+      final id = db.upsert({'id': 'doc-1', 'title': 'Hello'});
+
+      expect(id, 'doc-1');
+      expect(calls, <String>[
+        'beforeUpsert:doc-1',
+        'beforeInsert:doc-1',
+        'afterInsert:doc-1',
+        'afterUpsert:doc-1',
+      ]);
+    });
+
+    test('upsert updates existing documents and wraps nested update hooks', () {
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeUpsert: (_, id, __) => calls.add('beforeUpsert:$id'),
+              afterUpsert: (_, id, __) => calls.add('afterUpsert:$id'),
+              beforeUpdate: (_, id, __) => calls.add('beforeUpdate:$id'),
+              afterUpdate: (_, id, __) => calls.add('afterUpdate:$id'),
+              beforeRemove: (_, id, __) => calls.add('beforeRemove:$id'),
+              afterRemove: (_, id, __) => calls.add('afterRemove:$id'),
+              beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
+              afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
+            ),
+          ),
+        ],
+      );
+
+      db..insert({'id': 'doc-1', 'title': 'Old'});
+      calls.clear();
+
+      final id = db.upsert({'id': 'doc-1', 'title': 'New'});
+
+      expect(id, 'doc-1');
+      expect(calls, <String>[
+        'beforeUpsert:doc-1',
+        'beforeUpdate:doc-1',
+        'beforeRemove:doc-1',
+        'afterRemove:doc-1',
+        'beforeInsert:doc-1',
+        'afterInsert:doc-1',
+        'afterUpdate:doc-1',
+        'afterUpsert:doc-1',
       ]);
     });
 
@@ -210,6 +279,34 @@ void main() {
       expect(id, 'doc-3');
       expect(sideEffectRan, isTrue);
       expect(db.count, 1);
+    });
+
+    test('upsert rejects async nested update hooks before any hook runs', () {
+      var beforeUpsertRan = false;
+
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            hooks: SearchlightHooks(
+              beforeUpsert: (_, __, ___) {
+                beforeUpsertRan = true;
+              },
+              afterUpdate: (_, __, ___) async {},
+            ),
+          ),
+        ],
+      )..insert({'id': 'doc-1', 'title': 'Old'});
+
+      expect(
+        () => db.upsert({'id': 'doc-1', 'title': 'New'}),
+        throwsA(isA<UnsupportedError>()),
+      );
+      expect(beforeUpsertRan, isFalse);
+      expect(db.getById('doc-1')?.getString('title'), 'Old');
     });
   });
 }

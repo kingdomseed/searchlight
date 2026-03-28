@@ -631,6 +631,18 @@ final class Searchlight {
     _ensureSyncAfterSearchHooks(_hookRuntime.afterSearch);
   }
 
+  void _preflightUpsertLifecycleHooks() {
+    _ensureSyncSingleHooks(_hookRuntime.beforeUpsert);
+    _ensureSyncSingleHooks(_hookRuntime.afterUpsert);
+    _preflightUpdateLifecycleHooks();
+  }
+
+  void _preflightUpsertMultipleLifecycleHooks() {
+    _ensureSyncMultipleDocsHooks(_hookRuntime.beforeUpsertMultiple);
+    _ensureSyncMultipleIdsHooks(_hookRuntime.afterUpsertMultiple);
+    _preflightUpdateMultipleLifecycleHooks();
+  }
+
   void _runSingleLifecycleHooks(
     List<SearchlightSingleHook> hooks, {
     required String id,
@@ -1246,6 +1258,87 @@ final class Searchlight {
       ids: updatedIds,
     );
     return updatedIds;
+  }
+
+  /// Inserts a document when absent, or updates it when the ID already exists.
+  ///
+  /// Matches Orama's `upsert`: resolve the document ID first, run upsert
+  /// hooks, then branch to `update` or `insert`.
+  String upsert(Map<String, Object?> data) {
+    _preflightUpsertLifecycleHooks();
+    final id = _getDocumentIndexId(data);
+    _runSingleLifecycleHooks(_hookRuntime.beforeUpsert, id: id, doc: data);
+
+    final resultId = _externalToInternal.containsKey(id)
+        ? update(id, data)
+        : insert(data);
+
+    _runSingleLifecycleHooks(
+      _hookRuntime.afterUpsert,
+      id: resultId,
+      doc: data,
+    );
+    return resultId;
+  }
+
+  /// Bulk upsert matching Orama's update-first, insert-second flow.
+  ///
+  /// Runs `beforeUpsertMultiple`, validates all documents, partitions them into
+  /// update and insert groups, then performs `updateMultiple` followed by
+  /// `insertMultiple`. `afterUpsertMultiple` receives the result IDs in that
+  /// same order.
+  List<String> upsertMultiple(
+    List<Map<String, Object?>> documents, {
+    int batchSize = 1000,
+  }) {
+    _preflightUpsertMultipleLifecycleHooks();
+    _runMultipleDocsLifecycleHooks(
+      _hookRuntime.beforeUpsertMultiple,
+      docs: documents,
+    );
+
+    for (final doc in documents) {
+      _validateDocument(doc, schema.fields, '');
+    }
+
+    final docsToInsert = <Map<String, Object?>>[];
+    final docsToUpdate = <Map<String, Object?>>[];
+    final idsToUpdate = <String>[];
+
+    for (final doc in documents) {
+      final id = _getDocumentIndexId(doc);
+      if (_externalToInternal.containsKey(id)) {
+        docsToUpdate.add(doc);
+        idsToUpdate.add(id);
+      } else {
+        docsToInsert.add(doc);
+      }
+    }
+
+    final resultIds = <String>[];
+    if (docsToUpdate.isNotEmpty) {
+      resultIds.addAll(
+        updateMultiple(
+          idsToUpdate,
+          docsToUpdate,
+          batchSize: batchSize,
+        ),
+      );
+    }
+    if (docsToInsert.isNotEmpty) {
+      resultIds.addAll(
+        insertMultiple(
+          docsToInsert,
+          batchSize: batchSize,
+        ),
+      );
+    }
+
+    _runMultipleIdsLifecycleHooks(
+      _hookRuntime.afterUpsertMultiple,
+      ids: resultIds,
+    );
+    return resultIds;
   }
 
   // ---------------------------------------------------------------------------

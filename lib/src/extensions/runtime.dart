@@ -18,6 +18,8 @@ final class SearchlightHookRuntime {
     required this.afterRemoveMultiple,
     required this.beforeUpdateMultiple,
     required this.afterUpdateMultiple,
+    required this.beforeUpsertMultiple,
+    required this.afterUpsertMultiple,
     required this.beforeSearch,
     required this.afterSearch,
     required this.beforeLoad,
@@ -40,6 +42,8 @@ final class SearchlightHookRuntime {
     final afterRemoveMultiple = <SearchlightMultipleIdsHook>[];
     final beforeUpdateMultiple = <SearchlightMultipleIdsHook>[];
     final afterUpdateMultiple = <SearchlightMultipleIdsHook>[];
+    final beforeUpsertMultiple = <SearchlightMultipleDocsHook>[];
+    final afterUpsertMultiple = <SearchlightMultipleIdsHook>[];
     final beforeSearch = <SearchlightBeforeSearchHook>[];
     final afterSearch = <SearchlightAfterSearchHook>[];
     final beforeLoad = <SearchlightLoadHook>[];
@@ -61,6 +65,8 @@ final class SearchlightHookRuntime {
       _addIfPresent(afterRemoveMultiple, hookSet.afterRemoveMultiple);
       _addIfPresent(beforeUpdateMultiple, hookSet.beforeUpdateMultiple);
       _addIfPresent(afterUpdateMultiple, hookSet.afterUpdateMultiple);
+      _addIfPresent(beforeUpsertMultiple, hookSet.beforeUpsertMultiple);
+      _addIfPresent(afterUpsertMultiple, hookSet.afterUpsertMultiple);
       _addIfPresent(beforeSearch, hookSet.beforeSearch);
       _addIfPresent(afterSearch, hookSet.afterSearch);
       _addIfPresent(beforeLoad, hookSet.beforeLoad);
@@ -83,6 +89,8 @@ final class SearchlightHookRuntime {
       afterRemoveMultiple: List.unmodifiable(afterRemoveMultiple),
       beforeUpdateMultiple: List.unmodifiable(beforeUpdateMultiple),
       afterUpdateMultiple: List.unmodifiable(afterUpdateMultiple),
+      beforeUpsertMultiple: List.unmodifiable(beforeUpsertMultiple),
+      afterUpsertMultiple: List.unmodifiable(afterUpsertMultiple),
       beforeSearch: List.unmodifiable(beforeSearch),
       afterSearch: List.unmodifiable(afterSearch),
       beforeLoad: List.unmodifiable(beforeLoad),
@@ -105,6 +113,8 @@ final class SearchlightHookRuntime {
   final List<SearchlightMultipleIdsHook> afterRemoveMultiple;
   final List<SearchlightMultipleIdsHook> beforeUpdateMultiple;
   final List<SearchlightMultipleIdsHook> afterUpdateMultiple;
+  final List<SearchlightMultipleDocsHook> beforeUpsertMultiple;
+  final List<SearchlightMultipleIdsHook> afterUpsertMultiple;
   final List<SearchlightBeforeSearchHook> beforeSearch;
   final List<SearchlightAfterSearchHook> afterSearch;
   final List<SearchlightLoadHook> beforeLoad;
@@ -204,6 +214,18 @@ final class SearchlightHookRuntime {
     required List<String> ids,
   }) =>
       _runMultipleIdsHook(afterUpdateMultiple, db: db, ids: ids);
+
+  Future<void> runBeforeUpsertMultiple({
+    required Object db,
+    required List<SearchlightRecord> docs,
+  }) =>
+      _runMultipleDocsHook(beforeUpsertMultiple, db: db, docs: docs);
+
+  Future<void> runAfterUpsertMultiple({
+    required Object db,
+    required List<String> ids,
+  }) =>
+      _runMultipleIdsHook(afterUpsertMultiple, db: db, ids: ids);
 
   Future<void> runBeforeSearch({
     required Object db,
