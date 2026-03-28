@@ -45,28 +45,34 @@ void main() {
       expect(results.hits.first.id, 'doc-1');
     });
 
-    test('direct components override still wins over plugin component', () {
-      final db = Searchlight.create(
-        schema: Schema({
-          'title': const TypedField(SchemaType.string),
-        }),
-        plugins: [
-          testIndexPlugin(
-            name: 'pt15-plugin',
-            componentId: 'test.index.pt15',
-            forcedAlgorithm: SearchAlgorithm.pt15,
+    test('direct component conflicts with plugin component', () {
+      expect(
+        () => Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: [
+            testIndexPlugin(
+              name: 'pt15-plugin',
+              componentId: 'test.index.pt15',
+              forcedAlgorithm: SearchAlgorithm.pt15,
+            ),
+          ],
+          components: SearchlightComponents(
+            index: testIndexComponent(
+              id: 'test.index.qps',
+              forcedAlgorithm: SearchAlgorithm.qps,
+            ),
           ),
-        ],
-        components: SearchlightComponents(
-          index: testIndexComponent(
-            id: 'test.index.qps',
-            forcedAlgorithm: SearchAlgorithm.qps,
+        ),
+        throwsA(
+          isA<ExtensionResolutionException>().having(
+            (error) => error.message,
+            'message',
+            contains('index'),
           ),
         ),
       );
-      addTearDown(db.dispose);
-
-      expect(db.indexAlgorithm, SearchAlgorithm.qps);
     });
   });
 }

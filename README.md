@@ -204,7 +204,8 @@ Current limits to know before depending on extensions heavily:
 
 - hooks are sync-only in core operations; async hooks fail fast
 - component replacement is currently limited to `index` and `sorter`
-- direct component overrides win over plugin-provided components
+- conflicting `index` / `sorter` registrations now fail fast instead of using
+  last-writer-wins resolution
 - some Orama hook names are intentionally reserved but not yet dispatched in
   Searchlight's runtime
 

@@ -73,8 +73,8 @@ intentional divergence or an unresolved gap.
 - Searchlight's extension component surface is still narrower than Orama's:
   no tokenizer, documents store, pinning, or function-component replacement
 - component merge semantics still diverge from Orama:
-  later plugins override earlier contributions and direct `components:`
-  overrides win, where Orama throws component-conflict errors
+  only `index` and `sorter` currently use Orama-style conflict errors;
+  Searchlight still lacks the rest of Orama's broader component graph
 - no async plugin initialization or async component factories
 - no `upsert()` / `upsertMultiple()` APIs yet, so related Orama hook paths are
   not implemented end-to-end

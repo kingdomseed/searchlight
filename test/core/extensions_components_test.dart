@@ -41,6 +41,83 @@ void main() {
       );
     });
 
+    test('user-supplied components conflict with plugin components', () {
+      final overrideIndex = SearchlightIndexComponent(
+        id: 'test.index.override',
+        create: ({
+          required schema,
+          required algorithm,
+        }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+      );
+      final pluginIndex = SearchlightIndexComponent(
+        id: 'test.index.plugin',
+        create: ({
+          required schema,
+          required algorithm,
+        }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+      );
+
+      expect(
+        () => resolveExtensions(
+          defaults: defaultSearchlightComponents,
+          overrides: SearchlightComponents(index: overrideIndex),
+          plugins: [
+            SearchlightPlugin(
+              name: 'plugin-index',
+              components: SearchlightComponents(index: pluginIndex),
+            ),
+          ],
+        ),
+        throwsA(
+          isA<ExtensionResolutionException>().having(
+            (error) => error.message,
+            'message',
+            contains('index'),
+          ),
+        ),
+      );
+    });
+
+    test('plugin components conflict with earlier plugin components', () {
+      final firstIndex = SearchlightIndexComponent(
+        id: 'test.index.first',
+        create: ({
+          required schema,
+          required algorithm,
+        }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+      );
+      final secondIndex = SearchlightIndexComponent(
+        id: 'test.index.second',
+        create: ({
+          required schema,
+          required algorithm,
+        }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+      );
+
+      expect(
+        () => resolveExtensions(
+          defaults: defaultSearchlightComponents,
+          plugins: [
+            SearchlightPlugin(
+              name: 'first-plugin',
+              components: SearchlightComponents(index: firstIndex),
+            ),
+            SearchlightPlugin(
+              name: 'second-plugin',
+              components: SearchlightComponents(index: secondIndex),
+            ),
+          ],
+        ),
+        throwsA(
+          isA<ExtensionResolutionException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('index'), contains('second-plugin')),
+          ),
+        ),
+      );
+    });
+
     test('database creation uses the resolved component graph', () {
       var indexCreateCalls = 0;
       var sorterCreateCalls = 0;

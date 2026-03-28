@@ -62,8 +62,8 @@ The extension test suite now proves that:
 - a plugin-provided index component can replace the database index
 - that replacement can force QPS/PT15 behavior independently of the top-level
   `algorithm` argument
-- explicit `components:` overrides still take precedence over plugin-provided
-  components
+- conflicting `index` / `sorter` registrations are rejected instead of falling
+  back to last-writer-wins behavior
 
 ## Intentional differences from Orama right now
 
@@ -104,10 +104,13 @@ such as:
 
 Current Searchlight behavior:
 
-- later plugin component contributions replace earlier ones
-- direct `components:` overrides replace plugin contributions
+- `index` and `sorter` now reject duplicate claims across user components and
+  plugins
+- `hooks` still use Searchlight-specific final-resolution behavior rather than
+  Orama's component graph rules
 
-Orama's runtime instead treats conflicting component registrations as errors.
+Orama's runtime applies conflict errors across its wider component graph, not
+just these two slots.
 
 ### Public hook names that are not fully wired
 

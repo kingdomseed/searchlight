@@ -4,12 +4,16 @@ import 'package:searchlight/src/extensions/plugin.dart';
 
 /// Resolved extension inputs for a `Searchlight.create()` call.
 final class ResolvedExtensions {
+  /// Creates a resolved extension bundle.
   const ResolvedExtensions({
     required this.plugins,
     required this.components,
   });
 
+  /// Plugins preserved in deterministic registration order.
   final List<SearchlightPlugin<Object?>> plugins;
+
+  /// Final resolved component graph after defaults, plugins, and overrides.
   final SearchlightComponents components;
 }
 
@@ -29,25 +33,43 @@ ResolvedExtensions resolveExtensions({
   }
 
   var resolvedHooks = defaults.hooks;
-  var resolvedIndex = defaults.index;
-  var resolvedSorter = defaults.sorter;
+  var resolvedIndex = overrides?.index ?? defaults.index;
+  var resolvedSorter = overrides?.sorter ?? defaults.sorter;
+  String? indexOwner;
+  String? sorterOwner;
+
+  if (overrides?.index != null) {
+    indexOwner = 'user components';
+  }
+  if (overrides?.sorter != null) {
+    sorterOwner = 'user components';
+  }
+
   for (final plugin in plugins) {
     if (plugin.components?.index case final index?) {
+      if (indexOwner != null) {
+        throw ExtensionResolutionException(
+          'Component conflict for "index": already provided by $indexOwner; '
+          'plugin "${plugin.name}" cannot register the same component slot.',
+        );
+      }
       resolvedIndex = index;
+      indexOwner = 'plugin "${plugin.name}"';
     }
     if (plugin.components?.sorter case final sorter?) {
+      if (sorterOwner != null) {
+        throw ExtensionResolutionException(
+          'Component conflict for "sorter": already provided by $sorterOwner; '
+          'plugin "${plugin.name}" cannot register the same component slot.',
+        );
+      }
       resolvedSorter = sorter;
+      sorterOwner = 'plugin "${plugin.name}"';
     }
     final pluginHooks = plugin.components?.hooks ?? plugin.hooks;
     if (pluginHooks != null) {
       resolvedHooks = pluginHooks;
     }
-  }
-  if (overrides?.index case final overrideIndex?) {
-    resolvedIndex = overrideIndex;
-  }
-  if (overrides?.sorter case final overrideSorter?) {
-    resolvedSorter = overrideSorter;
   }
   if (overrides?.hooks case final overrideHooks?) {
     resolvedHooks = overrideHooks;
