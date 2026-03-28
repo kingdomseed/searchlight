@@ -82,6 +82,66 @@ Searchlight buildDatabase() {
       },
     );
 
+    test('searchlight public API exposes upsert methods and hook fields',
+        () async {
+      final tempDir = Directory(
+        '${Directory.current.path}/test/.tmp_upsert_api_surface',
+      );
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+      await tempDir.create(recursive: true);
+      final source = File('${tempDir.path}/upsert_surface.dart');
+
+      try {
+        source.writeAsStringSync('''
+import 'package:searchlight/searchlight.dart';
+
+Searchlight buildDatabase() {
+  final db = Searchlight.create(
+    schema: Schema({
+      'title': TypedField(SchemaType.string),
+    }),
+    plugins: [
+      SearchlightPlugin(
+        name: 'hooks',
+        hooks: SearchlightHooks(
+          beforeUpsert: (_, __, ___) {},
+          afterUpsert: (_, __, ___) {},
+          beforeUpsertMultiple: (_, __) {},
+          afterUpsertMultiple: (_, __) {},
+        ),
+      ),
+    ],
+  );
+
+  db.upsert({
+    'id': 'doc-1',
+    'title': 'One',
+  });
+  db.upsertMultiple([
+    {
+      'id': 'doc-1',
+      'title': 'Two',
+    },
+  ]);
+  return db;
+}
+''');
+
+        final result = await Process.run(
+          'dart',
+          ['analyze', source.path],
+          workingDirectory: Directory.current.path,
+        );
+
+        final output = '${result.stdout}\n${result.stderr}';
+        expect(result.exitCode, 0, reason: output);
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
     test('searchlight barrel exports component types for overrides', () async {
       final tempDir = Directory(
         '${Directory.current.path}/test/.tmp_component_api_surface',

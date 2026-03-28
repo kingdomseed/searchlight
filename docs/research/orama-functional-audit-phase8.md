@@ -378,7 +378,7 @@ This iterates through all document IDs and calls `remove()` on each, ensuring th
 | Nested schema                | Implemented        | `NestedField` |
 | Enum schema type             | Implemented        | `SchemaType.enumType` |
 | Geopoint schema type         | Implemented        | `SchemaType.geopoint` |
-| `upsert` / `upsertMultiple`  | **NOT implemented** | Orama export, not in Searchlight |
+| `upsert` / `upsertMultiple`  | Implemented        | Orama-style nested lifecycle paths |
 | `searchVector`               | **NOT implemented** | Vector/embedding search |
 | `AnswerSession`              | **NOT implemented** | AI answer generation |
 | Pinning (`insertPin`, etc.)  | **NOT implemented** | Search result pinning/promotion |
@@ -396,7 +396,7 @@ This iterates through all document IDs and calls `remove()` on each, ensuring th
 
 3. **Pinning (`insertPin`, `updatePin`, `deletePin`, `getPin`, `getAllPins`)** -- Search result pinning/promotion/anchoring. This is a higher-level feature that could be added later but is not part of core full-text search.
 
-4. **Upsert (`upsert`, `upsertMultiple`)** -- Insert-or-update semantics. Can be implemented as a convenience method using existing `getById` + `insert`/`update`. Not a core search feature.
+4. **Upsert (`upsert`, `upsertMultiple`)** -- Implemented in Searchlight with Orama-style nested lifecycle behavior. No longer a missing parity item.
 
 5. **Japanese/Chinese tokenizer** -- These languages require specialized tokenization (word segmentation) that standard regex-based splitting cannot handle. Orama also does not include them in `SUPPORTED_LANGUAGES`. Stop words are available for when tokenizer support is added.
 

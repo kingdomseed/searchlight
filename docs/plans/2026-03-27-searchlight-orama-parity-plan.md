@@ -7,6 +7,16 @@ gaps vs Orama are resolved or explicitly accepted.
 
 **Spec**: quick plan from repo research and parity audits
 
+## Execution Note -- 2026-03-28
+
+- Continue autonomously without pausing for intermediate approval when the
+  next parity step is already implied by the source audit and prior user
+  decisions.
+- Keep landing incremental commits on the active extension branch as each
+  parity slice is verified.
+- Only stop for user input when a source-level parity question is genuinely
+  ambiguous or when a change would intentionally diverge from Orama.
+
 ## Context
 
 - **Structure**: core Dart package under `packages/searchlight`; example app under `packages/searchlight/example`
@@ -46,6 +56,15 @@ gaps vs Orama are resolved or explicitly accepted.
   defines a stable package boundary
 - package docs updated to describe the current create-time configuration
   surface and persistence limits
+- create-time extension registration now exists for ordered plugins, named
+  plugin metadata, lifecycle hooks, and `index` / `sorter` replacement
+- component registration now fails deterministically for conflicting `index` /
+  `sorter` claims, matching Orama's conflict model for those slots
+- current Orama source behavior for reserved hooks has been pinned explicitly:
+  `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` remain declared but
+  non-dispatched because the Orama runtime does not visibly dispatch them
+- `upsert()` / `upsertMultiple()` now exist with Orama-style nested lifecycle
+  behavior and matching upsert hook paths
 
 ### Immediate next execution block
 

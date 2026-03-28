@@ -187,6 +187,14 @@ There are two common integration modes:
 
 The package supports both paths directly.
 
+Document writes are available through:
+
+- `insert()` / `insertMultiple()`
+- `update()` / `updateMultiple()`
+- `upsert()` / `upsertMultiple()`
+- `patch()`
+- `remove()` / `removeMultiple()`
+
 ## Extensions
 
 Searchlight exposes a Dart-native extension surface inspired by Orama's
@@ -206,8 +214,9 @@ Current limits to know before depending on extensions heavily:
 - component replacement is currently limited to `index` and `sorter`
 - conflicting `index` / `sorter` registrations now fail fast instead of using
   last-writer-wins resolution
-- some Orama hook names are intentionally reserved but not yet dispatched in
-  Searchlight's runtime
+- `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` remain reserved but
+  non-dispatched because the current Orama runtime does not visibly dispatch
+  them either
 
 Deeper parity notes live in
 `docs/research/searchlight-extension-status.md`.
