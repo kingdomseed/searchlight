@@ -160,6 +160,9 @@ Important source note:
 - `AVAILABLE_PLUGIN_HOOKS` includes `beforeLoad` and `afterLoad`
 - the current `create.ts` path explicitly initializes arrays for the insert /
   remove / update / search / multiple-operation hooks and `afterCreate`
+- `beforeInsertMultiple` is initialized and participates in async-detection
+  checks, but current `insert.ts` still dispatches only
+  `afterInsertMultiple`
 - `beforeLoad` / `afterLoad` are present in the plugin hook list, but are not
   visibly initialized on the Orama instance in `create.ts`
 - there is no `beforeCreate`

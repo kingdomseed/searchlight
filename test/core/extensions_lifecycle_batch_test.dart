@@ -65,7 +65,7 @@ void main() {
     });
 
     test(
-      'insertMultiple runs beforeInsertMultiple then afterInsertMultiple',
+      'insertMultiple matches Orama by dispatching only afterInsertMultiple',
       () {
         db = Searchlight.create(
           schema: Schema({
@@ -97,7 +97,6 @@ void main() {
 
         expect(ids, <String>['doc-1', 'doc-2']);
         expect(calls, <String>[
-          'beforeInsertMultiple:2',
           'afterInsertMultiple:doc-1,doc-2',
           'afterInsertMultipleDocs:2',
         ]);
@@ -185,7 +184,6 @@ void main() {
         'beforeUpdateMultiple:old-1,old-2',
         'beforeRemoveMultiple:old-1,old-2',
         'afterRemoveMultiple:old-1,old-2',
-        'beforeInsertMultiple:2',
         'afterInsertMultiple:new-1,new-2',
         'afterUpdateMultiple:new-1,new-2',
       ]);
@@ -251,8 +249,8 @@ void main() {
     });
 
     test(
-      'insertMultiple rejects async beforeInsertMultiple hooks '
-      'before any side effects',
+      'insertMultiple ignores beforeInsertMultiple hooks because Orama does '
+      'not dispatch them',
       () {
         var hookRan = false;
 
@@ -272,14 +270,13 @@ void main() {
           ],
         );
 
-        expect(
-          () => db.insertMultiple([
-            {'id': 'doc-1', 'title': 'One'},
-          ]),
-          throwsA(isA<UnsupportedError>()),
-        );
+        final ids = db.insertMultiple([
+          {'id': 'doc-1', 'title': 'One'},
+        ]);
+
+        expect(ids, <String>['doc-1']);
         expect(hookRan, isFalse);
-        expect(db.count, 0);
+        expect(db.count, 1);
       },
     );
 
