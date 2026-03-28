@@ -435,13 +435,18 @@ final class Searchlight {
     required SearchlightRecord? doc,
   }) {
     for (final hook in hooks) {
-      final result = hook(this, id, doc);
-      if (result is Future<void>) {
+      if (hook is Future<void> Function(Object, String, SearchlightRecord?) ||
+          hook is Future<Object?> Function(
+            Object,
+            String,
+            SearchlightRecord?,
+          )) {
         throw UnsupportedError(
           'Async lifecycle hooks are not supported in synchronous '
           'Searchlight operations yet.',
         );
       }
+      hook(this, id, doc);
     }
   }
 

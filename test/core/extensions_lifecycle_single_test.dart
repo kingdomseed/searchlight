@@ -118,5 +118,34 @@ void main() {
         'afterUpdate:new-doc',
       ]);
     });
+
+    test(
+      'insert rejects async single-record hooks before any side effect runs',
+      () {
+        var sideEffectRan = false;
+        db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: [
+            SearchlightPlugin(
+              name: 'hooks',
+              hooks: SearchlightHooks(
+                beforeInsert: (_, __, ___) async {
+                  sideEffectRan = true;
+                },
+              ),
+            ),
+          ],
+        );
+
+        expect(
+          () => db.insert({'id': 'doc-1', 'title': 'Hello'}),
+          throwsA(isA<UnsupportedError>()),
+        );
+        expect(sideEffectRan, isFalse);
+        expect(db.count, 0);
+      },
+    );
   });
 }
