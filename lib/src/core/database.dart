@@ -12,8 +12,10 @@ import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/extensions/components.dart';
+import 'package:searchlight/src/extensions/hooks.dart';
 import 'package:searchlight/src/extensions/plugin.dart';
 import 'package:searchlight/src/extensions/resolver.dart';
+import 'package:searchlight/src/extensions/runtime.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
 import 'package:searchlight/src/indexing/sort_index.dart';
 import 'package:searchlight/src/persistence/cbor_serializer.dart';
@@ -46,6 +48,7 @@ final class Searchlight {
     required this.algorithm,
     required this.language,
     required ResolvedExtensions resolvedExtensions,
+    required SearchlightHookRuntime hookRuntime,
     required bool hasCustomStemmer,
     required bool hasInjectedTokenizer,
     required SearchIndex index,
@@ -53,6 +56,7 @@ final class Searchlight {
     required SortIndex sortIndex,
   })  : _index = index,
         _resolvedExtensions = resolvedExtensions,
+        _hookRuntime = hookRuntime,
         _tokenizer = tokenizer,
         _sortIndex = sortIndex,
         _hasCustomStemmer = hasCustomStemmer,
@@ -136,6 +140,7 @@ final class Searchlight {
       algorithm: algorithm,
       language: resolvedLanguage,
       resolvedExtensions: resolvedExtensions,
+      hookRuntime: _createHookRuntime(resolvedExtensions),
       hasCustomStemmer: stemmer != null,
       hasInjectedTokenizer: tokenizer != null,
       index: index,
@@ -303,6 +308,7 @@ final class Searchlight {
         plugins: [],
         components: SearchlightComponents(),
       ),
+      hookRuntime: SearchlightHookRuntime.fromHooks(const []),
       hasCustomStemmer: false,
       hasInjectedTokenizer: false,
       index: index,
@@ -340,6 +346,7 @@ final class Searchlight {
   /// Resolved extension configuration captured at construction.
   // TODO(extension-runtime): consume retained extension state in hook/runtime wiring.
   final ResolvedExtensions _resolvedExtensions; // ignore: unused_field
+  final SearchlightHookRuntime _hookRuntime;
 
   /// The search index managing per-field trees and scoring data.
   final SearchIndex _index;
@@ -402,6 +409,40 @@ final class Searchlight {
       tokenizeSkipProperties: tokenizeSkipProperties,
       stemmerSkipProperties: stemmerSkipProperties,
     );
+  }
+
+  static SearchlightHookRuntime _createHookRuntime(
+    ResolvedExtensions resolvedExtensions,
+  ) {
+    final hookSets = <SearchlightHooks>[];
+    for (final plugin in resolvedExtensions.plugins) {
+      final pluginHooks = plugin.components?.hooks ?? plugin.hooks;
+      if (pluginHooks != null) {
+        hookSets.add(pluginHooks);
+      }
+    }
+    final finalHooks = resolvedExtensions.components.hooks;
+    if (finalHooks != null &&
+        (hookSets.isEmpty || !identical(hookSets.last, finalHooks))) {
+      hookSets.add(finalHooks);
+    }
+    return SearchlightHookRuntime.fromHooks(hookSets);
+  }
+
+  void _runSingleLifecycleHooks(
+    List<SearchlightSingleHook> hooks, {
+    required String id,
+    required SearchlightRecord? doc,
+  }) {
+    for (final hook in hooks) {
+      final result = hook(this, id, doc);
+      if (result is Future<void>) {
+        throw UnsupportedError(
+          'Async lifecycle hooks are not supported in synchronous '
+          'Searchlight operations yet.',
+        );
+      }
+    }
   }
 
   static void _restoreSerializedDocuments(
@@ -620,6 +661,11 @@ final class Searchlight {
 
     // Determine external ID (Fix 1)
     final externalId = _getDocumentIndexId(data);
+    _runSingleLifecycleHooks(
+      _hookRuntime.beforeInsert,
+      id: externalId,
+      doc: data,
+    );
 
     // Check for duplicate (Fix 1)
     if (_externalToInternal.containsKey(externalId)) {
@@ -646,6 +692,11 @@ final class Searchlight {
 
     // Populate sort index for sortable fields (string, number, boolean)
     _insertSortableValues(internalId.id, data);
+    _runSingleLifecycleHooks(
+      _hookRuntime.afterInsert,
+      id: externalId,
+      doc: data,
+    );
 
     return externalId;
   }
@@ -818,6 +869,12 @@ final class Searchlight {
     if (internalId == null) return false;
 
     final doc = _documents[internalId];
+    final removedData = doc?.toMap();
+    _runSingleLifecycleHooks(
+      _hookRuntime.beforeRemove,
+      id: id,
+      doc: removedData,
+    );
     if (doc != null) {
       // Un-index the document before removing
       _index.removeDocument(
@@ -834,6 +891,11 @@ final class Searchlight {
     _documents.remove(internalId);
     _externalToInternal.remove(id);
     _internalToExternal.remove(internalId);
+    _runSingleLifecycleHooks(
+      _hookRuntime.afterRemove,
+      id: id,
+      doc: removedData,
+    );
     return true;
   }
 
@@ -869,8 +931,15 @@ final class Searchlight {
   /// Throws [DocumentValidationException] if [newDoc] does not conform
   /// to the schema.
   String update(String id, Map<String, Object?> newDoc) {
+    _runSingleLifecycleHooks(_hookRuntime.beforeUpdate, id: id, doc: newDoc);
     remove(id);
-    return insert(newDoc);
+    final newId = insert(newDoc);
+    _runSingleLifecycleHooks(
+      _hookRuntime.afterUpdate,
+      id: newId,
+      doc: newDoc,
+    );
+    return newId;
   }
 
   /// Replaces multiple documents by removing the old ones and inserting
