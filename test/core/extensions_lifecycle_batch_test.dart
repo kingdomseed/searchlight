@@ -65,7 +65,7 @@ void main() {
     });
 
     test(
-      'insertMultiple dispatches only afterInsertMultiple with inserted docs',
+      'insertMultiple runs beforeInsertMultiple then afterInsertMultiple',
       () {
         db = Searchlight.create(
           schema: Schema({
@@ -79,8 +79,9 @@ void main() {
                   calls.add('beforeInsertMultiple:${docs.length}');
                 },
                 afterInsertMultiple: (_, docs) {
+                  final ids = docs.map((doc) => doc['id']).join(',');
                   calls.add(
-                    'afterInsertMultiple:${docs.map((doc) => doc['id']).join(",")}',
+                    'afterInsertMultiple:$ids',
                   );
                   calls.add('afterInsertMultipleDocs:${docs.length}');
                 },
@@ -96,6 +97,7 @@ void main() {
 
         expect(ids, <String>['doc-1', 'doc-2']);
         expect(calls, <String>[
+          'beforeInsertMultiple:2',
           'afterInsertMultiple:doc-1,doc-2',
           'afterInsertMultipleDocs:2',
         ]);
@@ -156,9 +158,10 @@ void main() {
                   calls.add('afterRemoveMultiple:${ids.join(",")}'),
               beforeInsertMultiple: (_, docs) =>
                   calls.add('beforeInsertMultiple:${docs.length}'),
-              afterInsertMultiple: (_, docs) => calls.add(
-                'afterInsertMultiple:${docs.map((doc) => doc['id']).join(",")}',
-              ),
+              afterInsertMultiple: (_, docs) {
+                final ids = docs.map((doc) => doc['id']).join(',');
+                calls.add('afterInsertMultiple:$ids');
+              },
             ),
           ),
         ],
@@ -182,6 +185,7 @@ void main() {
         'beforeUpdateMultiple:old-1,old-2',
         'beforeRemoveMultiple:old-1,old-2',
         'afterRemoveMultiple:old-1,old-2',
+        'beforeInsertMultiple:2',
         'afterInsertMultiple:new-1,new-2',
         'afterUpdateMultiple:new-1,new-2',
       ]);
@@ -247,7 +251,8 @@ void main() {
     });
 
     test(
-      'insertMultiple ignores beforeInsertMultiple hooks because they are not wired',
+      'insertMultiple rejects async beforeInsertMultiple hooks '
+      'before any side effects',
       () {
         var hookRan = false;
 
@@ -267,13 +272,14 @@ void main() {
           ],
         );
 
-        final ids = db.insertMultiple([
-          {'id': 'doc-1', 'title': 'One'},
-        ]);
-
-        expect(ids, <String>['doc-1']);
+        expect(
+          () => db.insertMultiple([
+            {'id': 'doc-1', 'title': 'One'},
+          ]),
+          throwsA(isA<UnsupportedError>()),
+        );
         expect(hookRan, isFalse);
-        expect(db.count, 1);
+        expect(db.count, 0);
       },
     );
 

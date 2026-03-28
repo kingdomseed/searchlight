@@ -609,6 +609,7 @@ final class Searchlight {
   }
 
   void _preflightInsertMultipleLifecycleHooks() {
+    _ensureSyncMultipleDocsHooks(_hookRuntime.beforeInsertMultiple);
     _ensureSyncMultipleDocsHooks(_hookRuntime.afterInsertMultiple);
     _preflightInsertLifecycleHooks();
   }
@@ -1087,6 +1088,11 @@ final class Searchlight {
   }) {
     _preflightInsertMultipleLifecycleHooks();
     final ids = <String>[];
+
+    _runMultipleDocsLifecycleHooks(
+      _hookRuntime.beforeInsertMultiple,
+      docs: documents,
+    );
 
     for (final doc in documents) {
       final id = insert(doc);

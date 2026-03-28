@@ -78,8 +78,8 @@ intentional divergence or an unresolved gap.
 - no async plugin initialization or async component factories
 - no `upsert()` / `upsertMultiple()` APIs yet, so related Orama hook paths are
   not implemented end-to-end
-- `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` are public in the
-  Searchlight hook surface but are not currently dispatched
+- `beforeLoad` and `afterLoad` are public in the Searchlight hook surface but
+  are not currently dispatched
 
 ## Extension detail
 

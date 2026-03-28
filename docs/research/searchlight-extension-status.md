@@ -36,8 +36,8 @@ still incomplete.
 ### Runtime behavior that is working
 
 - `afterCreate` dispatch
+- `beforeInsertMultiple` / `afterInsertMultiple` dispatch
 - single-record insert/remove/update lifecycle dispatch
-- `afterInsertMultiple` dispatch
 - `beforeRemoveMultiple` / `afterRemoveMultiple` dispatch
 - `beforeUpdateMultiple` / `afterUpdateMultiple` dispatch
 - `beforeSearch` / `afterSearch` dispatch
@@ -117,7 +117,6 @@ just these two slots.
 These hooks are publicly declared but not currently dispatched by Searchlight's
 database runtime:
 
-- `beforeInsertMultiple`
 - `beforeLoad`
 - `afterLoad`
 - `beforeUpsert`
