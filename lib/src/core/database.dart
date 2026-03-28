@@ -41,6 +41,15 @@ enum SearchAlgorithm {
   pt15,
 }
 
+typedef _SearchlightSyncSingleHook = void Function(
+    Object, String, SearchlightRecord?);
+
+void _searchlightSyncSingleHookTypeSentinel(
+  Object db,
+  String id,
+  SearchlightRecord? doc,
+) {}
+
 /// A full-text search engine instance.
 final class Searchlight {
   Searchlight._({
@@ -61,6 +70,9 @@ final class Searchlight {
         _sortIndex = sortIndex,
         _hasCustomStemmer = hasCustomStemmer,
         _hasInjectedTokenizer = hasInjectedTokenizer;
+
+  static final Type _syncSingleLifecycleHookRuntimeType =
+      _searchlightSyncSingleHookTypeSentinel.runtimeType;
 
   /// Creates a new Searchlight database.
   ///
@@ -434,18 +446,19 @@ final class Searchlight {
     required String id,
     required SearchlightRecord? doc,
   }) {
+    final syncHooks = <_SearchlightSyncSingleHook>[];
     for (final hook in hooks) {
-      if (hook is Future<void> Function(Object, String, SearchlightRecord?) ||
-          hook is Future<Object?> Function(
-            Object,
-            String,
-            SearchlightRecord?,
-          )) {
+      if (hook.runtimeType != _syncSingleLifecycleHookRuntimeType) {
         throw UnsupportedError(
-          'Async lifecycle hooks are not supported in synchronous '
-          'Searchlight operations yet.',
+          'Only exact synchronous single-record lifecycle hooks are '
+          'supported in '
+          'synchronous Searchlight operations.',
         );
       }
+      syncHooks.add(hook as _SearchlightSyncSingleHook);
+    }
+
+    for (final hook in syncHooks) {
       hook(this, id, doc);
     }
   }

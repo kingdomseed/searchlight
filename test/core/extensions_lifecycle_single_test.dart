@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:searchlight/searchlight.dart';
 import 'package:test/test.dart';
 
@@ -141,6 +143,40 @@ void main() {
 
         expect(
           () => db.insert({'id': 'doc-1', 'title': 'Hello'}),
+          throwsA(isA<UnsupportedError>()),
+        );
+        expect(sideEffectRan, isFalse);
+        expect(db.count, 0);
+      },
+    );
+
+    test(
+      'insert rejects non-async Future-returning hook before invocation',
+      () {
+        var sideEffectRan = false;
+        Future<void> futureHook(
+          Object _,
+          String __,
+          SearchlightRecord? ___,
+        ) {
+          sideEffectRan = true;
+          return Future<void>.value();
+        }
+
+        db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: [
+            SearchlightPlugin(
+              name: 'hooks',
+              hooks: SearchlightHooks(beforeInsert: futureHook),
+            ),
+          ],
+        );
+
+        expect(
+          () => db.insert({'id': 'doc-2', 'title': 'Hello'}),
           throwsA(isA<UnsupportedError>()),
         );
         expect(sideEffectRan, isFalse);
