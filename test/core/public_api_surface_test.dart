@@ -172,7 +172,19 @@ Searchlight buildDatabase() {
     schema: Schema({
       'title': TypedField(SchemaType.string),
     }),
-    components: SearchlightComponents(index: index, sorter: sorter),
+    components: SearchlightComponents(
+      tokenizer: Tokenizer(),
+      index: index,
+      sorter: sorter,
+      validateSchema: (doc, schema) {
+        final _ = schema;
+        return doc['title'] == null ? 'title' : null;
+      },
+      getDocumentIndexId: (doc) => doc['id'] as String? ?? 'generated-id',
+      getDocumentProperties: (doc, paths) => {
+        for (final path in paths) path: doc[path],
+      },
+    ),
   );
 }
 ''');

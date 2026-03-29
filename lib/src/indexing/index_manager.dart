@@ -306,12 +306,16 @@ final class SearchIndex {
     required int docId,
     required Map<String, Object?> data,
     required Tokenizer tokenizer,
+    Map<String, Object?>? resolvedProperties,
     String? language,
   }) {
     _docsCount++;
 
     for (final prop in searchableProperties) {
-      final value = resolveValue(data, prop);
+      final value =
+          resolvedProperties != null
+              ? resolvedProperties[prop]
+              : resolveValue(data, prop);
       if (value == null) continue;
 
       final indexTree = indexes[prop];
@@ -536,10 +540,14 @@ final class SearchIndex {
     required int docId,
     required Map<String, Object?> data,
     required Tokenizer tokenizer,
+    Map<String, Object?>? resolvedProperties,
     String? language,
   }) {
     for (final prop in searchableProperties) {
-      final value = resolveValue(data, prop);
+      final value =
+          resolvedProperties != null
+              ? resolvedProperties[prop]
+              : resolveValue(data, prop);
       if (value == null) continue;
 
       final indexTree = indexes[prop];

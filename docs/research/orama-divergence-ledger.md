@@ -1,6 +1,6 @@
 # Searchlight vs Orama Divergence Ledger
 
-**Last updated:** 2026-03-28
+**Last updated:** 2026-03-29
 
 This document is the publish gate for Orama-related claims in `searchlight`.
 If a behavior is not listed here as matched, it should be treated as either an
@@ -36,6 +36,9 @@ intentional divergence or an unresolved gap.
 - create-time extension registration now exists for ordered plugins, named
   plugin metadata, lifecycle hooks, and `index` / `sorter` component
   replacement
+- the extension component graph now also supports Orama-style `tokenizer`,
+  `validateSchema`, `getDocumentIndexId`, and `getDocumentProperties`
+  overrides at `Searchlight.create(...)` time
 - plugin-provided index replacement is now proven end-to-end in tests,
   including QPS/PT15 behavior routed through the plugin component path
 - `upsert()` / `upsertMultiple()` now exist with Orama-style nested lifecycle
@@ -69,15 +72,18 @@ intentional divergence or an unresolved gap.
   path. Searchlight records extension compatibility metadata and fails fast on
   mismatched restore graphs instead of relying on the caller to recreate the
   right plugin/component setup manually.
+- Searchlight intentionally keeps async plugins and async component factories
+  unsupported. Orama's types allow them, but the current runtime does not
+  await them during `create()`, so Searchlight treats them as non-contractual.
 
 ## Remaining gaps before publish-ready parity claims
 
 - Searchlight's extension component surface is still narrower than Orama's:
-  no tokenizer, documents store, pinning, or function-component replacement
+  no documents store replacement, no pinning replacement, and no surfaced
+  `formatElapsedTime` override
 - component merge semantics still diverge from Orama:
-  only `index` and `sorter` currently use Orama-style conflict errors;
-  Searchlight still lacks the rest of Orama's broader component graph
-- no async plugin initialization or async component factories
+  Searchlight still lacks the rest of Orama's broader component graph,
+  especially documents-store and pinning paths
 - `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` are public in the
   Searchlight hook surface but are not currently dispatched because the current
   Orama runtime does not visibly dispatch them either

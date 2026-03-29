@@ -109,12 +109,20 @@ final class Searchlight {
       plugins: plugins,
       overrides: components,
     );
-    if (tokenizer != null && language != null) {
+    final componentTokenizer = resolvedExtensions.components.tokenizer;
+    if (tokenizer != null && componentTokenizer != null) {
+      throw ArgumentError(
+        'Cannot provide both a direct tokenizer and an extension '
+        'tokenizer component.',
+      );
+    }
+    final injectedTokenizer = tokenizer ?? componentTokenizer;
+    if (injectedTokenizer != null && language != null) {
       throw ArgumentError(
         'Cannot provide both language and a custom tokenizer.',
       );
     }
-    if (tokenizer != null &&
+    if (injectedTokenizer != null &&
         (stemming != null ||
             stemmer != null ||
             stopWords != null ||
@@ -131,7 +139,7 @@ final class Searchlight {
     final resolvedLanguage = language ?? 'en';
     final tokenizerLanguage = _resolveTokenizerLanguage(resolvedLanguage);
 
-    final resolvedTokenizer = tokenizer ??
+    final resolvedTokenizer = injectedTokenizer ??
         _createTokenizer(
           language: tokenizerLanguage,
           stemming: stemming,
@@ -159,7 +167,7 @@ final class Searchlight {
       resolvedExtensions: resolvedExtensions,
       hookRuntime: _createHookRuntime(resolvedExtensions),
       hasCustomStemmer: stemmer != null,
-      hasInjectedTokenizer: tokenizer != null,
+      hasInjectedTokenizer: injectedTokenizer != null,
       index: index,
       tokenizer: resolvedTokenizer,
       sortIndex: resolvedSorterComponent.create(language: tokenizerLanguage),
@@ -269,6 +277,11 @@ final class Searchlight {
       plugins: plugins,
       overrides: components,
     );
+    if (resolvedExtensions.components.tokenizer != null) {
+      throw const SerializationException(
+        'Cannot restore with a custom tokenizer component.',
+      );
+    }
     _validateExtensionCompatibility(
       raw: json['extensionCompatibility'],
       resolvedExtensions: resolvedExtensions,
@@ -503,11 +516,12 @@ final class Searchlight {
     final expectedSorterId =
         resolvedExtensions.components.sorter?.id ??
             defaultSearchlightSorterComponent.id;
-    if (actualIndexId != expectedIndexId || actualSorterId != expectedSorterId) {
+    if (actualIndexId != expectedIndexId ||
+        actualSorterId != expectedSorterId) {
       throw SerializationException(
         'Incompatible component graph: expected index=$expectedIndexId, '
-        'sorter=$expectedSorterId but restore was given '
-        'index=$actualIndexId, sorter=$actualSorterId.',
+        'sorter=$expectedSorterId but restore was given index=$actualIndexId, '
+        'sorter=$actualSorterId.',
       );
     }
   }
@@ -648,7 +662,8 @@ final class Searchlight {
     required String id,
     required SearchlightRecord? doc,
   }) {
-    final syncHooks = hooks.cast<void Function(Object, String, SearchlightRecord?)>();
+    final syncHooks =
+        hooks.cast<void Function(Object, String, SearchlightRecord?)>();
     for (final hook in syncHooks) {
       hook(this, id, doc);
     }
@@ -943,17 +958,26 @@ final class Searchlight {
     _internalToExternal[internalId] = externalId;
 
     _documents[internalId] = Document(data);
+    final extractedProperties = _getDocumentProperties(
+      data,
+      _index.searchableProperties,
+    );
 
     // Index the document for search
     _index.insertDocument(
       docId: internalId.id,
       data: data,
+      resolvedProperties: extractedProperties,
       tokenizer: _tokenizer,
       language: language,
     );
 
     // Populate sort index for sortable fields (string, number, boolean)
-    _insertSortableValues(internalId.id, data);
+    _insertSortableValues(
+      internalId.id,
+      data,
+      resolvedProperties: extractedProperties,
+    );
     _runSingleLifecycleHooks(
       _hookRuntime.afterInsert,
       id: externalId,
@@ -968,6 +992,11 @@ final class Searchlight {
   /// If `doc['id']` is a [String], use it. Otherwise, auto-generate.
   /// Matches Orama's `getDocumentIndexId` behavior.
   String _getDocumentIndexId(Map<String, Object?> data) {
+    if (_resolvedExtensions.components.getDocumentIndexId
+        case final getDocumentIndexId?) {
+      return getDocumentIndexId(data);
+    }
+
     final id = data['id'];
     if (id != null) {
       if (id is! String) {
@@ -986,6 +1015,22 @@ final class Searchlight {
     return '${_nextGeneratedId++}';
   }
 
+  Map<String, Object?> _getDocumentProperties(
+    Map<String, Object?> data,
+    Iterable<String> paths,
+  ) {
+    final propertyList = List<String>.from(paths);
+    if (_resolvedExtensions.components.getDocumentProperties
+        case final getDocumentProperties?) {
+      return getDocumentProperties(data, propertyList);
+    }
+
+    return {
+      for (final path in propertyList)
+        path: SearchIndex.resolveValue(data, path),
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Validation (Fix 2: iterate schema keys, not document keys)
   // ---------------------------------------------------------------------------
@@ -995,6 +1040,18 @@ final class Searchlight {
     Map<String, SchemaField> schemaFields,
     String prefix,
   ) {
+    final validateSchema = _resolvedExtensions.components.validateSchema;
+    if (prefix.isEmpty && validateSchema != null) {
+      final invalidPath = validateSchema(data, schema);
+      if (invalidPath != null) {
+        throw DocumentValidationException(
+          "Field '$invalidPath' has invalid type",
+          field: invalidPath,
+        );
+      }
+      return;
+    }
+
     for (final entry in schemaFields.entries) {
       final key = entry.key;
       final field = entry.value;
@@ -1055,13 +1112,20 @@ final class Searchlight {
   };
 
   /// Inserts sortable field values into the sort index for a document.
-  void _insertSortableValues(int docId, Map<String, Object?> data) {
+  void _insertSortableValues(
+    int docId,
+    Map<String, Object?> data, {
+    Map<String, Object?>? resolvedProperties,
+  }) {
     for (final entry in _index.searchablePropertiesWithTypes.entries) {
       final prop = entry.key;
       final type = entry.value;
       if (!_sortableTypes.contains(type)) continue;
 
-      final value = SearchIndex.resolveValue(data, prop);
+      final value =
+          resolvedProperties != null
+              ? resolvedProperties[prop]
+              : SearchIndex.resolveValue(data, prop);
       if (value == null) continue;
 
       _sortIndex.insert(property: prop, docId: docId, value: value);
@@ -1144,10 +1208,16 @@ final class Searchlight {
       doc: removedData,
     );
     if (doc != null) {
+      final removedProperties = _getDocumentProperties(
+        doc.toMap(),
+        _index.searchableProperties,
+      );
+
       // Un-index the document before removing
       _index.removeDocument(
         docId: internalId.id,
         data: doc.toMap(),
+        resolvedProperties: removedProperties,
         tokenizer: _tokenizer,
         language: language,
       );

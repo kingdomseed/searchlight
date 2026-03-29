@@ -41,6 +41,30 @@ void main() {
       );
     });
 
+    test('plugin tokenizer conflicts with a user tokenizer component', () {
+      expect(
+        () => resolveExtensions(
+          defaults: defaultSearchlightComponents,
+          overrides: SearchlightComponents(tokenizer: Tokenizer()),
+          plugins: [
+            SearchlightPlugin(
+              name: 'plugin-tokenizer',
+              components: SearchlightComponents(
+                tokenizer: Tokenizer(stopWords: ['the']),
+              ),
+            ),
+          ],
+        ),
+        throwsA(
+          isA<ExtensionResolutionException>().having(
+            (error) => error.message,
+            'message',
+            contains('tokenizer'),
+          ),
+        ),
+      );
+    });
+
     test('user-supplied components conflict with plugin components', () {
       final overrideIndex = SearchlightIndexComponent(
         id: 'test.index.override',

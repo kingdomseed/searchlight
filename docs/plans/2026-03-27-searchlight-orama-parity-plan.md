@@ -65,35 +65,34 @@ gaps vs Orama are resolved or explicitly accepted.
   non-dispatched because the Orama runtime does not visibly dispatch them
 - `upsert()` / `upsertMultiple()` now exist with Orama-style nested lifecycle
   behavior and matching upsert hook paths
+- the extension component graph now also wires the runtime-reachable
+  Orama-style slots that fit Searchlight cleanly today:
+  `tokenizer`, `validateSchema`, `getDocumentIndexId`, and
+  `getDocumentProperties`
+- restore now fails fast if a caller tries to load a serialized snapshot
+  through a custom tokenizer component, because Searchlight only persists
+  reconstructible built-in tokenizer state
 
 ### Immediate next execution block
 
-1. **Reindex parity for tokenizer config**
-   - add failing tests in
-     `packages/searchlight/test/scoring/algorithm_selection_test.dart`
-   - prove `reindex()` preserves built-in tokenizer settings such as
-     `stemming`, `stopWords`, `useDefaultStopWords`, `allowDuplicates`,
-     `tokenizeSkipProperties`, and `stemmerSkipProperties`
-   - decide and test how `reindex()` should behave for injected tokenizers and
-     custom stemmers; minimum acceptable behavior is deterministic rejection
+1. **Documents store component parity**
+   - introduce a synchronous in-memory documents-store abstraction matching the
+     current Searchlight runtime shape
+   - preserve the existing serialized document payload and ID-store shape
+   - prove replacement works without destabilizing facets, grouping, remove,
+     and restore flows
 
-2. **Persistence guard completion**
-   - add failing tests covering `persist()` / `serialize()` and
-     `restore()` / `deserialize()` paths, not only `toJson()`
-   - verify custom-tokenizer/custom-stemmer rejection is consistent across
-     JSON and CBOR entry points
+2. **Pinning parity decision**
+   - map Orama's current pinning runtime and public API in more detail
+   - decide whether core pinning should land before publish or remain an
+     explicit pre-extension blocker
+   - if landed, add tests proving pinning mutates search results before
+     pagination/facets/groups
 
-3. **Create-time tokenizer validation parity**
-   - add failing tests for unsupported tokenizer language handling
-   - add failing tests for invalid stop-word configuration and mismatch cases
-     where Searchlight intentionally diverges or still needs parity work
-   - explicitly decide which non-English stemming differences remain accepted
-     enhancements vs must-fix parity gaps
-
-4. **Public divergence ledger**
-   - add a concise document under `docs/research/` listing:
-     matched, intentional divergences, and remaining gaps
-   - use that ledger to gate publish-readiness claims
+3. **Async contract note**
+   - keep async plugins/components unsupported unless a source-confirmed Orama
+     runtime path emerges
+   - document that this is a deliberate contract choice, not an accidental gap
 
 ### Phase 1: Freeze Publish Scope
 

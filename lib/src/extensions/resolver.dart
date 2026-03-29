@@ -33,19 +33,53 @@ ResolvedExtensions resolveExtensions({
   }
 
   var resolvedHooks = defaults.hooks;
+  var resolvedTokenizer = overrides?.tokenizer ?? defaults.tokenizer;
   var resolvedIndex = overrides?.index ?? defaults.index;
   var resolvedSorter = overrides?.sorter ?? defaults.sorter;
+  var resolvedValidateSchema =
+      overrides?.validateSchema ?? defaults.validateSchema;
+  var resolvedGetDocumentIndexId =
+      overrides?.getDocumentIndexId ?? defaults.getDocumentIndexId;
+  var resolvedGetDocumentProperties =
+      overrides?.getDocumentProperties ?? defaults.getDocumentProperties;
+  String? tokenizerOwner;
   String? indexOwner;
   String? sorterOwner;
+  String? validateSchemaOwner;
+  String? documentIndexIdOwner;
+  String? documentPropertiesOwner;
 
+  if (overrides?.tokenizer != null) {
+    tokenizerOwner = 'user components';
+  }
   if (overrides?.index != null) {
     indexOwner = 'user components';
   }
   if (overrides?.sorter != null) {
     sorterOwner = 'user components';
   }
+  if (overrides?.validateSchema != null) {
+    validateSchemaOwner = 'user components';
+  }
+  if (overrides?.getDocumentIndexId != null) {
+    documentIndexIdOwner = 'user components';
+  }
+  if (overrides?.getDocumentProperties != null) {
+    documentPropertiesOwner = 'user components';
+  }
 
   for (final plugin in plugins) {
+    if (plugin.components?.tokenizer case final tokenizer?) {
+      if (tokenizerOwner != null) {
+        throw ExtensionResolutionException(
+          'Component conflict for "tokenizer": already provided by '
+          '$tokenizerOwner; plugin "${plugin.name}" cannot register the '
+          'same component slot.',
+        );
+      }
+      resolvedTokenizer = tokenizer;
+      tokenizerOwner = 'plugin "${plugin.name}"';
+    }
     if (plugin.components?.index case final index?) {
       if (indexOwner != null) {
         throw ExtensionResolutionException(
@@ -66,6 +100,40 @@ ResolvedExtensions resolveExtensions({
       resolvedSorter = sorter;
       sorterOwner = 'plugin "${plugin.name}"';
     }
+    if (plugin.components?.validateSchema case final validateSchema?) {
+      if (validateSchemaOwner != null) {
+        throw ExtensionResolutionException(
+          'Component conflict for "validateSchema": already provided by '
+          '$validateSchemaOwner; plugin "${plugin.name}" cannot register '
+          'the same component slot.',
+        );
+      }
+      resolvedValidateSchema = validateSchema;
+      validateSchemaOwner = 'plugin "${plugin.name}"';
+    }
+    if (plugin.components?.getDocumentIndexId case final getDocumentIndexId?) {
+      if (documentIndexIdOwner != null) {
+        throw ExtensionResolutionException(
+          'Component conflict for "getDocumentIndexId": already provided by '
+          '$documentIndexIdOwner; plugin "${plugin.name}" cannot register '
+          'the same component slot.',
+        );
+      }
+      resolvedGetDocumentIndexId = getDocumentIndexId;
+      documentIndexIdOwner = 'plugin "${plugin.name}"';
+    }
+    if (plugin.components?.getDocumentProperties
+        case final getDocumentProperties?) {
+      if (documentPropertiesOwner != null) {
+        throw ExtensionResolutionException(
+          'Component conflict for "getDocumentProperties": already '
+          'provided by $documentPropertiesOwner; plugin "${plugin.name}" '
+          'cannot register the same component slot.',
+        );
+      }
+      resolvedGetDocumentProperties = getDocumentProperties;
+      documentPropertiesOwner = 'plugin "${plugin.name}"';
+    }
     final pluginHooks = plugin.components?.hooks ?? plugin.hooks;
     if (pluginHooks != null) {
       resolvedHooks = pluginHooks;
@@ -78,9 +146,13 @@ ResolvedExtensions resolveExtensions({
   return ResolvedExtensions(
     plugins: List.unmodifiable(plugins),
     components: SearchlightComponents(
+      tokenizer: resolvedTokenizer,
       index: resolvedIndex,
       sorter: resolvedSorter,
       hooks: resolvedHooks,
+      validateSchema: resolvedValidateSchema,
+      getDocumentIndexId: resolvedGetDocumentIndexId,
+      getDocumentProperties: resolvedGetDocumentProperties,
     ),
   );
 }

@@ -1,6 +1,6 @@
 # Searchlight Extension Status
 
-**Last updated:** 2026-03-28
+**Last updated:** 2026-03-29
 
 This document tracks what the current Searchlight extension system implements,
 where it intentionally differs from Orama, and which hook/component paths are
@@ -50,8 +50,12 @@ still incomplete.
 
 `SearchlightComponents` currently allows replacement of:
 
+- `tokenizer`
 - `index`
 - `sorter`
+- `validateSchema`
+- `getDocumentIndexId`
+- `getDocumentProperties`
 - final resolved `hooks`
 
 The active `index` and `sorter` descriptors carry stable IDs. Those IDs are
@@ -94,20 +98,19 @@ helper behavior.
 
 ### Component graph is still narrower than Orama
 
-Searchlight does not yet expose replacements for Orama-style component slots
-such as:
+Searchlight still does not expose replacements for these Orama runtime slots:
 
-- tokenizer
 - documents store
 - pinning
-- function components like schema validation or document property extraction
+- `formatElapsedTime`
 
 ### Component merge semantics still differ
 
 Current Searchlight behavior:
 
-- `index` and `sorter` now reject duplicate claims across user components and
-  plugins
+- `tokenizer`, `index`, `sorter`, `validateSchema`, `getDocumentIndexId`, and
+  `getDocumentProperties` now reject duplicate claims across user components
+  and plugins
 - `hooks` still use Searchlight-specific final-resolution behavior rather than
   Orama's component graph rules
 
@@ -139,6 +142,11 @@ Searchlight does not support:
 - async component factories
 - async hook execution inside synchronous database operations
 
+This is now an explicit contract decision, not an unreviewed gap. Current
+Orama source types allow async plugins/components, but `create()` does not
+await them. Searchlight keeps the public runtime synchronous until there is a
+source-confirmed behavior worth matching.
+
 ## Restore contract
 
 If you persist a database that used plugins or replacement components:
@@ -157,6 +165,10 @@ The current extension system is ready for:
 - lifecycle tracing plugins
 - algorithm-style index replacement plugins
 - controlled sorter replacement
+- tokenizer replacement through the extension component graph
+- custom document ID resolution
+- custom schema validation
+- custom document-property extraction for indexing/sorting
 - restore-time compatibility checks for extension-backed snapshots
 
 It is not yet ready to claim full Orama extension parity.
