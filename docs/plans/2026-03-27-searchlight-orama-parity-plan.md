@@ -7,6 +7,16 @@ gaps vs Orama are resolved or explicitly accepted.
 
 **Spec**: quick plan from repo research and parity audits
 
+## Execution Note -- 2026-03-28
+
+- Continue autonomously without pausing for intermediate approval when the
+  next parity step is already implied by the source audit and prior user
+  decisions.
+- Keep landing incremental commits on the active extension branch as each
+  parity slice is verified.
+- Only stop for user input when a source-level parity question is genuinely
+  ambiguous or when a change would intentionally diverge from Orama.
+
 ## Context
 
 - **Structure**: core Dart package under `packages/searchlight`; example app under `packages/searchlight/example`
@@ -46,35 +56,39 @@ gaps vs Orama are resolved or explicitly accepted.
   defines a stable package boundary
 - package docs updated to describe the current create-time configuration
   surface and persistence limits
+- create-time extension registration now exists for ordered plugins, named
+  plugin metadata, lifecycle hooks, and `index` / `sorter` replacement
+- component registration now fails deterministically for conflicting `index` /
+  `sorter` claims, matching Orama's conflict model for those slots
+- current Orama source behavior for reserved hooks has been pinned explicitly:
+  `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` remain declared but
+  non-dispatched because the Orama runtime does not visibly dispatch them
+- `upsert()` / `upsertMultiple()` now exist with Orama-style nested lifecycle
+  behavior and matching upsert hook paths
+- the extension component graph now also wires the runtime-reachable
+  Orama-style slots that fit Searchlight cleanly today:
+  `tokenizer`, `validateSchema`, `getDocumentIndexId`, and
+  `getDocumentProperties`
+- restore now fails fast if a caller tries to load a serialized snapshot
+  through a custom tokenizer component, because Searchlight only persists
+  reconstructible built-in tokenizer state
+- a synchronous `documentsStore` component now exists with deterministic
+  conflict handling, runtime CRUD/search hydration wiring, and persistence
+  routed through `save()` plus exact-state `restore(...)`
+- a synchronous `pinning` component now exists with deterministic conflict
+  handling, tuple-based persistence, public pin CRUD, and search-time
+  application after sort order but before pagination/facets/groups
 
 ### Immediate next execution block
 
-1. **Reindex parity for tokenizer config**
-   - add failing tests in
-     `packages/searchlight/test/scoring/algorithm_selection_test.dart`
-   - prove `reindex()` preserves built-in tokenizer settings such as
-     `stemming`, `stopWords`, `useDefaultStopWords`, `allowDuplicates`,
-     `tokenizeSkipProperties`, and `stemmerSkipProperties`
-   - decide and test how `reindex()` should behave for injected tokenizers and
-     custom stemmers; minimum acceptable behavior is deterministic rejection
+1. **Async contract note**
+   - keep async plugins/components unsupported unless a source-confirmed Orama
+     runtime path emerges
+   - document that this is a deliberate contract choice, not an accidental gap
 
-2. **Persistence guard completion**
-   - add failing tests covering `persist()` / `serialize()` and
-     `restore()` / `deserialize()` paths, not only `toJson()`
-   - verify custom-tokenizer/custom-stemmer rejection is consistent across
-     JSON and CBOR entry points
-
-3. **Create-time tokenizer validation parity**
-   - add failing tests for unsupported tokenizer language handling
-   - add failing tests for invalid stop-word configuration and mismatch cases
-     where Searchlight intentionally diverges or still needs parity work
-   - explicitly decide which non-English stemming differences remain accepted
-     enhancements vs must-fix parity gaps
-
-4. **Public divergence ledger**
-   - add a concise document under `docs/research/` listing:
-     matched, intentional divergences, and remaining gaps
-   - use that ledger to gate publish-readiness claims
+2. **Elapsed-time component decision**
+   - decide whether `formatElapsedTime` belongs in the public parity surface
+     before publish or should remain an explicit documented gap
 
 ### Phase 1: Freeze Publish Scope
 

@@ -2,10 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:searchlight/searchlight.dart';
 import 'package:searchlight/src/scoring/qps.dart';
-import 'package:searchlight/src/text/tokenizer.dart';
 import 'package:searchlight/src/trees/radix_tree.dart';
 import 'package:test/test.dart';
+
+import '../helpers/extensions/test_index_plugin.dart';
 
 void main() {
   group('QPS bit-packing helpers', () {
@@ -342,6 +344,32 @@ void main() {
         result['hello'] == null || !result['hello']!.contains(1),
         isTrue,
       );
+    });
+  });
+
+  group('QPS component plugin', () {
+    test('forced QPS index preserves proximity behavior through plugins', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'body': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          testIndexPlugin(
+            name: 'qps-plugin',
+            componentId: 'test.index.qps',
+            forcedAlgorithm: SearchAlgorithm.qps,
+          ),
+        ],
+      )
+        ..insert({'id': 'close', 'body': 'quick brown fox'})
+        ..insert({'id': 'far', 'body': 'quick fox. brown dog'});
+      addTearDown(db.dispose);
+
+      final result = db.search(term: 'quick brown');
+
+      expect(db.indexAlgorithm, SearchAlgorithm.qps);
+      expect(result.count, 2);
+      expect(result.hits.first.id, 'close');
     });
   });
 }

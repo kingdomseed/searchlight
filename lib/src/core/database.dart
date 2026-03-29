@@ -10,31 +10,47 @@ import 'package:searchlight/src/core/doc_id.dart';
 import 'package:searchlight/src/core/document.dart';
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
+import 'package:searchlight/src/core/search_algorithm.dart';
 import 'package:searchlight/src/core/types.dart';
+import 'package:searchlight/src/extensions/component_ids.dart';
+import 'package:searchlight/src/extensions/components.dart';
+import 'package:searchlight/src/extensions/hooks.dart';
+import 'package:searchlight/src/extensions/plugin.dart';
+import 'package:searchlight/src/extensions/resolver.dart';
+import 'package:searchlight/src/extensions/runtime.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
 import 'package:searchlight/src/indexing/sort_index.dart';
 import 'package:searchlight/src/persistence/cbor_serializer.dart';
 import 'package:searchlight/src/persistence/format.dart';
 import 'package:searchlight/src/persistence/json_serializer.dart';
 import 'package:searchlight/src/persistence/storage.dart';
+import 'package:searchlight/src/pinning/pinning_store.dart';
 import 'package:searchlight/src/scoring/bm25.dart';
 import 'package:searchlight/src/search/facets.dart' as facets_lib;
 import 'package:searchlight/src/search/filters.dart';
 import 'package:searchlight/src/search/grouping.dart' as grouping_lib;
+import 'package:searchlight/src/storage/documents_store.dart';
 import 'package:searchlight/src/text/tokenizer.dart';
 import 'package:searchlight/src/trees/bkd_tree.dart';
 
-/// The search algorithm used for scoring.
-enum SearchAlgorithm {
-  /// Best Match 25 — the default probabilistic ranking function.
-  bm25,
+export 'package:searchlight/src/core/search_algorithm.dart'
+    show SearchAlgorithm;
 
-  /// Query-per-second optimized scoring.
-  qps,
-
-  /// PT-15 scoring algorithm.
-  pt15,
-}
+typedef _SearchlightFutureSingleHook<T extends Object?> = Future<T> Function(
+  Object,
+  String,
+  SearchlightRecord?,
+);
+typedef _SearchlightFutureMultipleIdsHook<T extends Object?> = Future<T>
+    Function(Object, List<String>);
+typedef _SearchlightFutureMultipleDocsHook<T extends Object?> = Future<T>
+    Function(Object, List<SearchlightRecord>);
+typedef _SearchlightFutureAfterCreateHook<T extends Object?> = Future<T>
+    Function(Object);
+typedef _SearchlightFutureBeforeSearchHook<T extends Object?> = Future<T>
+    Function(Object, SearchlightSearchParams, String);
+typedef _SearchlightFutureAfterSearchHook<T extends Object?> = Future<T>
+    Function(Object, SearchlightSearchParams, String, Object);
 
 /// A full-text search engine instance.
 final class Searchlight {
@@ -42,12 +58,20 @@ final class Searchlight {
     required this.schema,
     required this.algorithm,
     required this.language,
+    required ResolvedExtensions resolvedExtensions,
+    required SearchlightHookRuntime hookRuntime,
     required bool hasCustomStemmer,
     required bool hasInjectedTokenizer,
     required SearchIndex index,
     required Tokenizer tokenizer,
+    required SearchlightDocumentsStore documentsStore,
+    required SearchlightPinningStore pinningStore,
     required SortIndex sortIndex,
   })  : _index = index,
+        _documentsStore = documentsStore,
+        _pinningStore = pinningStore,
+        _resolvedExtensions = resolvedExtensions,
+        _hookRuntime = hookRuntime,
         _tokenizer = tokenizer,
         _sortIndex = sortIndex,
         _hasCustomStemmer = hasCustomStemmer,
@@ -83,13 +107,28 @@ final class Searchlight {
     Set<String> tokenizeSkipProperties = const {},
     Set<String> stemmerSkipProperties = const {},
     Tokenizer? tokenizer,
+    List<SearchlightPlugin<Object?>> plugins = const [],
+    SearchlightComponents? components,
   }) {
-    if (tokenizer != null && language != null) {
+    final resolvedExtensions = resolveExtensions(
+      defaults: defaultSearchlightComponents,
+      plugins: plugins,
+      overrides: components,
+    );
+    final componentTokenizer = resolvedExtensions.components.tokenizer;
+    if (tokenizer != null && componentTokenizer != null) {
+      throw ArgumentError(
+        'Cannot provide both a direct tokenizer and an extension '
+        'tokenizer component.',
+      );
+    }
+    final injectedTokenizer = tokenizer ?? componentTokenizer;
+    if (injectedTokenizer != null && language != null) {
       throw ArgumentError(
         'Cannot provide both language and a custom tokenizer.',
       );
     }
-    if (tokenizer != null &&
+    if (injectedTokenizer != null &&
         (stemming != null ||
             stemmer != null ||
             stopWords != null ||
@@ -106,7 +145,7 @@ final class Searchlight {
     final resolvedLanguage = language ?? 'en';
     final tokenizerLanguage = _resolveTokenizerLanguage(resolvedLanguage);
 
-    final resolvedTokenizer = tokenizer ??
+    final resolvedTokenizer = injectedTokenizer ??
         _createTokenizer(
           language: tokenizerLanguage,
           stemming: stemming,
@@ -117,18 +156,36 @@ final class Searchlight {
           tokenizeSkipProperties: tokenizeSkipProperties,
           stemmerSkipProperties: stemmerSkipProperties,
         );
-    final index = SearchIndex.create(schema: schema, algorithm: algorithm);
+    final resolvedIndexComponent =
+        resolvedExtensions.components.index ?? defaultSearchlightIndexComponent;
+    final resolvedSorterComponent = resolvedExtensions.components.sorter ??
+        defaultSearchlightSorterComponent;
+    final resolvedDocumentsStoreComponent =
+        resolvedExtensions.components.documentsStore ??
+            defaultSearchlightDocumentsStoreComponent;
+    final resolvedPinningComponent = resolvedExtensions.components.pinning ??
+        defaultSearchlightPinningComponent;
+    final index = resolvedIndexComponent.create(
+      schema: schema,
+      algorithm: algorithm,
+    );
 
-    return Searchlight._(
+    final db = Searchlight._(
       schema: schema,
       algorithm: algorithm,
       language: resolvedLanguage,
+      resolvedExtensions: resolvedExtensions,
+      hookRuntime: _createHookRuntime(resolvedExtensions),
       hasCustomStemmer: stemmer != null,
-      hasInjectedTokenizer: tokenizer != null,
+      hasInjectedTokenizer: injectedTokenizer != null,
       index: index,
       tokenizer: resolvedTokenizer,
-      sortIndex: SortIndex(language: tokenizerLanguage),
+      documentsStore: resolvedDocumentsStoreComponent.create(),
+      pinningStore: resolvedPinningComponent.create(),
+      sortIndex: resolvedSorterComponent.create(language: tokenizerLanguage),
     );
+    db._runAfterCreateHooks(db._hookRuntime.afterCreate);
+    return db;
   }
 
   /// Deserializes a [Searchlight] instance from a JSON-compatible map
@@ -142,7 +199,11 @@ final class Searchlight {
   ///
   /// Throws [SerializationException] if the format version is incompatible
   /// or the data is corrupt/missing.
-  factory Searchlight.fromJson(Map<String, Object?> json) {
+  factory Searchlight.fromJson(
+    Map<String, Object?> json, {
+    List<SearchlightPlugin<Object?>> plugins = const [],
+    SearchlightComponents? components,
+  }) {
     // 1. Check format version.
     // E2 fix: reject future versions but accept current and past versions.
     // When a future version bump adds structural changes, add migration logic
@@ -196,22 +257,19 @@ final class Searchlight {
       key: 'useDefaultStopWords',
       message: 'Invalid "tokenizerConfig.useDefaultStopWords" in JSON',
     );
-    final tokenizerAllowDuplicates =
-        _asOptionalBool(
+    final tokenizerAllowDuplicates = _asOptionalBool(
           tokenizerConfigJson,
           key: 'allowDuplicates',
           message: 'Invalid "tokenizerConfig.allowDuplicates" in JSON',
         ) ??
         false;
-    final tokenizeSkipProperties =
-        _asOptionalStringList(
+    final tokenizeSkipProperties = _asOptionalStringList(
           tokenizerConfigJson,
           key: 'tokenizeSkipProperties',
           message: 'Invalid "tokenizerConfig.tokenizeSkipProperties" in JSON',
         )?.toSet() ??
         const <String>{};
-    final stemmerSkipProperties =
-        _asOptionalStringList(
+    final stemmerSkipProperties = _asOptionalStringList(
           tokenizerConfigJson,
           key: 'stemmerSkipProperties',
           message: 'Invalid "tokenizerConfig.stemmerSkipProperties" in JSON',
@@ -226,6 +284,20 @@ final class Searchlight {
       );
     }
     final schema = schemaFromJson(schemaJson);
+    final resolvedExtensions = resolveExtensions(
+      defaults: defaultSearchlightComponents,
+      plugins: plugins,
+      overrides: components,
+    );
+    if (resolvedExtensions.components.tokenizer != null) {
+      throw const SerializationException(
+        'Cannot restore with a custom tokenizer component.',
+      );
+    }
+    _validateExtensionCompatibility(
+      raw: json['extensionCompatibility'],
+      resolvedExtensions: resolvedExtensions,
+    );
 
     // 5. Restore tokenizer configuration
     late final Tokenizer tokenizer;
@@ -284,15 +356,24 @@ final class Searchlight {
             fallbackLanguage: tokenizerLanguage,
           )
         : SortIndex(language: tokenizerLanguage);
+    final resolvedDocumentsStoreComponent =
+        resolvedExtensions.components.documentsStore ??
+            defaultSearchlightDocumentsStoreComponent;
+    final resolvedPinningComponent = resolvedExtensions.components.pinning ??
+        defaultSearchlightPinningComponent;
 
     final db = Searchlight._(
       schema: schema,
       algorithm: algorithm,
       language: language,
+      resolvedExtensions: resolvedExtensions,
+      hookRuntime: _createHookRuntime(resolvedExtensions),
       hasCustomStemmer: false,
       hasInjectedTokenizer: false,
       index: index,
       tokenizer: tokenizer,
+      documentsStore: resolvedDocumentsStoreComponent.create(),
+      pinningStore: resolvedPinningComponent.create(),
       sortIndex: sortIndex,
     );
 
@@ -302,14 +383,18 @@ final class Searchlight {
         docsJson: docsJson,
         idStoreJson: idStoreJson,
       );
-      return db;
+    } else {
+      _restoreLegacyDocuments(
+        db,
+        docsJson: docsJson,
+        idStoreJson: idStoreJson,
+      );
     }
 
-    _restoreLegacyDocuments(
-      db,
-      docsJson: docsJson,
-      idStoreJson: idStoreJson,
-    );
+    final rawPinning = json['pinning'];
+    if (rawPinning != null) {
+      db._pinningStore.restore(_deserializePinRules(rawPinning));
+    }
 
     return db;
   }
@@ -322,6 +407,11 @@ final class Searchlight {
 
   /// The language for tokenization and stemming.
   final String language;
+
+  /// Resolved extension configuration captured at construction.
+  // TODO(extension-runtime): consume retained extension state in hook/runtime wiring.
+  final ResolvedExtensions _resolvedExtensions;
+  final SearchlightHookRuntime _hookRuntime;
 
   /// The search index managing per-field trees and scoring data.
   final SearchIndex _index;
@@ -386,6 +476,288 @@ final class Searchlight {
     );
   }
 
+  static SearchlightHookRuntime _createHookRuntime(
+    ResolvedExtensions resolvedExtensions,
+  ) {
+    final hookSets = <SearchlightHooks>[];
+    for (final plugin in resolvedExtensions.plugins) {
+      final pluginHooks = plugin.components?.hooks ?? plugin.hooks;
+      if (pluginHooks != null) {
+        hookSets.add(pluginHooks);
+      }
+    }
+    final finalHooks = resolvedExtensions.components.hooks;
+    if (finalHooks != null &&
+        (hookSets.isEmpty || !identical(hookSets.last, finalHooks))) {
+      hookSets.add(finalHooks);
+    }
+    return SearchlightHookRuntime.fromHooks(hookSets);
+  }
+
+  static void _validateExtensionCompatibility({
+    required Object? raw,
+    required ResolvedExtensions resolvedExtensions,
+  }) {
+    if (raw == null) {
+      return;
+    }
+
+    final compatibility = _asObjectMap(
+      raw,
+      'Missing or invalid "extensionCompatibility" in JSON',
+    );
+    final plugins = compatibility['plugins'];
+    if (plugins is! List || plugins.any((plugin) => plugin is! String)) {
+      throw const SerializationException(
+        'Missing or invalid "extensionCompatibility.plugins" in JSON',
+      );
+    }
+    final actualPluginNames = plugins.cast<String>();
+    final expectedPluginNames = [
+      for (final plugin in resolvedExtensions.plugins) plugin.name,
+    ];
+    if (!_sameStringList(actualPluginNames, expectedPluginNames)) {
+      throw SerializationException(
+        'Incompatible plugin graph: expected ${expectedPluginNames.join(", ")} '
+        'but restore was given ${actualPluginNames.join(", ")}.',
+      );
+    }
+
+    final components = _asObjectMap(
+      compatibility['components'],
+      'Missing or invalid "extensionCompatibility.components" in JSON',
+    );
+    final actualIndexId = components['index'];
+    final actualSorterId = components['sorter'];
+    final actualDocumentsStoreId = components['documentsStore'];
+    final actualPinningId = components['pinning'];
+    if (actualIndexId is! String ||
+        actualSorterId is! String ||
+        actualDocumentsStoreId is! String ||
+        (actualPinningId != null && actualPinningId is! String)) {
+      throw const SerializationException(
+        'Missing or invalid "extensionCompatibility.components" in JSON',
+      );
+    }
+    final expectedIndexId = resolvedExtensions.components.index?.id ??
+        defaultSearchlightIndexComponent.id;
+    final expectedSorterId = resolvedExtensions.components.sorter?.id ??
+        defaultSearchlightSorterComponent.id;
+    final expectedDocumentsStoreId =
+        resolvedExtensions.components.documentsStore?.id ??
+            defaultSearchlightDocumentsStoreComponent.id;
+    final expectedPinningId = resolvedExtensions.components.pinning?.id ??
+        defaultSearchlightPinningComponent.id;
+    if (actualIndexId != expectedIndexId ||
+        actualSorterId != expectedSorterId ||
+        actualDocumentsStoreId != expectedDocumentsStoreId ||
+        (actualPinningId != null && actualPinningId != expectedPinningId)) {
+      throw SerializationException(
+        'Incompatible component graph: expected index=$expectedIndexId, '
+        'sorter=$expectedSorterId, documentsStore=$expectedDocumentsStoreId, '
+        'pinning=$expectedPinningId '
+        'but restore was given index=$actualIndexId, '
+        'sorter=$actualSorterId, documentsStore=$actualDocumentsStoreId, '
+        'pinning=${actualPinningId ?? "<legacy-default>"}.',
+      );
+    }
+  }
+
+  static bool _sameStringList(List<String> left, List<String> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var i = 0; i < left.length; i++) {
+      if (left[i] != right[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static const _singleHookAsyncError =
+      'Async single-record lifecycle hooks are not supported in synchronous '
+      'Searchlight operations.';
+  static const _multipleHookAsyncError =
+      'Async multi-record lifecycle hooks are not supported in synchronous '
+      'Searchlight operations.';
+  static const _createHookAsyncError =
+      'Async create lifecycle hooks are not supported in synchronous '
+      'Searchlight operations.';
+  static const _searchHookAsyncError =
+      'Async search lifecycle hooks are not supported in synchronous '
+      'Searchlight operations.';
+
+  void _ensureSyncAfterCreateHooks(List<SearchlightAfterCreateHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureAfterCreateHook<Object?> ||
+          hook is _SearchlightFutureAfterCreateHook<void>) {
+        throw UnsupportedError(_createHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncSingleHooks(List<SearchlightSingleHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureSingleHook<Object?> ||
+          hook is _SearchlightFutureSingleHook<void>) {
+        throw UnsupportedError(_singleHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncMultipleIdsHooks(List<SearchlightMultipleIdsHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureMultipleIdsHook<Object?> ||
+          hook is _SearchlightFutureMultipleIdsHook<void>) {
+        throw UnsupportedError(_multipleHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncMultipleDocsHooks(List<SearchlightMultipleDocsHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureMultipleDocsHook<Object?> ||
+          hook is _SearchlightFutureMultipleDocsHook<void>) {
+        throw UnsupportedError(_multipleHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncBeforeSearchHooks(List<SearchlightBeforeSearchHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureBeforeSearchHook<Object?> ||
+          hook is _SearchlightFutureBeforeSearchHook<void>) {
+        throw UnsupportedError(_searchHookAsyncError);
+      }
+    }
+  }
+
+  void _ensureSyncAfterSearchHooks(List<SearchlightAfterSearchHook> hooks) {
+    for (final hook in hooks) {
+      if (hook is _SearchlightFutureAfterSearchHook<Object?> ||
+          hook is _SearchlightFutureAfterSearchHook<void>) {
+        throw UnsupportedError(_searchHookAsyncError);
+      }
+    }
+  }
+
+  void _preflightInsertLifecycleHooks() {
+    _ensureSyncSingleHooks(_hookRuntime.beforeInsert);
+    _ensureSyncSingleHooks(_hookRuntime.afterInsert);
+  }
+
+  void _preflightRemoveLifecycleHooks() {
+    _ensureSyncSingleHooks(_hookRuntime.beforeRemove);
+    _ensureSyncSingleHooks(_hookRuntime.afterRemove);
+  }
+
+  void _preflightUpdateLifecycleHooks() {
+    _ensureSyncSingleHooks(_hookRuntime.beforeUpdate);
+    _ensureSyncSingleHooks(_hookRuntime.afterUpdate);
+    _preflightRemoveLifecycleHooks();
+    _preflightInsertLifecycleHooks();
+  }
+
+  void _preflightInsertMultipleLifecycleHooks() {
+    _ensureSyncMultipleDocsHooks(_hookRuntime.afterInsertMultiple);
+    _preflightInsertLifecycleHooks();
+  }
+
+  void _preflightRemoveMultipleLifecycleHooks() {
+    _ensureSyncMultipleIdsHooks(_hookRuntime.beforeRemoveMultiple);
+    _ensureSyncMultipleIdsHooks(_hookRuntime.afterRemoveMultiple);
+    _preflightRemoveLifecycleHooks();
+  }
+
+  void _preflightUpdateMultipleLifecycleHooks() {
+    _ensureSyncMultipleIdsHooks(_hookRuntime.beforeUpdateMultiple);
+    _ensureSyncMultipleIdsHooks(_hookRuntime.afterUpdateMultiple);
+    _preflightRemoveMultipleLifecycleHooks();
+    _preflightInsertMultipleLifecycleHooks();
+  }
+
+  void _preflightSearchLifecycleHooks() {
+    _ensureSyncBeforeSearchHooks(_hookRuntime.beforeSearch);
+    _ensureSyncAfterSearchHooks(_hookRuntime.afterSearch);
+  }
+
+  void _preflightUpsertLifecycleHooks() {
+    _ensureSyncSingleHooks(_hookRuntime.beforeUpsert);
+    _ensureSyncSingleHooks(_hookRuntime.afterUpsert);
+    _preflightUpdateLifecycleHooks();
+  }
+
+  void _preflightUpsertMultipleLifecycleHooks() {
+    _ensureSyncMultipleDocsHooks(_hookRuntime.beforeUpsertMultiple);
+    _ensureSyncMultipleIdsHooks(_hookRuntime.afterUpsertMultiple);
+    _preflightUpdateMultipleLifecycleHooks();
+  }
+
+  void _runSingleLifecycleHooks(
+    List<SearchlightSingleHook> hooks, {
+    required String id,
+    required SearchlightRecord? doc,
+  }) {
+    final syncHooks =
+        hooks.cast<void Function(Object, String, SearchlightRecord?)>();
+    for (final hook in syncHooks) {
+      hook(this, id, doc);
+    }
+  }
+
+  void _runMultipleIdsLifecycleHooks(
+    List<SearchlightMultipleIdsHook> hooks, {
+    required List<String> ids,
+  }) {
+    final syncHooks = hooks.cast<void Function(Object, List<String>)>();
+    for (final hook in syncHooks) {
+      hook(this, ids);
+    }
+  }
+
+  void _runMultipleDocsLifecycleHooks(
+    List<SearchlightMultipleDocsHook> hooks, {
+    required List<SearchlightRecord> docs,
+  }) {
+    final syncHooks =
+        hooks.cast<void Function(Object, List<SearchlightRecord>)>();
+    for (final hook in syncHooks) {
+      hook(this, docs);
+    }
+  }
+
+  void _runAfterCreateHooks(List<SearchlightAfterCreateHook> hooks) {
+    _ensureSyncAfterCreateHooks(hooks);
+    final syncHooks = hooks.cast<void Function(Object)>();
+    for (final hook in syncHooks) {
+      hook(this);
+    }
+  }
+
+  void _runBeforeSearchHooks({
+    required SearchlightSearchParams params,
+    required String language,
+  }) {
+    final syncHooks = _hookRuntime.beforeSearch
+        .cast<void Function(Object, SearchlightSearchParams, String)>();
+    for (final hook in syncHooks) {
+      hook(this, params, language);
+    }
+  }
+
+  void _runAfterSearchHooks({
+    required SearchlightSearchParams params,
+    required String language,
+    required Object results,
+  }) {
+    final syncHooks = _hookRuntime.afterSearch
+        .cast<void Function(Object, SearchlightSearchParams, String, Object)>();
+    for (final hook in syncHooks) {
+      hook(this, params, language, results);
+    }
+  }
+
   static void _restoreSerializedDocuments(
     Searchlight db, {
     required Map<String, Object?> docsJson,
@@ -414,13 +786,18 @@ final class Searchlight {
         geoFields: geoFields,
       );
       final docId = DocId(internalId);
+      final document = Document(data);
 
-      db._documents[docId] = Document(data);
       db._externalToInternal[externalId] = docId;
       db._internalToExternal[docId] = externalId;
+      db._documentsStore.restore(
+        internalId: docId,
+        externalId: externalId,
+        document: document,
+      );
     }
 
-    db._index.restoreDocsCount(db._documents.length);
+    db._index.restoreDocsCount(db._documentsStore.count);
     _restoreCounters(db, idStoreJson);
   }
 
@@ -480,7 +857,7 @@ final class Searchlight {
     final nextId = idStoreJson['nextId'] as int?;
     final nextGeneratedId = idStoreJson['nextGeneratedId'] as int?;
 
-    final maxExistingId = db._documents.keys.fold<int>(
+    final maxExistingId = db._documentsStore.internalIds.fold<int>(
       0,
       (maxId, docId) => docId.id > maxId ? docId.id : maxId,
     );
@@ -535,12 +912,31 @@ final class Searchlight {
     return value.cast<String>();
   }
 
+  static List<SearchlightPinRule> _deserializePinRules(Object? raw) {
+    if (raw is! List) {
+      throw const SerializationException(
+        'Missing or invalid "pinning" in JSON',
+      );
+    }
+
+    return [
+      for (final entry in raw)
+        if (entry is List && entry.length == 2)
+          SearchlightPinRule.fromJson(
+            entry[0] as String,
+            _asObjectMap(entry[1], 'Invalid pinning rule payload'),
+          )
+        else
+          throw const SerializationException('Invalid pinning rule payload'),
+    ];
+  }
+
   // ---------------------------------------------------------------------------
   // Internal document storage
   // ---------------------------------------------------------------------------
 
-  /// Internal document store keyed by internal DocId.
-  final Map<DocId, Document> _documents = {};
+  final SearchlightDocumentsStore _documentsStore;
+  final SearchlightPinningStore _pinningStore;
 
   /// External string ID -> internal DocId mapping.
   final Map<String, DocId> _externalToInternal = {};
@@ -555,14 +951,18 @@ final class Searchlight {
   int _nextGeneratedId = 0;
 
   /// Total number of indexed documents.
-  int get count => _documents.length;
+  int get count => _documentsStore.count;
 
   /// Whether the database has no documents.
   bool get isEmpty => count == 0;
 
   /// Internal documents keyed by raw integer ID — for facet/group computation.
   Map<int, Document> get documentsForFacets {
-    return _documents.map((docId, doc) => MapEntry(docId.id, doc));
+    return <int, Document>{
+      for (final docId in _documentsStore.internalIds)
+        if (_documentsStore.getByInternalId(docId) case final doc?)
+          docId.id: doc,
+    };
   }
 
   /// Field path -> SchemaType mapping — for facet/group type resolution.
@@ -578,7 +978,11 @@ final class Searchlight {
 
   /// Internal doc ID -> external string ID mapping — for group computation.
   Map<int, String> get externalIdsMap {
-    return _internalToExternal.map((docId, extId) => MapEntry(docId.id, extId));
+    return <int, String>{
+      for (final docId in _documentsStore.internalIds)
+        if (_documentsStore.getExternalId(docId) case final externalId?)
+          docId.id: externalId,
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -599,9 +1003,15 @@ final class Searchlight {
   /// to the schema, or if a document with the same external ID already exists.
   String insert(Map<String, Object?> data) {
     _validateDocument(data, schema.fields, '');
+    _preflightInsertLifecycleHooks();
 
     // Determine external ID (Fix 1)
     final externalId = _getDocumentIndexId(data);
+    _runSingleLifecycleHooks(
+      _hookRuntime.beforeInsert,
+      id: externalId,
+      doc: data,
+    );
 
     // Check for duplicate (Fix 1)
     if (_externalToInternal.containsKey(externalId)) {
@@ -616,18 +1026,37 @@ final class Searchlight {
     _externalToInternal[externalId] = internalId;
     _internalToExternal[internalId] = externalId;
 
-    _documents[internalId] = Document(data);
+    final document = Document(data);
+    _documentsStore.store(
+      internalId: internalId,
+      externalId: externalId,
+      document: document,
+    );
+    final extractedProperties = _getDocumentProperties(
+      data,
+      _index.searchableProperties,
+    );
 
     // Index the document for search
     _index.insertDocument(
       docId: internalId.id,
       data: data,
+      resolvedProperties: extractedProperties,
       tokenizer: _tokenizer,
       language: language,
     );
 
     // Populate sort index for sortable fields (string, number, boolean)
-    _insertSortableValues(internalId.id, data);
+    _insertSortableValues(
+      internalId.id,
+      data,
+      resolvedProperties: extractedProperties,
+    );
+    _runSingleLifecycleHooks(
+      _hookRuntime.afterInsert,
+      id: externalId,
+      doc: data,
+    );
 
     return externalId;
   }
@@ -637,6 +1066,11 @@ final class Searchlight {
   /// If `doc['id']` is a [String], use it. Otherwise, auto-generate.
   /// Matches Orama's `getDocumentIndexId` behavior.
   String _getDocumentIndexId(Map<String, Object?> data) {
+    if (_resolvedExtensions.components.getDocumentIndexId
+        case final getDocumentIndexId?) {
+      return getDocumentIndexId(data);
+    }
+
     final id = data['id'];
     if (id != null) {
       if (id is! String) {
@@ -655,6 +1089,22 @@ final class Searchlight {
     return '${_nextGeneratedId++}';
   }
 
+  Map<String, Object?> _getDocumentProperties(
+    Map<String, Object?> data,
+    Iterable<String> paths,
+  ) {
+    final propertyList = List<String>.from(paths);
+    if (_resolvedExtensions.components.getDocumentProperties
+        case final getDocumentProperties?) {
+      return getDocumentProperties(data, propertyList);
+    }
+
+    return {
+      for (final path in propertyList)
+        path: SearchIndex.resolveValue(data, path),
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Validation (Fix 2: iterate schema keys, not document keys)
   // ---------------------------------------------------------------------------
@@ -664,6 +1114,18 @@ final class Searchlight {
     Map<String, SchemaField> schemaFields,
     String prefix,
   ) {
+    final validateSchema = _resolvedExtensions.components.validateSchema;
+    if (prefix.isEmpty && validateSchema != null) {
+      final invalidPath = validateSchema(data, schema);
+      if (invalidPath != null) {
+        throw DocumentValidationException(
+          "Field '$invalidPath' has invalid type",
+          field: invalidPath,
+        );
+      }
+      return;
+    }
+
     for (final entry in schemaFields.entries) {
       final key = entry.key;
       final field = entry.value;
@@ -724,13 +1186,19 @@ final class Searchlight {
   };
 
   /// Inserts sortable field values into the sort index for a document.
-  void _insertSortableValues(int docId, Map<String, Object?> data) {
+  void _insertSortableValues(
+    int docId,
+    Map<String, Object?> data, {
+    Map<String, Object?>? resolvedProperties,
+  }) {
     for (final entry in _index.searchablePropertiesWithTypes.entries) {
       final prop = entry.key;
       final type = entry.value;
       if (!_sortableTypes.contains(type)) continue;
 
-      final value = SearchIndex.resolveValue(data, prop);
+      final value = resolvedProperties != null
+          ? resolvedProperties[prop]
+          : SearchIndex.resolveValue(data, prop);
       if (value == null) continue;
 
       _sortIndex.insert(property: prop, docId: docId, value: value);
@@ -766,12 +1234,17 @@ final class Searchlight {
     List<Map<String, Object?>> documents, {
     int batchSize = 1000,
   }) {
+    _preflightInsertMultipleLifecycleHooks();
     final ids = <String>[];
 
     for (final doc in documents) {
       final id = insert(doc);
       ids.add(id);
     }
+    _runMultipleDocsLifecycleHooks(
+      _hookRuntime.afterInsertMultiple,
+      docs: documents,
+    );
 
     return ids;
   }
@@ -781,11 +1254,22 @@ final class Searchlight {
   // ---------------------------------------------------------------------------
 
   /// Returns the document with the given external [id], or `null` if not found.
-  Document? getById(String id) {
-    final internalId = _externalToInternal[id];
-    if (internalId == null) return null;
-    return _documents[internalId];
-  }
+  Document? getById(String id) => _documentsStore.getByExternalId(id);
+
+  /// Inserts a new pinning [rule].
+  bool insertPin(SearchlightPinRule rule) => _pinningStore.insertPin(rule);
+
+  /// Updates an existing pinning [rule].
+  bool updatePin(SearchlightPinRule rule) => _pinningStore.updatePin(rule);
+
+  /// Deletes the pinning rule identified by [pinId].
+  bool deletePin(String pinId) => _pinningStore.deletePin(pinId);
+
+  /// Returns a pinning rule by [pinId], if present.
+  SearchlightPinRule? getPin(String pinId) => _pinningStore.getPin(pinId);
+
+  /// Returns all registered pinning rules.
+  List<SearchlightPinRule> getAllPins() => _pinningStore.getAllPins();
 
   // ---------------------------------------------------------------------------
   // Remove (Fix 5: return bool / int)
@@ -796,15 +1280,28 @@ final class Searchlight {
   /// Returns `true` if the document was found and removed,
   /// `false` if the [id] was not found.
   bool remove(String id) {
+    _preflightRemoveLifecycleHooks();
     final internalId = _externalToInternal[id];
     if (internalId == null) return false;
 
-    final doc = _documents[internalId];
+    final doc = _documentsStore.getByInternalId(internalId);
+    final removedData = doc?.toMap();
+    _runSingleLifecycleHooks(
+      _hookRuntime.beforeRemove,
+      id: id,
+      doc: removedData,
+    );
     if (doc != null) {
+      final removedProperties = _getDocumentProperties(
+        doc.toMap(),
+        _index.searchableProperties,
+      );
+
       // Un-index the document before removing
       _index.removeDocument(
         docId: internalId.id,
         data: doc.toMap(),
+        resolvedProperties: removedProperties,
         tokenizer: _tokenizer,
         language: language,
       );
@@ -813,9 +1310,14 @@ final class Searchlight {
       _removeSortableValues(internalId.id);
     }
 
-    _documents.remove(internalId);
     _externalToInternal.remove(id);
     _internalToExternal.remove(internalId);
+    _documentsStore.removeByExternalId(id);
+    _runSingleLifecycleHooks(
+      _hookRuntime.afterRemove,
+      id: id,
+      doc: removedData,
+    );
     return true;
   }
 
@@ -824,10 +1326,19 @@ final class Searchlight {
   /// Returns the count of documents actually removed. Silently ignores IDs
   /// that are not found.
   int removeMultiple(List<String> ids) {
+    _preflightRemoveMultipleLifecycleHooks();
+    _runMultipleIdsLifecycleHooks(
+      _hookRuntime.beforeRemoveMultiple,
+      ids: ids,
+    );
     var count = 0;
     for (final id in ids) {
       if (remove(id)) count++;
     }
+    _runMultipleIdsLifecycleHooks(
+      _hookRuntime.afterRemoveMultiple,
+      ids: ids,
+    );
     return count;
   }
 
@@ -851,8 +1362,16 @@ final class Searchlight {
   /// Throws [DocumentValidationException] if [newDoc] does not conform
   /// to the schema.
   String update(String id, Map<String, Object?> newDoc) {
+    _preflightUpdateLifecycleHooks();
+    _runSingleLifecycleHooks(_hookRuntime.beforeUpdate, id: id, doc: newDoc);
     remove(id);
-    return insert(newDoc);
+    final newId = insert(newDoc);
+    _runSingleLifecycleHooks(
+      _hookRuntime.afterUpdate,
+      id: newId,
+      doc: newDoc,
+    );
+    return newId;
   }
 
   /// Replaces multiple documents by removing the old ones and inserting
@@ -873,16 +1392,106 @@ final class Searchlight {
     List<Map<String, Object?>> newDocs, {
     int batchSize = 1000,
   }) {
+    _preflightUpdateMultipleLifecycleHooks();
     // Step 1: Validate ALL docs against schema FIRST (before any removes)
     for (final doc in newDocs) {
       _validateDocument(doc, schema.fields, '');
     }
+    _runMultipleIdsLifecycleHooks(
+      _hookRuntime.beforeUpdateMultiple,
+      ids: ids,
+    );
 
     // Step 2: Remove all old documents
     removeMultiple(ids);
 
     // Step 3: Insert all new documents
-    return insertMultiple(newDocs, batchSize: batchSize);
+    final updatedIds = insertMultiple(newDocs, batchSize: batchSize);
+    _runMultipleIdsLifecycleHooks(
+      _hookRuntime.afterUpdateMultiple,
+      ids: updatedIds,
+    );
+    return updatedIds;
+  }
+
+  /// Inserts a document when absent, or updates it when the ID already exists.
+  ///
+  /// Matches Orama's `upsert`: resolve the document ID first, run upsert
+  /// hooks, then branch to `update` or `insert`.
+  String upsert(Map<String, Object?> data) {
+    _preflightUpsertLifecycleHooks();
+    final id = _getDocumentIndexId(data);
+    _runSingleLifecycleHooks(_hookRuntime.beforeUpsert, id: id, doc: data);
+
+    final resultId =
+        _externalToInternal.containsKey(id) ? update(id, data) : insert(data);
+
+    _runSingleLifecycleHooks(
+      _hookRuntime.afterUpsert,
+      id: resultId,
+      doc: data,
+    );
+    return resultId;
+  }
+
+  /// Bulk upsert matching Orama's update-first, insert-second flow.
+  ///
+  /// Runs `beforeUpsertMultiple`, validates all documents, partitions them into
+  /// update and insert groups, then performs `updateMultiple` followed by
+  /// `insertMultiple`. `afterUpsertMultiple` receives the result IDs in that
+  /// same order.
+  List<String> upsertMultiple(
+    List<Map<String, Object?>> documents, {
+    int batchSize = 1000,
+  }) {
+    _preflightUpsertMultipleLifecycleHooks();
+    _runMultipleDocsLifecycleHooks(
+      _hookRuntime.beforeUpsertMultiple,
+      docs: documents,
+    );
+
+    for (final doc in documents) {
+      _validateDocument(doc, schema.fields, '');
+    }
+
+    final docsToInsert = <Map<String, Object?>>[];
+    final docsToUpdate = <Map<String, Object?>>[];
+    final idsToUpdate = <String>[];
+
+    for (final doc in documents) {
+      final id = _getDocumentIndexId(doc);
+      if (_externalToInternal.containsKey(id)) {
+        docsToUpdate.add(doc);
+        idsToUpdate.add(id);
+      } else {
+        docsToInsert.add(doc);
+      }
+    }
+
+    final resultIds = <String>[];
+    if (docsToUpdate.isNotEmpty) {
+      resultIds.addAll(
+        updateMultiple(
+          idsToUpdate,
+          docsToUpdate,
+          batchSize: batchSize,
+        ),
+      );
+    }
+    if (docsToInsert.isNotEmpty) {
+      resultIds.addAll(
+        insertMultiple(
+          docsToInsert,
+          batchSize: batchSize,
+        ),
+      );
+    }
+
+    _runMultipleIdsLifecycleHooks(
+      _hookRuntime.afterUpsertMultiple,
+      ids: resultIds,
+    );
+    return resultIds;
   }
 
   // ---------------------------------------------------------------------------
@@ -967,6 +1576,25 @@ final class Searchlight {
     SortBy? sortBy,
   }) {
     final stopwatch = Stopwatch()..start();
+    final searchParams = <String, Object?>{
+      'term': term,
+      if (where != null) 'where': where,
+      if (properties != null) 'properties': properties,
+      'exact': exact,
+      'tolerance': tolerance,
+      if (boost != null) 'boost': boost,
+      'threshold': threshold,
+      'limit': limit,
+      'offset': offset,
+      if (facets != null) 'facets': facets,
+      if (groupBy != null) 'groupBy': groupBy,
+      if (sortBy != null) 'sortBy': sortBy,
+    };
+    _preflightSearchLifecycleHooks();
+    _runBeforeSearchHooks(
+      params: searchParams,
+      language: language,
+    );
 
     // 1. Resolve properties: default = all string fields in the schema
     final stringFields = schema.fieldPathsOfType(SchemaType.string);
@@ -1004,7 +1632,8 @@ final class Searchlight {
       whereFiltersIDs = searchByWhereClause(
         _index,
         where,
-        existingDocIds: _documents.keys.map((docId) => docId.id).toSet(),
+        existingDocIds:
+            _documentsStore.internalIds.map((docId) => docId.id).toSet(),
         tokenizer: _tokenizer,
         language: language,
       );
@@ -1036,7 +1665,7 @@ final class Searchlight {
         final searchTerms = term.trim().split(RegExp(r'\s+'));
         uniqueDocsArray = uniqueDocsArray.where((tokenScore) {
           final internalId = DocId(tokenScore.$1);
-          final doc = _documents[internalId];
+          final doc = _documentsStore.getByInternalId(internalId);
           if (doc == null) return false;
 
           for (final prop in propertiesToSearch) {
@@ -1067,7 +1696,7 @@ final class Searchlight {
           uniqueDocsArray = docIds.map<TokenScore>((id) => (id, 0.0)).toList();
         }
       } else {
-        uniqueDocsArray = _documents.keys
+        uniqueDocsArray = _documentsStore.internalIds
             .map<TokenScore>((docId) => (docId.id, 0.0))
             .toList();
       }
@@ -1086,6 +1715,8 @@ final class Searchlight {
       uniqueDocsArray.sort((a, b) => b.$2.compareTo(a.$2));
     }
 
+    uniqueDocsArray = _applyPinningRules(term, uniqueDocsArray);
+
     // 5. Total count before pagination
     final totalCount = uniqueDocsArray.length;
 
@@ -1098,9 +1729,9 @@ final class Searchlight {
     final hits = <SearchHit>[];
     for (final (docId, score) in page) {
       final internalId = DocId(docId);
-      final externalId = _internalToExternal[internalId];
+      final externalId = _documentsStore.getExternalId(internalId);
       if (externalId == null) continue;
-      final doc = _documents[internalId];
+      final doc = _documentsStore.getByInternalId(internalId);
       if (doc == null) continue;
 
       hits.add(SearchHit(id: externalId, score: score, document: doc));
@@ -1132,13 +1763,71 @@ final class Searchlight {
 
     stopwatch.stop();
 
-    return SearchResult(
+    final result = SearchResult(
       hits: hits,
       count: totalCount,
       elapsed: stopwatch.elapsed,
       facets: facetResults,
       groups: groupResults,
     );
+    _runAfterSearchHooks(
+      params: searchParams,
+      language: language,
+      results: result,
+    );
+    return result;
+  }
+
+  List<TokenScore> _applyPinningRules(
+    String term,
+    List<TokenScore> results,
+  ) {
+    if (results.isEmpty) {
+      return results;
+    }
+
+    final matchingRules = _pinningStore.getAllPins().where(
+          (rule) => _pinRuleMatches(rule, term),
+        );
+    final pinnedResults = List<TokenScore>.from(results);
+
+    for (final rule in matchingRules) {
+      final promotions = List<SearchlightPinPromotion>.from(
+        rule.consequence.promote,
+      )..sort((left, right) => left.position.compareTo(right.position));
+
+      for (final promotion in promotions) {
+        final internalId = _externalToInternal[promotion.docId];
+        if (internalId == null) {
+          continue;
+        }
+
+        final targetId = internalId.id;
+        final existingIndex = pinnedResults.indexWhere(
+          (entry) => entry.$1 == targetId,
+        );
+        var score = 0.0;
+        if (existingIndex != -1) {
+          score = pinnedResults.removeAt(existingIndex).$2;
+        }
+
+        final insertAt = promotion.position.clamp(0, pinnedResults.length);
+        pinnedResults.insert(insertAt, (targetId, score));
+      }
+    }
+
+    return pinnedResults;
+  }
+
+  static bool _pinRuleMatches(SearchlightPinRule rule, String term) {
+    final query = term.toLowerCase();
+
+    return rule.conditions.every((condition) {
+      final pattern = condition.pattern.toLowerCase();
+      return switch (condition.anchoring) {
+        SearchlightPinAnchoring.contains => query.contains(pattern),
+      };
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1259,21 +1948,24 @@ final class Searchlight {
       allowDuplicates: _tokenizer.allowDuplicates,
       tokenizeSkipProperties: _tokenizer.tokenizeSkipProperties,
       stemmerSkipProperties: _tokenizer.stemmerSkipProperties,
+      plugins: _resolvedExtensions.plugins,
+      components: _resolvedExtensions.components,
     );
 
     // Re-insert all documents from the current instance
-    for (final entry in _internalToExternal.entries) {
-      final internalId = entry.key;
-      final doc = _documents[internalId];
-      if (doc == null) continue;
+    for (final internalId in _documentsStore.internalIds) {
+      final externalId = _documentsStore.getExternalId(internalId);
+      final doc = _documentsStore.getByInternalId(internalId);
+      if (externalId == null || doc == null) continue;
 
       // Preserve the original external ID by including it in the data
       final data = <String, Object?>{
         ...doc.toMap(),
-        'id': entry.value,
+        'id': externalId,
       };
       newDb.insert(data);
     }
+    _pinningStore.getAllPins().forEach(newDb.insertPin);
 
     return newDb;
   }
@@ -1282,7 +1974,11 @@ final class Searchlight {
   void clear() {
     // Remove each document through the normal remove path to ensure
     // the search index and sort index are properly updated.
-    _externalToInternal.keys.toList().forEach(remove);
+    <String>[
+      for (final internalId in _documentsStore.internalIds)
+        if (_documentsStore.getExternalId(internalId) case final externalId?)
+          externalId,
+    ].forEach(remove);
   }
 
   // ---------------------------------------------------------------------------
@@ -1310,31 +2006,48 @@ final class Searchlight {
     // GeoPoint objects to serializable maps (I4 fix).
     final geoFields = schema.fieldPathsOfType(SchemaType.geopoint);
 
-    // Serialize documents: internalId -> document data map
-    final docsJson = <String, Object?>{};
-    for (final entry in _documents.entries) {
-      final docMap = Map<String, Object?>.from(entry.value.toMap());
+    // Serialize documents from the active documents store.
+    final docsJson = Map<String, Object?>.from(_documentsStore.save());
+    for (final entry in docsJson.entries.toList()) {
+      final docMap = Map<String, Object?>.from(entry.value! as Map);
       // Convert GeoPoint objects to JSON-serializable maps
       for (final geoPath in geoFields) {
         _convertGeoPointToMap(docMap, geoPath);
       }
-      docsJson[entry.key.id.toString()] = docMap;
+      docsJson[entry.key] = docMap;
     }
 
     // Serialize ID store (matching Orama's internalDocumentIDStore.save)
     final idToInternalJson = <String, int>{};
-    for (final entry in _externalToInternal.entries) {
-      idToInternalJson[entry.key] = entry.value.id;
-    }
     final internalToIdJson = <String, String>{};
-    for (final entry in _internalToExternal.entries) {
-      internalToIdJson[entry.key.id.toString()] = entry.value;
+    for (final internalId in _documentsStore.internalIds) {
+      final externalId = _documentsStore.getExternalId(internalId);
+      if (externalId == null) {
+        continue;
+      }
+      idToInternalJson[externalId] = internalId.id;
+      internalToIdJson[internalId.id.toString()] = externalId;
     }
 
     return {
       'formatVersion': currentFormatVersion,
       'algorithm': algorithm.name,
       'language': language,
+      'extensionCompatibility': {
+        'plugins': [
+          for (final plugin in _resolvedExtensions.plugins) plugin.name,
+        ],
+        'components': {
+          'index': _resolvedExtensions.components.index?.id ??
+              defaultSearchlightIndexComponent.id,
+          'sorter': _resolvedExtensions.components.sorter?.id ??
+              defaultSearchlightSorterComponent.id,
+          'documentsStore': _resolvedExtensions.components.documentsStore?.id ??
+              defaultSearchlightDocumentsStoreComponent.id,
+          'pinning': _resolvedExtensions.components.pinning?.id ??
+              defaultSearchlightPinningComponent.id,
+        },
+      },
       'tokenizerConfig': {
         'stemming': _tokenizer.stemmingEnabled,
         'stopWords': _serializedStopWords,
@@ -1355,6 +2068,7 @@ final class Searchlight {
       'index': _index.toJson(),
       'sorting': _sortIndex.toJson(),
       'documents': docsJson,
+      'pinning': _pinningStore.save(),
     };
   }
 
@@ -1429,10 +2143,18 @@ final class Searchlight {
   ///
   /// Throws [SerializationException] if the bytes are not valid CBOR or
   /// the decoded data is incompatible.
-  static Searchlight deserialize(Uint8List bytes) {
+  static Searchlight deserialize(
+    Uint8List bytes, {
+    List<SearchlightPlugin<Object?>> plugins = const [],
+    SearchlightComponents? components,
+  }) {
     try {
       final map = cborDecode(bytes);
-      return Searchlight.fromJson(map);
+      return Searchlight.fromJson(
+        map,
+        plugins: plugins,
+        components: components,
+      );
     } on FormatException catch (e) {
       throw SerializationException('Invalid CBOR data: ${e.message}');
     }
@@ -1469,6 +2191,8 @@ final class Searchlight {
   static Future<Searchlight> restore({
     required SearchlightStorage storage,
     PersistenceFormat format = PersistenceFormat.cbor,
+    List<SearchlightPlugin<Object?>> plugins = const [],
+    SearchlightComponents? components,
   }) async {
     final bytes = await storage.load();
     if (bytes == null) {
@@ -1476,11 +2200,19 @@ final class Searchlight {
     }
     switch (format) {
       case PersistenceFormat.cbor:
-        return deserialize(bytes);
+        return deserialize(
+          bytes,
+          plugins: plugins,
+          components: components,
+        );
       case PersistenceFormat.json:
         final jsonString = utf8.decode(bytes);
         final map = jsonDecode(jsonString) as Map<String, Object?>;
-        return Searchlight.fromJson(map);
+        return Searchlight.fromJson(
+          map,
+          plugins: plugins,
+          components: components,
+        );
     }
   }
 

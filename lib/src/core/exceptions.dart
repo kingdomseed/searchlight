@@ -60,3 +60,9 @@ final class QueryException extends SearchlightException {
   /// Creates a [QueryException] with the given [message].
   const QueryException(super.message);
 }
+
+/// Extension configuration/resolution failure during creation.
+final class ExtensionResolutionException extends SearchlightException {
+  /// Creates an [ExtensionResolutionException] with the given [message].
+  const ExtensionResolutionException(super.message);
+}

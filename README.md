@@ -16,14 +16,25 @@ that data.
 
 ## Status
 
-`searchlight` is the core package: indexing, querying, persistence, and
-highlighting.
+`searchlight` is the core package: indexing, querying, persistence,
+highlighting, and a limited create-time extension surface.
+
+Current extension support includes:
+
+- ordered `SearchlightPlugin` registration
+- lifecycle hooks via `SearchlightHooks`
+- `index` and `sorter` component replacement via `SearchlightComponents`
+- restore-time validation that a persisted snapshot is loaded with a
+  compatible plugin/component graph
 
 It does not currently include:
 
 - PDF parsing or rendering
 - Flutter UI widgets
-- Orama-style extension registration (`components`, hooks, plugins)
+
+The extension API is intentionally narrower than Orama today. Searchlight does
+not yet expose Orama's full component graph, async plugin initialization, or
+every declared hook path.
 
 ## Platform Support
 
@@ -48,6 +59,8 @@ platform-channel code or platform-specific subpackages.
 - Standalone highlighter utilities for excerpts and marked ranges
 - Standalone tokenizer utilities with language support, stemming, and optional
   stop words
+- A limited create-time extension API for lifecycle hooks and index/sorter
+  replacement
 
 `Searchlight.create()` also exposes tokenizer-related configuration for the
 built-in database tokenizer, including `stemming`, `stemmer`, `stopWords`,
@@ -174,6 +187,40 @@ There are two common integration modes:
 
 The package supports both paths directly.
 
+Document writes are available through:
+
+- `insert()` / `insertMultiple()`
+- `update()` / `updateMultiple()`
+- `upsert()` / `upsertMultiple()`
+- `patch()`
+- `remove()` / `removeMultiple()`
+
+## Extensions
+
+Searchlight exposes a Dart-native extension surface inspired by Orama's
+create-time plugin model:
+
+- `SearchlightPlugin` is the registration unit
+- `SearchlightHooks` provides lifecycle callbacks
+- `SearchlightComponents` can replace the active `index` or `sorter`
+
+This is enough to prove real component replacement. The test suite includes
+plugin-driven index swaps that force PT15 and QPS behavior through the plugin
+path rather than through the top-level `algorithm` flag alone.
+
+Current limits to know before depending on extensions heavily:
+
+- hooks are sync-only in core operations; async hooks fail fast
+- component replacement is currently limited to `index` and `sorter`
+- conflicting `index` / `sorter` registrations now fail fast instead of using
+  last-writer-wins resolution
+- `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` remain reserved but
+  non-dispatched because the current Orama runtime does not visibly dispatch
+  them either
+
+Deeper parity notes live in
+`docs/research/searchlight-extension-status.md`.
+
 ## Defining a Schema
 
 Every database is created from a schema. String fields are searchable by full
@@ -299,6 +346,11 @@ Persistence supports reconstructible `Searchlight.create()` tokenizer settings
 such as stemming toggles, stop words, duplicate handling, and skip-property
 sets. Databases created with an injected `Tokenizer` or custom stemmer callback
 must be rebuilt instead of serialized.
+
+If a snapshot was created with plugins or replacement components, restore it
+with the same plugin order and compatible component IDs. Searchlight stores
+extension compatibility metadata in the snapshot and rejects mismatched restore
+graphs instead of silently loading into the wrong runtime shape.
 
 You can also work directly with JSON-compatible maps:
 

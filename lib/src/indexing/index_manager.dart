@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:searchlight/src/core/database.dart' show SearchAlgorithm;
 import 'package:searchlight/src/core/exceptions.dart';
 import 'package:searchlight/src/core/schema.dart';
+import 'package:searchlight/src/core/search_algorithm.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/scoring/bm25.dart';
 import 'package:searchlight/src/scoring/pt15.dart' as pt15;
@@ -306,12 +306,16 @@ final class SearchIndex {
     required int docId,
     required Map<String, Object?> data,
     required Tokenizer tokenizer,
+    Map<String, Object?>? resolvedProperties,
     String? language,
   }) {
     _docsCount++;
 
     for (final prop in searchableProperties) {
-      final value = resolveValue(data, prop);
+      final value =
+          resolvedProperties != null
+              ? resolvedProperties[prop]
+              : resolveValue(data, prop);
       if (value == null) continue;
 
       final indexTree = indexes[prop];
@@ -536,10 +540,14 @@ final class SearchIndex {
     required int docId,
     required Map<String, Object?> data,
     required Tokenizer tokenizer,
+    Map<String, Object?>? resolvedProperties,
     String? language,
   }) {
     for (final prop in searchableProperties) {
-      final value = resolveValue(data, prop);
+      final value =
+          resolvedProperties != null
+              ? resolvedProperties[prop]
+              : resolveValue(data, prop);
       if (value == null) continue;
 
       final indexTree = indexes[prop];
