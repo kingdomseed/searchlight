@@ -19,5 +19,6 @@ export 'src/persistence/format.dart'
     show PersistenceFormat, currentFormatVersion;
 export 'src/persistence/storage.dart';
 export 'src/search/filters.dart';
+export 'src/storage/documents_store.dart';
 export 'src/text/stop_words.dart';
 export 'src/text/tokenizer.dart';

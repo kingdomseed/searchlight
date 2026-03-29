@@ -36,6 +36,8 @@ ResolvedExtensions resolveExtensions({
   var resolvedTokenizer = overrides?.tokenizer ?? defaults.tokenizer;
   var resolvedIndex = overrides?.index ?? defaults.index;
   var resolvedSorter = overrides?.sorter ?? defaults.sorter;
+  var resolvedDocumentsStore =
+      overrides?.documentsStore ?? defaults.documentsStore;
   var resolvedValidateSchema =
       overrides?.validateSchema ?? defaults.validateSchema;
   var resolvedGetDocumentIndexId =
@@ -45,6 +47,7 @@ ResolvedExtensions resolveExtensions({
   String? tokenizerOwner;
   String? indexOwner;
   String? sorterOwner;
+  String? documentsStoreOwner;
   String? validateSchemaOwner;
   String? documentIndexIdOwner;
   String? documentPropertiesOwner;
@@ -57,6 +60,9 @@ ResolvedExtensions resolveExtensions({
   }
   if (overrides?.sorter != null) {
     sorterOwner = 'user components';
+  }
+  if (overrides?.documentsStore != null) {
+    documentsStoreOwner = 'user components';
   }
   if (overrides?.validateSchema != null) {
     validateSchemaOwner = 'user components';
@@ -99,6 +105,17 @@ ResolvedExtensions resolveExtensions({
       }
       resolvedSorter = sorter;
       sorterOwner = 'plugin "${plugin.name}"';
+    }
+    if (plugin.components?.documentsStore case final documentsStore?) {
+      if (documentsStoreOwner != null) {
+        throw ExtensionResolutionException(
+          'Component conflict for "documentsStore": already provided by '
+          '$documentsStoreOwner; plugin "${plugin.name}" cannot register '
+          'the same component slot.',
+        );
+      }
+      resolvedDocumentsStore = documentsStore;
+      documentsStoreOwner = 'plugin "${plugin.name}"';
     }
     if (plugin.components?.validateSchema case final validateSchema?) {
       if (validateSchemaOwner != null) {
@@ -149,6 +166,7 @@ ResolvedExtensions resolveExtensions({
       tokenizer: resolvedTokenizer,
       index: resolvedIndex,
       sorter: resolvedSorter,
+      documentsStore: resolvedDocumentsStore,
       hooks: resolvedHooks,
       validateSchema: resolvedValidateSchema,
       getDocumentIndexId: resolvedGetDocumentIndexId,

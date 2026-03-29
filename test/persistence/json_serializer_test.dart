@@ -80,6 +80,7 @@ void main() {
         <String, String>{
           'index': 'test.index.json',
           'sorter': 'test.sorter.json',
+          'documentsStore': 'searchlight.documents.default',
         },
       );
     });

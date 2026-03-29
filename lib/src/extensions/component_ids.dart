@@ -1,9 +1,12 @@
 import 'package:searchlight/src/extensions/components.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
 import 'package:searchlight/src/indexing/sort_index.dart';
+import 'package:searchlight/src/storage/documents_store.dart';
 
 const searchlightDefaultIndexComponentId = 'searchlight.index.default';
 const searchlightDefaultSorterComponentId = 'searchlight.sorter.default';
+const searchlightDefaultDocumentsStoreComponentId =
+    'searchlight.documents.default';
 
 final defaultSearchlightIndexComponent = SearchlightIndexComponent(
   id: searchlightDefaultIndexComponentId,
@@ -18,7 +21,14 @@ final defaultSearchlightSorterComponent = SearchlightSorterComponent(
   create: ({required language}) => SortIndex(language: language),
 );
 
+final defaultSearchlightDocumentsStoreComponent =
+    SearchlightDocumentsStoreComponent(
+      id: searchlightDefaultDocumentsStoreComponentId,
+      create: InMemorySearchlightDocumentsStore.new,
+    );
+
 final defaultSearchlightComponents = SearchlightComponents(
   index: defaultSearchlightIndexComponent,
   sorter: defaultSearchlightSorterComponent,
+  documentsStore: defaultSearchlightDocumentsStoreComponent,
 );

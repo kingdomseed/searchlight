@@ -72,24 +72,20 @@ gaps vs Orama are resolved or explicitly accepted.
 - restore now fails fast if a caller tries to load a serialized snapshot
   through a custom tokenizer component, because Searchlight only persists
   reconstructible built-in tokenizer state
+- a synchronous `documentsStore` component now exists with deterministic
+  conflict handling, runtime CRUD/search hydration wiring, and persistence
+  routed through `save()` plus exact-state `restore(...)`
 
 ### Immediate next execution block
 
-1. **Documents store component parity**
-   - introduce a synchronous in-memory documents-store abstraction matching the
-     current Searchlight runtime shape
-   - preserve the existing serialized document payload and ID-store shape
-   - prove replacement works without destabilizing facets, grouping, remove,
-     and restore flows
-
-2. **Pinning parity decision**
+1. **Pinning parity decision**
    - map Orama's current pinning runtime and public API in more detail
    - decide whether core pinning should land before publish or remain an
      explicit pre-extension blocker
    - if landed, add tests proving pinning mutates search results before
      pagination/facets/groups
 
-3. **Async contract note**
+2. **Async contract note**
    - keep async plugins/components unsupported unless a source-confirmed Orama
      runtime path emerges
    - document that this is a deliberate contract choice, not an accidental gap

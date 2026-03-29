@@ -28,6 +28,7 @@ import 'package:searchlight/src/scoring/bm25.dart';
 import 'package:searchlight/src/search/facets.dart' as facets_lib;
 import 'package:searchlight/src/search/filters.dart';
 import 'package:searchlight/src/search/grouping.dart' as grouping_lib;
+import 'package:searchlight/src/storage/documents_store.dart';
 import 'package:searchlight/src/text/tokenizer.dart';
 import 'package:searchlight/src/trees/bkd_tree.dart';
 
@@ -62,8 +63,10 @@ final class Searchlight {
     required bool hasInjectedTokenizer,
     required SearchIndex index,
     required Tokenizer tokenizer,
+    required SearchlightDocumentsStore documentsStore,
     required SortIndex sortIndex,
   })  : _index = index,
+        _documentsStore = documentsStore,
         _resolvedExtensions = resolvedExtensions,
         _hookRuntime = hookRuntime,
         _tokenizer = tokenizer,
@@ -155,6 +158,9 @@ final class Searchlight {
     final resolvedSorterComponent =
         resolvedExtensions.components.sorter ??
             defaultSearchlightSorterComponent;
+    final resolvedDocumentsStoreComponent =
+        resolvedExtensions.components.documentsStore ??
+            defaultSearchlightDocumentsStoreComponent;
     final index = resolvedIndexComponent.create(
       schema: schema,
       algorithm: algorithm,
@@ -170,6 +176,7 @@ final class Searchlight {
       hasInjectedTokenizer: injectedTokenizer != null,
       index: index,
       tokenizer: resolvedTokenizer,
+      documentsStore: resolvedDocumentsStoreComponent.create(),
       sortIndex: resolvedSorterComponent.create(language: tokenizerLanguage),
     );
     db._runAfterCreateHooks(db._hookRuntime.afterCreate);
@@ -344,6 +351,9 @@ final class Searchlight {
             fallbackLanguage: tokenizerLanguage,
           )
         : SortIndex(language: tokenizerLanguage);
+    final resolvedDocumentsStoreComponent =
+        resolvedExtensions.components.documentsStore ??
+            defaultSearchlightDocumentsStoreComponent;
 
     final db = Searchlight._(
       schema: schema,
@@ -355,6 +365,7 @@ final class Searchlight {
       hasInjectedTokenizer: false,
       index: index,
       tokenizer: tokenizer,
+      documentsStore: resolvedDocumentsStoreComponent.create(),
       sortIndex: sortIndex,
     );
 
@@ -505,7 +516,10 @@ final class Searchlight {
     );
     final actualIndexId = components['index'];
     final actualSorterId = components['sorter'];
-    if (actualIndexId is! String || actualSorterId is! String) {
+    final actualDocumentsStoreId = components['documentsStore'];
+    if (actualIndexId is! String ||
+        actualSorterId is! String ||
+        actualDocumentsStoreId is! String) {
       throw const SerializationException(
         'Missing or invalid "extensionCompatibility.components" in JSON',
       );
@@ -516,12 +530,17 @@ final class Searchlight {
     final expectedSorterId =
         resolvedExtensions.components.sorter?.id ??
             defaultSearchlightSorterComponent.id;
+    final expectedDocumentsStoreId =
+        resolvedExtensions.components.documentsStore?.id ??
+            defaultSearchlightDocumentsStoreComponent.id;
     if (actualIndexId != expectedIndexId ||
-        actualSorterId != expectedSorterId) {
+        actualSorterId != expectedSorterId ||
+        actualDocumentsStoreId != expectedDocumentsStoreId) {
       throw SerializationException(
         'Incompatible component graph: expected index=$expectedIndexId, '
-        'sorter=$expectedSorterId but restore was given index=$actualIndexId, '
-        'sorter=$actualSorterId.',
+        'sorter=$expectedSorterId, documentsStore=$expectedDocumentsStoreId '
+        'but restore was given index=$actualIndexId, '
+        'sorter=$actualSorterId, documentsStore=$actualDocumentsStoreId.',
       );
     }
   }
@@ -749,13 +768,18 @@ final class Searchlight {
         geoFields: geoFields,
       );
       final docId = DocId(internalId);
+      final document = Document(data);
 
-      db._documents[docId] = Document(data);
       db._externalToInternal[externalId] = docId;
       db._internalToExternal[docId] = externalId;
+      db._documentsStore.restore(
+        internalId: docId,
+        externalId: externalId,
+        document: document,
+      );
     }
 
-    db._index.restoreDocsCount(db._documents.length);
+    db._index.restoreDocsCount(db._documentsStore.count);
     _restoreCounters(db, idStoreJson);
   }
 
@@ -815,7 +839,7 @@ final class Searchlight {
     final nextId = idStoreJson['nextId'] as int?;
     final nextGeneratedId = idStoreJson['nextGeneratedId'] as int?;
 
-    final maxExistingId = db._documents.keys.fold<int>(
+    final maxExistingId = db._documentsStore.internalIds.fold<int>(
       0,
       (maxId, docId) => docId.id > maxId ? docId.id : maxId,
     );
@@ -874,8 +898,7 @@ final class Searchlight {
   // Internal document storage
   // ---------------------------------------------------------------------------
 
-  /// Internal document store keyed by internal DocId.
-  final Map<DocId, Document> _documents = {};
+  final SearchlightDocumentsStore _documentsStore;
 
   /// External string ID -> internal DocId mapping.
   final Map<String, DocId> _externalToInternal = {};
@@ -890,14 +913,18 @@ final class Searchlight {
   int _nextGeneratedId = 0;
 
   /// Total number of indexed documents.
-  int get count => _documents.length;
+  int get count => _documentsStore.count;
 
   /// Whether the database has no documents.
   bool get isEmpty => count == 0;
 
   /// Internal documents keyed by raw integer ID — for facet/group computation.
   Map<int, Document> get documentsForFacets {
-    return _documents.map((docId, doc) => MapEntry(docId.id, doc));
+    return <int, Document>{
+      for (final docId in _documentsStore.internalIds)
+        if (_documentsStore.getByInternalId(docId) case final doc?)
+          docId.id: doc,
+    };
   }
 
   /// Field path -> SchemaType mapping — for facet/group type resolution.
@@ -913,7 +940,11 @@ final class Searchlight {
 
   /// Internal doc ID -> external string ID mapping — for group computation.
   Map<int, String> get externalIdsMap {
-    return _internalToExternal.map((docId, extId) => MapEntry(docId.id, extId));
+    return <int, String>{
+      for (final docId in _documentsStore.internalIds)
+        if (_documentsStore.getExternalId(docId) case final externalId?)
+          docId.id: externalId,
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -957,7 +988,12 @@ final class Searchlight {
     _externalToInternal[externalId] = internalId;
     _internalToExternal[internalId] = externalId;
 
-    _documents[internalId] = Document(data);
+    final document = Document(data);
+    _documentsStore.store(
+      internalId: internalId,
+      externalId: externalId,
+      document: document,
+    );
     final extractedProperties = _getDocumentProperties(
       data,
       _index.searchableProperties,
@@ -1181,11 +1217,7 @@ final class Searchlight {
   // ---------------------------------------------------------------------------
 
   /// Returns the document with the given external [id], or `null` if not found.
-  Document? getById(String id) {
-    final internalId = _externalToInternal[id];
-    if (internalId == null) return null;
-    return _documents[internalId];
-  }
+  Document? getById(String id) => _documentsStore.getByExternalId(id);
 
   // ---------------------------------------------------------------------------
   // Remove (Fix 5: return bool / int)
@@ -1200,7 +1232,7 @@ final class Searchlight {
     final internalId = _externalToInternal[id];
     if (internalId == null) return false;
 
-    final doc = _documents[internalId];
+    final doc = _documentsStore.getByInternalId(internalId);
     final removedData = doc?.toMap();
     _runSingleLifecycleHooks(
       _hookRuntime.beforeRemove,
@@ -1226,9 +1258,9 @@ final class Searchlight {
       _removeSortableValues(internalId.id);
     }
 
-    _documents.remove(internalId);
     _externalToInternal.remove(id);
     _internalToExternal.remove(internalId);
+    _documentsStore.removeByExternalId(id);
     _runSingleLifecycleHooks(
       _hookRuntime.afterRemove,
       id: id,
@@ -1549,7 +1581,9 @@ final class Searchlight {
       whereFiltersIDs = searchByWhereClause(
         _index,
         where,
-        existingDocIds: _documents.keys.map((docId) => docId.id).toSet(),
+        existingDocIds: _documentsStore.internalIds
+            .map((docId) => docId.id)
+            .toSet(),
         tokenizer: _tokenizer,
         language: language,
       );
@@ -1581,7 +1615,7 @@ final class Searchlight {
         final searchTerms = term.trim().split(RegExp(r'\s+'));
         uniqueDocsArray = uniqueDocsArray.where((tokenScore) {
           final internalId = DocId(tokenScore.$1);
-          final doc = _documents[internalId];
+          final doc = _documentsStore.getByInternalId(internalId);
           if (doc == null) return false;
 
           for (final prop in propertiesToSearch) {
@@ -1612,7 +1646,7 @@ final class Searchlight {
           uniqueDocsArray = docIds.map<TokenScore>((id) => (id, 0.0)).toList();
         }
       } else {
-        uniqueDocsArray = _documents.keys
+        uniqueDocsArray = _documentsStore.internalIds
             .map<TokenScore>((docId) => (docId.id, 0.0))
             .toList();
       }
@@ -1643,9 +1677,9 @@ final class Searchlight {
     final hits = <SearchHit>[];
     for (final (docId, score) in page) {
       final internalId = DocId(docId);
-      final externalId = _internalToExternal[internalId];
+      final externalId = _documentsStore.getExternalId(internalId);
       if (externalId == null) continue;
-      final doc = _documents[internalId];
+      final doc = _documentsStore.getByInternalId(internalId);
       if (doc == null) continue;
 
       hits.add(SearchHit(id: externalId, score: score, document: doc));
@@ -1815,15 +1849,15 @@ final class Searchlight {
     );
 
     // Re-insert all documents from the current instance
-    for (final entry in _internalToExternal.entries) {
-      final internalId = entry.key;
-      final doc = _documents[internalId];
-      if (doc == null) continue;
+    for (final internalId in _documentsStore.internalIds) {
+      final externalId = _documentsStore.getExternalId(internalId);
+      final doc = _documentsStore.getByInternalId(internalId);
+      if (externalId == null || doc == null) continue;
 
       // Preserve the original external ID by including it in the data
       final data = <String, Object?>{
         ...doc.toMap(),
-        'id': entry.value,
+        'id': externalId,
       };
       newDb.insert(data);
     }
@@ -1835,7 +1869,12 @@ final class Searchlight {
   void clear() {
     // Remove each document through the normal remove path to ensure
     // the search index and sort index are properly updated.
-    _externalToInternal.keys.toList().forEach(remove);
+    final ids = <String>[
+      for (final internalId in _documentsStore.internalIds)
+        if (_documentsStore.getExternalId(internalId) case final externalId?)
+          externalId,
+    ];
+    ids.forEach(remove);
   }
 
   // ---------------------------------------------------------------------------
@@ -1863,25 +1902,27 @@ final class Searchlight {
     // GeoPoint objects to serializable maps (I4 fix).
     final geoFields = schema.fieldPathsOfType(SchemaType.geopoint);
 
-    // Serialize documents: internalId -> document data map
-    final docsJson = <String, Object?>{};
-    for (final entry in _documents.entries) {
-      final docMap = Map<String, Object?>.from(entry.value.toMap());
+    // Serialize documents from the active documents store.
+    final docsJson = Map<String, Object?>.from(_documentsStore.save());
+    for (final entry in docsJson.entries.toList()) {
+      final docMap = Map<String, Object?>.from(entry.value! as Map);
       // Convert GeoPoint objects to JSON-serializable maps
       for (final geoPath in geoFields) {
         _convertGeoPointToMap(docMap, geoPath);
       }
-      docsJson[entry.key.id.toString()] = docMap;
+      docsJson[entry.key] = docMap;
     }
 
     // Serialize ID store (matching Orama's internalDocumentIDStore.save)
     final idToInternalJson = <String, int>{};
-    for (final entry in _externalToInternal.entries) {
-      idToInternalJson[entry.key] = entry.value.id;
-    }
     final internalToIdJson = <String, String>{};
-    for (final entry in _internalToExternal.entries) {
-      internalToIdJson[entry.key.id.toString()] = entry.value;
+    for (final internalId in _documentsStore.internalIds) {
+      final externalId = _documentsStore.getExternalId(internalId);
+      if (externalId == null) {
+        continue;
+      }
+      idToInternalJson[externalId] = internalId.id;
+      internalToIdJson[internalId.id.toString()] = externalId;
     }
 
     return {
@@ -1899,6 +1940,9 @@ final class Searchlight {
           'sorter':
               _resolvedExtensions.components.sorter?.id ??
                   defaultSearchlightSorterComponent.id,
+          'documentsStore':
+              _resolvedExtensions.components.documentsStore?.id ??
+                  defaultSearchlightDocumentsStoreComponent.id,
         },
       },
       'tokenizerConfig': {

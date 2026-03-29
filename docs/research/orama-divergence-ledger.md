@@ -39,13 +39,16 @@ intentional divergence or an unresolved gap.
 - the extension component graph now also supports Orama-style `tokenizer`,
   `validateSchema`, `getDocumentIndexId`, and `getDocumentProperties`
   overrides at `Searchlight.create(...)` time
+- the extension component graph now also supports a synchronous
+  `documentsStore` replacement, and persistence routes serialized document
+  payloads through that store's `save()` / `restore(...)` cycle
 - plugin-provided index replacement is now proven end-to-end in tests,
   including QPS/PT15 behavior routed through the plugin component path
 - `upsert()` / `upsertMultiple()` now exist with Orama-style nested lifecycle
   behavior and the corresponding upsert hook paths
 - persisted snapshots now record extension compatibility metadata and restore
-  validates plugin order plus component IDs before loading extension-backed
-  state
+  validates plugin order plus `index` / `sorter` / `documentsStore`
+  component IDs before loading extension-backed state
 
 ## Intentional divergences
 
@@ -79,11 +82,10 @@ intentional divergence or an unresolved gap.
 ## Remaining gaps before publish-ready parity claims
 
 - Searchlight's extension component surface is still narrower than Orama's:
-  no documents store replacement, no pinning replacement, and no surfaced
-  `formatElapsedTime` override
+  no pinning replacement and no surfaced `formatElapsedTime` override
 - component merge semantics still diverge from Orama:
   Searchlight still lacks the rest of Orama's broader component graph,
-  especially documents-store and pinning paths
+  especially pinning and elapsed-time formatting paths
 - `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` are public in the
   Searchlight hook surface but are not currently dispatched because the current
   Orama runtime does not visibly dispatch them either

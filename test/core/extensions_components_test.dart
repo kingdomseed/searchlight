@@ -18,6 +18,10 @@ void main() {
         resolved.components.sorter?.id,
         searchlightDefaultSorterComponentId,
       );
+      expect(
+        resolved.components.documentsStore?.id,
+        searchlightDefaultDocumentsStoreComponentId,
+      );
     });
 
     test('direct component overrides replace the targeted component', () {
@@ -60,6 +64,38 @@ void main() {
             (error) => error.message,
             'message',
             contains('tokenizer'),
+          ),
+        ),
+      );
+    });
+
+    test('plugin documentsStore conflicts with a user documentsStore', () {
+      final overrideStore = SearchlightDocumentsStoreComponent(
+        id: 'test.docs.override',
+        create: () => throw UnimplementedError(),
+      );
+
+      expect(
+        () => resolveExtensions(
+          defaults: defaultSearchlightComponents,
+          overrides: SearchlightComponents(documentsStore: overrideStore),
+          plugins: [
+            SearchlightPlugin(
+              name: 'plugin-docs',
+              components: SearchlightComponents(
+                documentsStore: SearchlightDocumentsStoreComponent(
+                  id: 'test.docs.plugin',
+                  create: () => throw UnimplementedError(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        throwsA(
+          isA<ExtensionResolutionException>().having(
+            (error) => error.message,
+            'message',
+            contains('documentsStore'),
           ),
         ),
       );

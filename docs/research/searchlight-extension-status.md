@@ -53,13 +53,14 @@ still incomplete.
 - `tokenizer`
 - `index`
 - `sorter`
+- `documentsStore`
 - `validateSchema`
 - `getDocumentIndexId`
 - `getDocumentProperties`
 - final resolved `hooks`
 
-The active `index` and `sorter` descriptors carry stable IDs. Those IDs are
-serialized into snapshots and checked during restore.
+The active `index`, `sorter`, and `documentsStore` descriptors carry stable
+IDs. Those IDs are serialized into snapshots and checked during restore.
 
 ### Proven component replacement
 
@@ -94,13 +95,23 @@ still accepted.
 This is stricter and more self-describing than Orama's current persistence
 helper behavior.
 
+### Documents-store restore contract
+
+Searchlight's documents-store component now participates in persistence:
+
+- runtime writes go through `store(...)`
+- snapshots serialize the active documents-store payload through `save()`
+- deserialization restores exact persisted records through `restore(...)`
+
+That split avoids double-applying store-specific runtime transforms during
+restore while keeping synchronous create/insert behavior explicit.
+
 ## Important gaps and non-parity areas
 
 ### Component graph is still narrower than Orama
 
 Searchlight still does not expose replacements for these Orama runtime slots:
 
-- documents store
 - pinning
 - `formatElapsedTime`
 
@@ -108,14 +119,14 @@ Searchlight still does not expose replacements for these Orama runtime slots:
 
 Current Searchlight behavior:
 
-- `tokenizer`, `index`, `sorter`, `validateSchema`, `getDocumentIndexId`, and
-  `getDocumentProperties` now reject duplicate claims across user components
-  and plugins
+- `tokenizer`, `index`, `sorter`, `documentsStore`, `validateSchema`,
+  `getDocumentIndexId`, and `getDocumentProperties` now reject duplicate claims
+  across user components and plugins
 - `hooks` still use Searchlight-specific final-resolution behavior rather than
   Orama's component graph rules
 
 Orama's runtime applies conflict errors across its wider component graph, not
-just these two slots.
+just the subset Searchlight currently exposes.
 
 ### Public hook names that are not fully wired
 
@@ -165,6 +176,7 @@ The current extension system is ready for:
 - lifecycle tracing plugins
 - algorithm-style index replacement plugins
 - controlled sorter replacement
+- controlled documents-store replacement with restore compatibility checks
 - tokenizer replacement through the extension component graph
 - custom document ID resolution
 - custom schema validation

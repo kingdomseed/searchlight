@@ -168,12 +168,17 @@ Searchlight buildDatabase() {
     id: 'test.sorter',
     create: ({required language}) => SortIndex(language: language),
   );
+  final docs = SearchlightDocumentsStoreComponent(
+    id: 'test.documents',
+    create: () => _MemoryDocumentsStore(),
+  );
   return Searchlight.create(
     schema: Schema({
       'title': TypedField(SchemaType.string),
     }),
     components: SearchlightComponents(
       tokenizer: Tokenizer(),
+      documentsStore: docs,
       index: index,
       sorter: sorter,
       validateSchema: (doc, schema) {
@@ -186,6 +191,46 @@ Searchlight buildDatabase() {
       },
     ),
   );
+}
+
+final class _MemoryDocumentsStore implements SearchlightDocumentsStore {
+  @override
+  bool containsExternalId(String externalId) => false;
+
+  @override
+  int get count => 0;
+
+  @override
+  Document? getByExternalId(String externalId) => null;
+
+  @override
+  Document? getByInternalId(DocId internalId) => null;
+
+  @override
+  String? getExternalId(DocId internalId) => null;
+
+  @override
+  Iterable<DocId> get internalIds => const <DocId>[];
+
+  @override
+  bool removeByExternalId(String externalId) => false;
+
+  @override
+  Map<String, Object?> save() => const <String, Object?>{};
+
+  @override
+  void restore({
+    required DocId internalId,
+    required String externalId,
+    required Document document,
+  }) {}
+
+  @override
+  bool store({
+    required DocId internalId,
+    required String externalId,
+    required Document document,
+  }) => true;
 }
 ''');
 
