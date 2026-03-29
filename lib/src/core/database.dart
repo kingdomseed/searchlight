@@ -24,6 +24,7 @@ import 'package:searchlight/src/persistence/cbor_serializer.dart';
 import 'package:searchlight/src/persistence/format.dart';
 import 'package:searchlight/src/persistence/json_serializer.dart';
 import 'package:searchlight/src/persistence/storage.dart';
+import 'package:searchlight/src/pinning/pinning_store.dart';
 import 'package:searchlight/src/scoring/bm25.dart';
 import 'package:searchlight/src/search/facets.dart' as facets_lib;
 import 'package:searchlight/src/search/filters.dart';
@@ -64,9 +65,11 @@ final class Searchlight {
     required SearchIndex index,
     required Tokenizer tokenizer,
     required SearchlightDocumentsStore documentsStore,
+    required SearchlightPinningStore pinningStore,
     required SortIndex sortIndex,
   })  : _index = index,
         _documentsStore = documentsStore,
+        _pinningStore = pinningStore,
         _resolvedExtensions = resolvedExtensions,
         _hookRuntime = hookRuntime,
         _tokenizer = tokenizer,
@@ -155,12 +158,13 @@ final class Searchlight {
         );
     final resolvedIndexComponent =
         resolvedExtensions.components.index ?? defaultSearchlightIndexComponent;
-    final resolvedSorterComponent =
-        resolvedExtensions.components.sorter ??
-            defaultSearchlightSorterComponent;
+    final resolvedSorterComponent = resolvedExtensions.components.sorter ??
+        defaultSearchlightSorterComponent;
     final resolvedDocumentsStoreComponent =
         resolvedExtensions.components.documentsStore ??
             defaultSearchlightDocumentsStoreComponent;
+    final resolvedPinningComponent = resolvedExtensions.components.pinning ??
+        defaultSearchlightPinningComponent;
     final index = resolvedIndexComponent.create(
       schema: schema,
       algorithm: algorithm,
@@ -177,6 +181,7 @@ final class Searchlight {
       index: index,
       tokenizer: resolvedTokenizer,
       documentsStore: resolvedDocumentsStoreComponent.create(),
+      pinningStore: resolvedPinningComponent.create(),
       sortIndex: resolvedSorterComponent.create(language: tokenizerLanguage),
     );
     db._runAfterCreateHooks(db._hookRuntime.afterCreate);
@@ -354,6 +359,8 @@ final class Searchlight {
     final resolvedDocumentsStoreComponent =
         resolvedExtensions.components.documentsStore ??
             defaultSearchlightDocumentsStoreComponent;
+    final resolvedPinningComponent = resolvedExtensions.components.pinning ??
+        defaultSearchlightPinningComponent;
 
     final db = Searchlight._(
       schema: schema,
@@ -366,6 +373,7 @@ final class Searchlight {
       index: index,
       tokenizer: tokenizer,
       documentsStore: resolvedDocumentsStoreComponent.create(),
+      pinningStore: resolvedPinningComponent.create(),
       sortIndex: sortIndex,
     );
 
@@ -381,6 +389,11 @@ final class Searchlight {
         docsJson: docsJson,
         idStoreJson: idStoreJson,
       );
+    }
+
+    final rawPinning = json['pinning'];
+    if (rawPinning != null) {
+      db._pinningStore.restore(_deserializePinRules(rawPinning));
     }
 
     return db;
@@ -517,30 +530,35 @@ final class Searchlight {
     final actualIndexId = components['index'];
     final actualSorterId = components['sorter'];
     final actualDocumentsStoreId = components['documentsStore'];
+    final actualPinningId = components['pinning'];
     if (actualIndexId is! String ||
         actualSorterId is! String ||
-        actualDocumentsStoreId is! String) {
+        actualDocumentsStoreId is! String ||
+        (actualPinningId != null && actualPinningId is! String)) {
       throw const SerializationException(
         'Missing or invalid "extensionCompatibility.components" in JSON',
       );
     }
-    final expectedIndexId =
-        resolvedExtensions.components.index?.id ??
-            defaultSearchlightIndexComponent.id;
-    final expectedSorterId =
-        resolvedExtensions.components.sorter?.id ??
-            defaultSearchlightSorterComponent.id;
+    final expectedIndexId = resolvedExtensions.components.index?.id ??
+        defaultSearchlightIndexComponent.id;
+    final expectedSorterId = resolvedExtensions.components.sorter?.id ??
+        defaultSearchlightSorterComponent.id;
     final expectedDocumentsStoreId =
         resolvedExtensions.components.documentsStore?.id ??
             defaultSearchlightDocumentsStoreComponent.id;
+    final expectedPinningId = resolvedExtensions.components.pinning?.id ??
+        defaultSearchlightPinningComponent.id;
     if (actualIndexId != expectedIndexId ||
         actualSorterId != expectedSorterId ||
-        actualDocumentsStoreId != expectedDocumentsStoreId) {
+        actualDocumentsStoreId != expectedDocumentsStoreId ||
+        (actualPinningId != null && actualPinningId != expectedPinningId)) {
       throw SerializationException(
         'Incompatible component graph: expected index=$expectedIndexId, '
-        'sorter=$expectedSorterId, documentsStore=$expectedDocumentsStoreId '
+        'sorter=$expectedSorterId, documentsStore=$expectedDocumentsStoreId, '
+        'pinning=$expectedPinningId '
         'but restore was given index=$actualIndexId, '
-        'sorter=$actualSorterId, documentsStore=$actualDocumentsStoreId.',
+        'sorter=$actualSorterId, documentsStore=$actualDocumentsStoreId, '
+        'pinning=${actualPinningId ?? "<legacy-default>"}.',
       );
     }
   }
@@ -894,11 +912,30 @@ final class Searchlight {
     return value.cast<String>();
   }
 
+  static List<SearchlightPinRule> _deserializePinRules(Object? raw) {
+    if (raw is! List) {
+      throw const SerializationException(
+          'Missing or invalid "pinning" in JSON');
+    }
+
+    return [
+      for (final entry in raw)
+        if (entry is List && entry.length == 2)
+          SearchlightPinRule.fromJson(
+            entry[0] as String,
+            _asObjectMap(entry[1], 'Invalid pinning rule payload'),
+          )
+        else
+          throw const SerializationException('Invalid pinning rule payload'),
+    ];
+  }
+
   // ---------------------------------------------------------------------------
   // Internal document storage
   // ---------------------------------------------------------------------------
 
   final SearchlightDocumentsStore _documentsStore;
+  final SearchlightPinningStore _pinningStore;
 
   /// External string ID -> internal DocId mapping.
   final Map<String, DocId> _externalToInternal = {};
@@ -1158,10 +1195,9 @@ final class Searchlight {
       final type = entry.value;
       if (!_sortableTypes.contains(type)) continue;
 
-      final value =
-          resolvedProperties != null
-              ? resolvedProperties[prop]
-              : SearchIndex.resolveValue(data, prop);
+      final value = resolvedProperties != null
+          ? resolvedProperties[prop]
+          : SearchIndex.resolveValue(data, prop);
       if (value == null) continue;
 
       _sortIndex.insert(property: prop, docId: docId, value: value);
@@ -1218,6 +1254,21 @@ final class Searchlight {
 
   /// Returns the document with the given external [id], or `null` if not found.
   Document? getById(String id) => _documentsStore.getByExternalId(id);
+
+  /// Inserts a new pinning [rule].
+  bool insertPin(SearchlightPinRule rule) => _pinningStore.insertPin(rule);
+
+  /// Updates an existing pinning [rule].
+  bool updatePin(SearchlightPinRule rule) => _pinningStore.updatePin(rule);
+
+  /// Deletes the pinning rule identified by [pinId].
+  bool deletePin(String pinId) => _pinningStore.deletePin(pinId);
+
+  /// Returns a pinning rule by [pinId], if present.
+  SearchlightPinRule? getPin(String pinId) => _pinningStore.getPin(pinId);
+
+  /// Returns all registered pinning rules.
+  List<SearchlightPinRule> getAllPins() => _pinningStore.getAllPins();
 
   // ---------------------------------------------------------------------------
   // Remove (Fix 5: return bool / int)
@@ -1371,9 +1422,8 @@ final class Searchlight {
     final id = _getDocumentIndexId(data);
     _runSingleLifecycleHooks(_hookRuntime.beforeUpsert, id: id, doc: data);
 
-    final resultId = _externalToInternal.containsKey(id)
-        ? update(id, data)
-        : insert(data);
+    final resultId =
+        _externalToInternal.containsKey(id) ? update(id, data) : insert(data);
 
     _runSingleLifecycleHooks(
       _hookRuntime.afterUpsert,
@@ -1581,9 +1631,8 @@ final class Searchlight {
       whereFiltersIDs = searchByWhereClause(
         _index,
         where,
-        existingDocIds: _documentsStore.internalIds
-            .map((docId) => docId.id)
-            .toSet(),
+        existingDocIds:
+            _documentsStore.internalIds.map((docId) => docId.id).toSet(),
         tokenizer: _tokenizer,
         language: language,
       );
@@ -1665,6 +1714,8 @@ final class Searchlight {
       uniqueDocsArray.sort((a, b) => b.$2.compareTo(a.$2));
     }
 
+    uniqueDocsArray = _applyPinningRules(term, uniqueDocsArray);
+
     // 5. Total count before pagination
     final totalCount = uniqueDocsArray.length;
 
@@ -1724,6 +1775,58 @@ final class Searchlight {
       results: result,
     );
     return result;
+  }
+
+  List<TokenScore> _applyPinningRules(
+    String term,
+    List<TokenScore> results,
+  ) {
+    if (results.isEmpty) {
+      return results;
+    }
+
+    final matchingRules = _pinningStore.getAllPins().where(
+          (rule) => _pinRuleMatches(rule, term),
+        );
+    final pinnedResults = List<TokenScore>.from(results);
+
+    for (final rule in matchingRules) {
+      final promotions = List<SearchlightPinPromotion>.from(
+        rule.consequence.promote,
+      )..sort((left, right) => left.position.compareTo(right.position));
+
+      for (final promotion in promotions) {
+        final internalId = _externalToInternal[promotion.docId];
+        if (internalId == null) {
+          continue;
+        }
+
+        final targetId = internalId.id;
+        final existingIndex = pinnedResults.indexWhere(
+          (entry) => entry.$1 == targetId,
+        );
+        var score = 0.0;
+        if (existingIndex != -1) {
+          score = pinnedResults.removeAt(existingIndex).$2;
+        }
+
+        final insertAt = promotion.position.clamp(0, pinnedResults.length);
+        pinnedResults.insert(insertAt, (targetId, score));
+      }
+    }
+
+    return pinnedResults;
+  }
+
+  static bool _pinRuleMatches(SearchlightPinRule rule, String term) {
+    final query = term.toLowerCase();
+
+    return rule.conditions.every((condition) {
+      final pattern = condition.pattern.toLowerCase();
+      return switch (condition.anchoring) {
+        SearchlightPinAnchoring.contains => query.contains(pattern),
+      };
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1861,6 +1964,9 @@ final class Searchlight {
       };
       newDb.insert(data);
     }
+    for (final rule in _pinningStore.getAllPins()) {
+      newDb.insertPin(rule);
+    }
 
     return newDb;
   }
@@ -1874,7 +1980,9 @@ final class Searchlight {
         if (_documentsStore.getExternalId(internalId) case final externalId?)
           externalId,
     ];
-    ids.forEach(remove);
+    for (final id in ids) {
+      remove(id);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1934,15 +2042,14 @@ final class Searchlight {
           for (final plugin in _resolvedExtensions.plugins) plugin.name,
         ],
         'components': {
-          'index':
-              _resolvedExtensions.components.index?.id ??
-                  defaultSearchlightIndexComponent.id,
-          'sorter':
-              _resolvedExtensions.components.sorter?.id ??
-                  defaultSearchlightSorterComponent.id,
-          'documentsStore':
-              _resolvedExtensions.components.documentsStore?.id ??
-                  defaultSearchlightDocumentsStoreComponent.id,
+          'index': _resolvedExtensions.components.index?.id ??
+              defaultSearchlightIndexComponent.id,
+          'sorter': _resolvedExtensions.components.sorter?.id ??
+              defaultSearchlightSorterComponent.id,
+          'documentsStore': _resolvedExtensions.components.documentsStore?.id ??
+              defaultSearchlightDocumentsStoreComponent.id,
+          'pinning': _resolvedExtensions.components.pinning?.id ??
+              defaultSearchlightPinningComponent.id,
         },
       },
       'tokenizerConfig': {
@@ -1965,6 +2072,7 @@ final class Searchlight {
       'index': _index.toJson(),
       'sorting': _sortIndex.toJson(),
       'documents': docsJson,
+      'pinning': _pinningStore.save(),
     };
   }
 

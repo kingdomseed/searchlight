@@ -45,6 +45,11 @@ still incomplete.
 - `beforeSearch` / `afterSearch` dispatch
 - deterministic hook ordering based on plugin registration order
 - sync preflight before side effects for supported lifecycle paths
+- documents now read from the active `documentsStore` for:
+  `getById()`, remove-hook payloads, search-hit hydration,
+  exact-match filtering, facets, grouping, `reindex()`, and persistence
+- pinning now mutates the ordered search result IDs after sorting and before
+  pagination, facets, and groups
 
 ### Component surface
 
@@ -54,13 +59,15 @@ still incomplete.
 - `index`
 - `sorter`
 - `documentsStore`
+- `pinning`
 - `validateSchema`
 - `getDocumentIndexId`
 - `getDocumentProperties`
 - final resolved `hooks`
 
-The active `index`, `sorter`, and `documentsStore` descriptors carry stable
-IDs. Those IDs are serialized into snapshots and checked during restore.
+The active `index`, `sorter`, `documentsStore`, and `pinning` descriptors
+carry stable IDs. Those IDs are serialized into snapshots and checked during
+restore.
 
 ### Proven component replacement
 
@@ -69,6 +76,11 @@ The extension test suite now proves that:
 - a plugin-provided index component can replace the database index
 - that replacement can force QPS/PT15 behavior independently of the top-level
   `algorithm` argument
+- a custom `documentsStore` can replace document reads end-to-end for CRUD,
+  hydrated search results, facets, grouping, `reindex()`, and serialized
+  snapshots
+- a custom `pinning` store can replace pin persistence and mutate ordered
+  search results before pagination, facets, and groups
 - conflicting `index` / `sorter` registrations are rejected instead of falling
   back to last-writer-wins behavior
 
@@ -87,6 +99,8 @@ Searchlight snapshots include:
 - `extensionCompatibility.plugins`
 - `extensionCompatibility.components.index`
 - `extensionCompatibility.components.sorter`
+- `extensionCompatibility.components.documentsStore`
+- `extensionCompatibility.components.pinning`
 
 Restore validates those values against the supplied plugin/component graph
 before loading serialized state. Legacy snapshots without this metadata are
@@ -106,22 +120,30 @@ Searchlight's documents-store component now participates in persistence:
 That split avoids double-applying store-specific runtime transforms during
 restore while keeping synchronous create/insert behavior explicit.
 
+### Pinning restore contract
+
+Searchlight's pinning component now participates in persistence:
+
+- rule CRUD goes through the active pinning store
+- search applies matching promotion rules after sorting
+- snapshots serialize the active pinning payload through `save()`
+- deserialization restores the exact saved rule set through `restore(...)`
+
 ## Important gaps and non-parity areas
 
 ### Component graph is still narrower than Orama
 
 Searchlight still does not expose replacements for these Orama runtime slots:
 
-- pinning
 - `formatElapsedTime`
 
 ### Component merge semantics still differ
 
 Current Searchlight behavior:
 
-- `tokenizer`, `index`, `sorter`, `documentsStore`, `validateSchema`,
-  `getDocumentIndexId`, and `getDocumentProperties` now reject duplicate claims
-  across user components and plugins
+- `tokenizer`, `index`, `sorter`, `documentsStore`, `pinning`,
+  `validateSchema`, `getDocumentIndexId`, and `getDocumentProperties` now
+  reject duplicate claims across user components and plugins
 - `hooks` still use Searchlight-specific final-resolution behavior rather than
   Orama's component graph rules
 
@@ -177,6 +199,7 @@ The current extension system is ready for:
 - algorithm-style index replacement plugins
 - controlled sorter replacement
 - controlled documents-store replacement with restore compatibility checks
+- controlled pinning replacement with ordered-result and persistence checks
 - tokenizer replacement through the extension component graph
 - custom document ID resolution
 - custom schema validation

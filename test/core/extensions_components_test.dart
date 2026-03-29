@@ -22,6 +22,10 @@ void main() {
         resolved.components.documentsStore?.id,
         searchlightDefaultDocumentsStoreComponentId,
       );
+      expect(
+        resolved.components.pinning?.id,
+        searchlightDefaultPinningComponentId,
+      );
     });
 
     test('direct component overrides replace the targeted component', () {
@@ -30,7 +34,8 @@ void main() {
         create: ({
           required schema,
           required algorithm,
-        }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+        }) =>
+            SearchIndex.create(schema: schema, algorithm: algorithm),
       );
 
       final resolved = resolveExtensions(
@@ -101,20 +106,54 @@ void main() {
       );
     });
 
+    test('plugin pinning conflicts with a user pinning component', () {
+      final overridePinning = SearchlightPinningComponent(
+        id: 'test.pinning.override',
+        create: () => InMemorySearchlightPinningStore(),
+      );
+
+      expect(
+        () => resolveExtensions(
+          defaults: defaultSearchlightComponents,
+          overrides: SearchlightComponents(pinning: overridePinning),
+          plugins: [
+            SearchlightPlugin(
+              name: 'plugin-pinning',
+              components: SearchlightComponents(
+                pinning: SearchlightPinningComponent(
+                  id: 'test.pinning.plugin',
+                  create: () => InMemorySearchlightPinningStore(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        throwsA(
+          isA<ExtensionResolutionException>().having(
+            (error) => error.message,
+            'message',
+            contains('pinning'),
+          ),
+        ),
+      );
+    });
+
     test('user-supplied components conflict with plugin components', () {
       final overrideIndex = SearchlightIndexComponent(
         id: 'test.index.override',
         create: ({
           required schema,
           required algorithm,
-        }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+        }) =>
+            SearchIndex.create(schema: schema, algorithm: algorithm),
       );
       final pluginIndex = SearchlightIndexComponent(
         id: 'test.index.plugin',
         create: ({
           required schema,
           required algorithm,
-        }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+        }) =>
+            SearchIndex.create(schema: schema, algorithm: algorithm),
       );
 
       expect(
@@ -144,14 +183,16 @@ void main() {
         create: ({
           required schema,
           required algorithm,
-        }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+        }) =>
+            SearchIndex.create(schema: schema, algorithm: algorithm),
       );
       final secondIndex = SearchlightIndexComponent(
         id: 'test.index.second',
         create: ({
           required schema,
           required algorithm,
-        }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+        }) =>
+            SearchIndex.create(schema: schema, algorithm: algorithm),
       );
 
       expect(

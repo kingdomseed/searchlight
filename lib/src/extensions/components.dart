@@ -3,6 +3,7 @@ import 'package:searchlight/src/core/search_algorithm.dart';
 import 'package:searchlight/src/extensions/hooks.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
 import 'package:searchlight/src/indexing/sort_index.dart';
+import 'package:searchlight/src/pinning/pinning_store.dart';
 import 'package:searchlight/src/storage/documents_store.dart';
 import 'package:searchlight/src/text/tokenizer.dart';
 
@@ -13,25 +14,27 @@ typedef SearchlightIndexFactory = SearchIndex Function({
 });
 
 /// Factory for constructing a sort index implementation.
-typedef SearchlightSorterFactory =
-    SortIndex Function({required String language});
+typedef SearchlightSorterFactory = SortIndex Function(
+    {required String language});
 
 /// Factory for constructing a documents-store implementation.
 typedef SearchlightDocumentsStoreFactory = SearchlightDocumentsStore Function();
 
+/// Factory for constructing a pinning-store implementation.
+typedef SearchlightPinningStoreFactory = SearchlightPinningStore Function();
+
 /// Validates a document against the active schema and returns the failing path.
-typedef SearchlightSchemaValidator =
-    String? Function(SearchlightRecord doc, Schema schema);
+typedef SearchlightSchemaValidator = String? Function(
+    SearchlightRecord doc, Schema schema);
 
 /// Resolves the external document ID for a record at insert/upsert time.
 typedef SearchlightDocumentIdResolver = String Function(SearchlightRecord doc);
 
 /// Extracts the properties Searchlight should index or sort for a record.
-typedef SearchlightDocumentPropertiesResolver =
-    Map<String, Object?> Function(
-      SearchlightRecord doc,
-      List<String> paths,
-    );
+typedef SearchlightDocumentPropertiesResolver = Map<String, Object?> Function(
+  SearchlightRecord doc,
+  List<String> paths,
+);
 
 /// Search index component descriptor with stable identity and factories.
 final class SearchlightIndexComponent {
@@ -78,6 +81,21 @@ final class SearchlightDocumentsStoreComponent {
   final SearchlightDocumentsStoreFactory create;
 }
 
+/// Pinning component descriptor with stable identity and factories.
+final class SearchlightPinningComponent {
+  /// Creates a pinning component descriptor.
+  const SearchlightPinningComponent({
+    required this.id,
+    required this.create,
+  });
+
+  /// Stable component identity used in compatibility checks.
+  final String id;
+
+  /// Creates the pinning runtime for a database instance.
+  final SearchlightPinningStoreFactory create;
+}
+
 /// Advanced extension override surface for Searchlight internals.
 final class SearchlightComponents {
   /// Creates a bundle of extension component overrides.
@@ -86,6 +104,7 @@ final class SearchlightComponents {
     this.index,
     this.sorter,
     this.documentsStore,
+    this.pinning,
     this.hooks,
     this.validateSchema,
     this.getDocumentIndexId,
@@ -103,6 +122,9 @@ final class SearchlightComponents {
 
   /// Replaces the documents-store implementation.
   final SearchlightDocumentsStoreComponent? documentsStore;
+
+  /// Replaces the pinning implementation.
+  final SearchlightPinningComponent? pinning;
 
   /// Overrides the final resolved hook set.
   final SearchlightHooks? hooks;

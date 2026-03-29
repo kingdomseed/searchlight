@@ -13,7 +13,8 @@ SearchlightIndexComponent _testIndexComponent(String id) {
     create: ({
       required schema,
       required algorithm,
-    }) => SearchIndex.create(schema: schema, algorithm: algorithm),
+    }) =>
+        SearchIndex.create(schema: schema, algorithm: algorithm),
   );
 }
 
@@ -81,6 +82,7 @@ void main() {
           'index': 'test.index.json',
           'sorter': 'test.sorter.json',
           'documentsStore': 'searchlight.documents.default',
+          'pinning': 'searchlight.pinning.default',
         },
       );
     });

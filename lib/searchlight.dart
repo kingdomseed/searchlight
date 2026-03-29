@@ -18,6 +18,7 @@ export 'src/indexing/sort_index.dart' show SortIndex;
 export 'src/persistence/format.dart'
     show PersistenceFormat, currentFormatVersion;
 export 'src/persistence/storage.dart';
+export 'src/pinning/pinning_store.dart';
 export 'src/search/filters.dart';
 export 'src/storage/documents_store.dart';
 export 'src/text/stop_words.dart';

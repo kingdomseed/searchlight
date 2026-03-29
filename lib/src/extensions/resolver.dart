@@ -38,6 +38,7 @@ ResolvedExtensions resolveExtensions({
   var resolvedSorter = overrides?.sorter ?? defaults.sorter;
   var resolvedDocumentsStore =
       overrides?.documentsStore ?? defaults.documentsStore;
+  var resolvedPinning = overrides?.pinning ?? defaults.pinning;
   var resolvedValidateSchema =
       overrides?.validateSchema ?? defaults.validateSchema;
   var resolvedGetDocumentIndexId =
@@ -48,6 +49,7 @@ ResolvedExtensions resolveExtensions({
   String? indexOwner;
   String? sorterOwner;
   String? documentsStoreOwner;
+  String? pinningOwner;
   String? validateSchemaOwner;
   String? documentIndexIdOwner;
   String? documentPropertiesOwner;
@@ -63,6 +65,9 @@ ResolvedExtensions resolveExtensions({
   }
   if (overrides?.documentsStore != null) {
     documentsStoreOwner = 'user components';
+  }
+  if (overrides?.pinning != null) {
+    pinningOwner = 'user components';
   }
   if (overrides?.validateSchema != null) {
     validateSchemaOwner = 'user components';
@@ -117,6 +122,17 @@ ResolvedExtensions resolveExtensions({
       resolvedDocumentsStore = documentsStore;
       documentsStoreOwner = 'plugin "${plugin.name}"';
     }
+    if (plugin.components?.pinning case final pinning?) {
+      if (pinningOwner != null) {
+        throw ExtensionResolutionException(
+          'Component conflict for "pinning": already provided by '
+          '$pinningOwner; plugin "${plugin.name}" cannot register '
+          'the same component slot.',
+        );
+      }
+      resolvedPinning = pinning;
+      pinningOwner = 'plugin "${plugin.name}"';
+    }
     if (plugin.components?.validateSchema case final validateSchema?) {
       if (validateSchemaOwner != null) {
         throw ExtensionResolutionException(
@@ -167,6 +183,7 @@ ResolvedExtensions resolveExtensions({
       index: resolvedIndex,
       sorter: resolvedSorter,
       documentsStore: resolvedDocumentsStore,
+      pinning: resolvedPinning,
       hooks: resolvedHooks,
       validateSchema: resolvedValidateSchema,
       getDocumentIndexId: resolvedGetDocumentIndexId,

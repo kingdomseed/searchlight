@@ -75,20 +75,20 @@ gaps vs Orama are resolved or explicitly accepted.
 - a synchronous `documentsStore` component now exists with deterministic
   conflict handling, runtime CRUD/search hydration wiring, and persistence
   routed through `save()` plus exact-state `restore(...)`
+- a synchronous `pinning` component now exists with deterministic conflict
+  handling, tuple-based persistence, public pin CRUD, and search-time
+  application after sort order but before pagination/facets/groups
 
 ### Immediate next execution block
 
-1. **Pinning parity decision**
-   - map Orama's current pinning runtime and public API in more detail
-   - decide whether core pinning should land before publish or remain an
-     explicit pre-extension blocker
-   - if landed, add tests proving pinning mutates search results before
-     pagination/facets/groups
-
-2. **Async contract note**
+1. **Async contract note**
    - keep async plugins/components unsupported unless a source-confirmed Orama
      runtime path emerges
    - document that this is a deliberate contract choice, not an accidental gap
+
+2. **Elapsed-time component decision**
+   - decide whether `formatElapsedTime` belongs in the public parity surface
+     before publish or should remain an explicit documented gap
 
 ### Phase 1: Freeze Publish Scope
 

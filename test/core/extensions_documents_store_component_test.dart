@@ -142,7 +142,8 @@ final class _TransformingDocumentsStore implements SearchlightDocumentsStore {
   @override
   Map<String, Object?> save() => {
         for (final entry in _documents.entries)
-          entry.key.id.toString(): Map<String, Object?>.from(entry.value.toMap()),
+          entry.key.id.toString():
+              Map<String, Object?>.from(entry.value.toMap()),
       };
 
   @override
@@ -174,7 +175,8 @@ final class _TransformingDocumentsStore implements SearchlightDocumentsStore {
 
 void main() {
   group('extension documentsStore component', () {
-    test('database uses the resolved documentsStore for reads and hydration', () {
+    test('database uses the resolved documentsStore for reads and hydration',
+        () {
       final store = _RecordingDocumentsStore();
       final db = Searchlight.create(
         schema: Schema({
@@ -257,7 +259,7 @@ void main() {
           'title': const TypedField(SchemaType.string),
           'category': const TypedField(SchemaType.string),
         }),
-        components: SearchlightComponents(
+        components: const SearchlightComponents(
           documentsStore: SearchlightDocumentsStoreComponent(
             id: 'test.documents.recording',
             create: _RecordingDocumentsStore.new,
@@ -318,7 +320,7 @@ void main() {
 
       final restored = Searchlight.fromJson(
         json,
-        components: SearchlightComponents(
+        components: const SearchlightComponents(
           documentsStore: SearchlightDocumentsStoreComponent(
             id: 'test.documents.recording',
             create: _RecordingDocumentsStore.new,
@@ -342,7 +344,7 @@ void main() {
         schema: Schema({
           'title': const TypedField(SchemaType.string),
         }),
-        components: SearchlightComponents(
+        components: const SearchlightComponents(
           documentsStore: SearchlightDocumentsStoreComponent(
             id: 'test.documents.original',
             create: _RecordingDocumentsStore.new,
@@ -357,7 +359,7 @@ void main() {
       expect(
         () => Searchlight.fromJson(
           original.toJson(),
-          components: SearchlightComponents(
+          components: const SearchlightComponents(
             documentsStore: SearchlightDocumentsStoreComponent(
               id: 'test.documents.other',
               create: _RecordingDocumentsStore.new,

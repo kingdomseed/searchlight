@@ -172,6 +172,10 @@ Searchlight buildDatabase() {
     id: 'test.documents',
     create: () => _MemoryDocumentsStore(),
   );
+  final pinning = SearchlightPinningComponent(
+    id: 'test.pinning',
+    create: () => _MemoryPinningStore(),
+  );
   return Searchlight.create(
     schema: Schema({
       'title': TypedField(SchemaType.string),
@@ -179,6 +183,7 @@ Searchlight buildDatabase() {
     components: SearchlightComponents(
       tokenizer: Tokenizer(),
       documentsStore: docs,
+      pinning: pinning,
       index: index,
       sorter: sorter,
       validateSchema: (doc, schema) {
@@ -231,6 +236,29 @@ final class _MemoryDocumentsStore implements SearchlightDocumentsStore {
     required String externalId,
     required Document document,
   }) => true;
+}
+
+final class _MemoryPinningStore implements SearchlightPinningStore {
+  @override
+  bool deletePin(String pinId) => false;
+
+  @override
+  List<SearchlightPinRule> getAllPins() => const <SearchlightPinRule>[];
+
+  @override
+  SearchlightPinRule? getPin(String pinId) => null;
+
+  @override
+  bool insertPin(SearchlightPinRule rule) => true;
+
+  @override
+  void restore(List<SearchlightPinRule> rules) {}
+
+  @override
+  List<Object?> save() => const <Object?>[];
+
+  @override
+  bool updatePin(SearchlightPinRule rule) => true;
 }
 ''');
 

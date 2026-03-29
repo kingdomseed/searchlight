@@ -87,9 +87,10 @@ final class InMemorySearchlightDocumentsStore
 
   @override
   Map<String, Object?> save() => <String, Object?>{
-    for (final entry in _documents.entries)
-      entry.key.id.toString(): Map<String, Object?>.from(entry.value.toMap()),
-  };
+        for (final entry in _documents.entries)
+          entry.key.id.toString():
+              Map<String, Object?>.from(entry.value.toMap()),
+      };
 
   @override
   bool store({
