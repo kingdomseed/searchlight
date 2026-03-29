@@ -121,9 +121,7 @@ void main() {
             ),
           ),
         ],
-      );
-
-      db
+      )
         ..insert({'id': 'doc-1', 'title': 'One'})
         ..insert({'id': 'doc-2', 'title': 'Two'});
       calls.clear();
@@ -163,9 +161,7 @@ void main() {
             ),
           ),
         ],
-      );
-
-      db
+      )
         ..insert({'id': 'old-1', 'title': 'Old 1'})
         ..insert({'id': 'old-2', 'title': 'Old 2'});
       calls.clear();
@@ -217,9 +213,7 @@ void main() {
             ),
           ),
         ],
-      );
-
-      db..insert({'id': 'doc-1', 'title': 'Old'});
+      )..insert({'id': 'doc-1', 'title': 'Old'});
       calls.clear();
 
       final ids = db.upsertMultiple([

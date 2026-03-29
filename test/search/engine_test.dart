@@ -437,7 +437,7 @@ void main() {
         });
       addTearDown(hookedDb.dispose);
 
-      final result = hookedDb.search(term: 'hello', limit: 1, offset: 0);
+      final result = hookedDb.search(term: 'hello', limit: 1);
 
       expect(calls, <String>['beforeSearch', 'afterSearch']);
       expect(capturedParams['term'], 'hello');

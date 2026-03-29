@@ -107,22 +107,22 @@ void main() {
     });
 
     test('plugin pinning conflicts with a user pinning component', () {
-      final overridePinning = SearchlightPinningComponent(
+      const overridePinning = SearchlightPinningComponent(
         id: 'test.pinning.override',
-        create: () => InMemorySearchlightPinningStore(),
+        create: InMemorySearchlightPinningStore.new,
       );
 
       expect(
         () => resolveExtensions(
           defaults: defaultSearchlightComponents,
-          overrides: SearchlightComponents(pinning: overridePinning),
+          overrides: const SearchlightComponents(pinning: overridePinning),
           plugins: [
-            SearchlightPlugin(
+            const SearchlightPlugin(
               name: 'plugin-pinning',
               components: SearchlightComponents(
                 pinning: SearchlightPinningComponent(
                   id: 'test.pinning.plugin',
-                  create: () => InMemorySearchlightPinningStore(),
+                  create: InMemorySearchlightPinningStore.new,
                 ),
               ),
             ),

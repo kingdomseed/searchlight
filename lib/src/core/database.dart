@@ -915,7 +915,8 @@ final class Searchlight {
   static List<SearchlightPinRule> _deserializePinRules(Object? raw) {
     if (raw is! List) {
       throw const SerializationException(
-          'Missing or invalid "pinning" in JSON');
+        'Missing or invalid "pinning" in JSON',
+      );
     }
 
     return [
@@ -1964,9 +1965,7 @@ final class Searchlight {
       };
       newDb.insert(data);
     }
-    for (final rule in _pinningStore.getAllPins()) {
-      newDb.insertPin(rule);
-    }
+    _pinningStore.getAllPins().forEach(newDb.insertPin);
 
     return newDb;
   }
@@ -1975,14 +1974,11 @@ final class Searchlight {
   void clear() {
     // Remove each document through the normal remove path to ensure
     // the search index and sort index are properly updated.
-    final ids = <String>[
+    <String>[
       for (final internalId in _documentsStore.internalIds)
         if (_documentsStore.getExternalId(internalId) case final externalId?)
           externalId,
-    ];
-    for (final id in ids) {
-      remove(id);
-    }
+    ].forEach(remove);
   }
 
   // ---------------------------------------------------------------------------

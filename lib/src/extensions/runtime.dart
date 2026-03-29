@@ -1,3 +1,6 @@
+// This runtime helper is internal-only and not exported as package API.
+// ignore_for_file: public_member_api_docs
+
 import 'package:searchlight/src/extensions/hooks.dart';
 
 /// Runtime hook registry with deterministic ordering.

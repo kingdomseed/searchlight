@@ -14,8 +14,9 @@ typedef SearchlightIndexFactory = SearchIndex Function({
 });
 
 /// Factory for constructing a sort index implementation.
-typedef SearchlightSorterFactory = SortIndex Function(
-    {required String language});
+typedef SearchlightSorterFactory = SortIndex Function({
+  required String language,
+});
 
 /// Factory for constructing a documents-store implementation.
 typedef SearchlightDocumentsStoreFactory = SearchlightDocumentsStore Function();
@@ -25,7 +26,9 @@ typedef SearchlightPinningStoreFactory = SearchlightPinningStore Function();
 
 /// Validates a document against the active schema and returns the failing path.
 typedef SearchlightSchemaValidator = String? Function(
-    SearchlightRecord doc, Schema schema);
+  SearchlightRecord doc,
+  Schema schema,
+);
 
 /// Resolves the external document ID for a record at insert/upsert time.
 typedef SearchlightDocumentIdResolver = String Function(SearchlightRecord doc);

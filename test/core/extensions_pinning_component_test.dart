@@ -223,7 +223,7 @@ void main() {
 
       final restored = Searchlight.fromJson(
         json,
-        components: SearchlightComponents(
+        components: const SearchlightComponents(
           pinning: SearchlightPinningComponent(
             id: 'test.pinning.recording',
             create: _RecordingPinningStore.new,
@@ -247,7 +247,7 @@ void main() {
         schema: Schema({
           'title': const TypedField(SchemaType.string),
         }),
-        components: SearchlightComponents(
+        components: const SearchlightComponents(
           pinning: SearchlightPinningComponent(
             id: 'test.pinning.original',
             create: _RecordingPinningStore.new,
@@ -273,7 +273,7 @@ void main() {
       expect(
         () => Searchlight.fromJson(
           original.toJson(),
-          components: SearchlightComponents(
+          components: const SearchlightComponents(
             pinning: SearchlightPinningComponent(
               id: 'test.pinning.other',
               create: _RecordingPinningStore.new,
