@@ -1,7 +1,7 @@
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/search_algorithm.dart';
 import 'package:searchlight/src/core/types.dart';
-import 'package:searchlight/src/extensions/hooks.dart';
+import 'package:searchlight/src/extensions/hook_types.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
 import 'package:searchlight/src/indexing/sort_index.dart';
 import 'package:searchlight/src/pinning/pinning_store.dart';

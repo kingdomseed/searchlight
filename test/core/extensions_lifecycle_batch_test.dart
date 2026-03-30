@@ -24,9 +24,7 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              afterCreate: (_) => calls.add('afterCreate'),
-            ),
+            afterCreate: (_) => calls.add('afterCreate'),
           ),
         ],
       );
@@ -51,11 +49,9 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(
-                afterCreate: (_) async {
-                  sideEffectRan = true;
-                },
-              ),
+              afterCreate: (_) async {
+                sideEffectRan = true;
+              },
             ),
           ],
         ),
@@ -74,17 +70,15 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(
-                beforeInsertMultiple: (_, docs) {
-                  calls.add('beforeInsertMultiple:${docs.length}');
-                },
-                afterInsertMultiple: (_, docs) {
-                  final ids = docs.map((doc) => doc['id']).join(',');
-                  calls
-                    ..add('afterInsertMultiple:$ids')
-                    ..add('afterInsertMultipleDocs:${docs.length}');
-                },
-              ),
+              beforeInsertMultiple: (_, docs) {
+                calls.add('beforeInsertMultiple:${docs.length}');
+              },
+              afterInsertMultiple: (_, docs) {
+                final ids = docs.map((doc) => doc['id']).join(',');
+                calls
+                  ..add('afterInsertMultiple:$ids')
+                  ..add('afterInsertMultipleDocs:${docs.length}');
+              },
             ),
           ],
         );
@@ -111,14 +105,12 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeRemoveMultiple: (_, ids) {
-                calls.add('beforeRemoveMultiple:${ids.join(",")}');
-              },
-              afterRemoveMultiple: (_, ids) {
-                calls.add('afterRemoveMultiple:${ids.join(",")}');
-              },
-            ),
+            beforeRemoveMultiple: (_, ids) {
+              calls.add('beforeRemoveMultiple:${ids.join(",")}');
+            },
+            afterRemoveMultiple: (_, ids) {
+              calls.add('afterRemoveMultiple:${ids.join(",")}');
+            },
           ),
         ],
       )
@@ -143,22 +135,20 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeUpdateMultiple: (_, ids) =>
-                  calls.add('beforeUpdateMultiple:${ids.join(",")}'),
-              afterUpdateMultiple: (_, ids) =>
-                  calls.add('afterUpdateMultiple:${ids.join(",")}'),
-              beforeRemoveMultiple: (_, ids) =>
-                  calls.add('beforeRemoveMultiple:${ids.join(",")}'),
-              afterRemoveMultiple: (_, ids) =>
-                  calls.add('afterRemoveMultiple:${ids.join(",")}'),
-              beforeInsertMultiple: (_, docs) =>
-                  calls.add('beforeInsertMultiple:${docs.length}'),
-              afterInsertMultiple: (_, docs) {
-                final ids = docs.map((doc) => doc['id']).join(',');
-                calls.add('afterInsertMultiple:$ids');
-              },
-            ),
+            beforeUpdateMultiple: (_, ids) =>
+                calls.add('beforeUpdateMultiple:${ids.join(",")}'),
+            afterUpdateMultiple: (_, ids) =>
+                calls.add('afterUpdateMultiple:${ids.join(",")}'),
+            beforeRemoveMultiple: (_, ids) =>
+                calls.add('beforeRemoveMultiple:${ids.join(",")}'),
+            afterRemoveMultiple: (_, ids) =>
+                calls.add('afterRemoveMultiple:${ids.join(",")}'),
+            beforeInsertMultiple: (_, docs) =>
+                calls.add('beforeInsertMultiple:${docs.length}'),
+            afterInsertMultiple: (_, docs) {
+              final ids = docs.map((doc) => doc['id']).join(',');
+              calls.add('afterInsertMultiple:$ids');
+            },
           ),
         ],
       )
@@ -193,24 +183,22 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeUpsertMultiple: (_, docs) =>
-                  calls.add('beforeUpsertMultiple:${docs.length}'),
-              afterUpsertMultiple: (_, ids) =>
-                  calls.add('afterUpsertMultiple:${ids.join(",")}'),
-              beforeUpdateMultiple: (_, ids) =>
-                  calls.add('beforeUpdateMultiple:${ids.join(",")}'),
-              afterUpdateMultiple: (_, ids) =>
-                  calls.add('afterUpdateMultiple:${ids.join(",")}'),
-              beforeRemoveMultiple: (_, ids) =>
-                  calls.add('beforeRemoveMultiple:${ids.join(",")}'),
-              afterRemoveMultiple: (_, ids) =>
-                  calls.add('afterRemoveMultiple:${ids.join(",")}'),
-              afterInsertMultiple: (_, docs) {
-                final ids = docs.map((doc) => doc['id']).join(',');
-                calls.add('afterInsertMultiple:$ids');
-              },
-            ),
+            beforeUpsertMultiple: (_, docs) =>
+                calls.add('beforeUpsertMultiple:${docs.length}'),
+            afterUpsertMultiple: (_, ids) =>
+                calls.add('afterUpsertMultiple:${ids.join(",")}'),
+            beforeUpdateMultiple: (_, ids) =>
+                calls.add('beforeUpdateMultiple:${ids.join(",")}'),
+            afterUpdateMultiple: (_, ids) =>
+                calls.add('afterUpdateMultiple:${ids.join(",")}'),
+            beforeRemoveMultiple: (_, ids) =>
+                calls.add('beforeRemoveMultiple:${ids.join(",")}'),
+            afterRemoveMultiple: (_, ids) =>
+                calls.add('afterRemoveMultiple:${ids.join(",")}'),
+            afterInsertMultiple: (_, docs) {
+              final ids = docs.map((doc) => doc['id']).join(',');
+              calls.add('afterInsertMultiple:$ids');
+            },
           ),
         ],
       )..insert({'id': 'doc-1', 'title': 'Old'});
@@ -246,11 +234,9 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(
-                afterInsertMultiple: (_, __) async {
-                  sideEffectRan = true;
-                },
-              ),
+              afterInsertMultiple: (_, __) async {
+                sideEffectRan = true;
+              },
             ),
           ],
         );
@@ -279,7 +265,7 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(afterInsertMultiple: futureHook),
+            afterInsertMultiple: futureHook,
           ),
         ],
       );
@@ -306,11 +292,9 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(
-                beforeInsertMultiple: (_, __) async {
-                  hookRan = true;
-                },
-              ),
+              beforeInsertMultiple: (_, __) async {
+                hookRan = true;
+              },
             ),
           ],
         );
@@ -337,12 +321,10 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(
-                beforeUpsertMultiple: (_, __) {
-                  beforeUpsertMultipleRan = true;
-                },
-                afterUpdateMultiple: (_, __) async {},
-              ),
+              beforeUpsertMultiple: (_, __) {
+                beforeUpsertMultipleRan = true;
+              },
+              afterUpdateMultiple: (_, __) async {},
             ),
           ],
         )..insert({'id': 'doc-1', 'title': 'Old'});
@@ -368,11 +350,9 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              afterInsert: (_, __, ___) async {
-                sideEffectRan = true;
-              },
-            ),
+            afterInsert: (_, __, ___) async {
+              sideEffectRan = true;
+            },
           ),
         ],
       );
@@ -395,11 +375,9 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              afterRemove: (_, __, ___) async {
-                sideEffectRan = true;
-              },
-            ),
+            afterRemove: (_, __, ___) async {
+              sideEffectRan = true;
+            },
           ),
         ],
       )..insert({'id': 'doc-1', 'title': 'One'});
@@ -422,11 +400,9 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              afterUpdate: (_, __, ___) async {
-                sideEffectRan = true;
-              },
-            ),
+            afterUpdate: (_, __, ___) async {
+              sideEffectRan = true;
+            },
           ),
         ],
       )..insert({'id': 'old-1', 'title': 'Old'});
@@ -452,11 +428,9 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(
-                afterRemoveMultiple: (_, __) async {
-                  sideEffectRan = true;
-                },
-              ),
+              afterRemoveMultiple: (_, __) async {
+                sideEffectRan = true;
+              },
             ),
           ],
         )
@@ -484,11 +458,9 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(
-                afterUpdateMultiple: (_, __) async {
-                  sideEffectRan = true;
-                },
-              ),
+              afterUpdateMultiple: (_, __) async {
+                sideEffectRan = true;
+              },
             ),
           ],
         )

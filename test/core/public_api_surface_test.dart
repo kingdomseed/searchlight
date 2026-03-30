@@ -196,12 +196,10 @@ Searchlight buildDatabase() {
     plugins: [
       SearchlightPlugin(
         name: 'hooks',
-        hooks: SearchlightHooks(
-          beforeUpsert: (_, __, ___) {},
-          afterUpsert: (_, __, ___) {},
-          beforeUpsertMultiple: (_, __) {},
-          afterUpsertMultiple: (_, __) {},
-        ),
+        beforeUpsert: (_, __, ___) {},
+        afterUpsert: (_, __, ___) {},
+        beforeUpsertMultiple: (_, __) {},
+        afterUpsertMultiple: (_, __) {},
       ),
     ],
   );
@@ -228,6 +226,79 @@ Searchlight buildDatabase() {
 
         final output = '${result.stdout}\n${result.stderr}';
         expect(result.exitCode, 0, reason: output);
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('searchlight plugins do not accept nested hooks bags', () async {
+      final tempDir = Directory(
+        '${Directory.current.path}/test/.tmp_plugin_hooks_surface',
+      );
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+      await tempDir.create(recursive: true);
+      final source = File('${tempDir.path}/plugin_hooks_surface.dart');
+
+      try {
+        source.writeAsStringSync('''
+import 'package:searchlight/searchlight.dart';
+
+void buildPlugin() {
+  SearchlightPlugin(
+    name: 'plugin',
+    hooks: SearchlightHooks(
+      afterCreate: _afterCreate,
+    ),
+  );
+}
+
+void _afterCreate(Object db) {
+  final _ = db;
+}
+''');
+
+        final result = await Process.run(
+          'dart',
+          ['analyze', source.path],
+          workingDirectory: Directory.current.path,
+        );
+
+        final output = '${result.stdout}\n${result.stderr}';
+        expect(result.exitCode, isNonZero, reason: output);
+        expect(output, contains('undefined_named_parameter'));
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('searchlight barrel does not export SearchlightHooks', () async {
+      final tempDir = Directory(
+        '${Directory.current.path}/test/.tmp_searchlight_hooks_surface',
+      );
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+      await tempDir.create(recursive: true);
+      final source = File('${tempDir.path}/searchlight_hooks_surface.dart');
+
+      try {
+        source.writeAsStringSync('''
+import 'package:searchlight/searchlight.dart';
+
+const hookBundle = SearchlightHooks();
+''');
+
+        final result = await Process.run(
+          'dart',
+          ['analyze', source.path],
+          workingDirectory: Directory.current.path,
+        );
+
+        final output = '${result.stdout}\n${result.stderr}';
+        expect(result.exitCode, isNonZero, reason: output);
+        expect(output, contains('undefined_function'));
       } finally {
         await tempDir.delete(recursive: true);
       }
@@ -277,13 +348,15 @@ Searchlight buildDatabase() {
       pinning: pinning,
       index: index,
       sorter: sorter,
-      validateSchema: (doc, schema) {
+      validateSchema: (Map<String, Object?>? doc, Schema schema) {
         final _ = schema;
-        return doc['title'] == null ? 'title' : null;
+        return doc?['title'] == null ? 'title' : null;
       },
-      getDocumentIndexId: (doc) => doc['id'] as String? ?? 'generated-id',
-      getDocumentProperties: (doc, paths) => {
-        for (final path in paths) path: doc[path],
+      getDocumentIndexId: (Map<String, Object?>? doc) =>
+          doc?['id'] as String? ?? 'generated-id',
+      getDocumentProperties: (Map<String, Object?>? doc, List<String> paths) =>
+          {
+        for (final path in paths) path: doc?[path],
       },
     ),
   );

@@ -24,10 +24,8 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
-              afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
-            ),
+            beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
+            afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
           ),
         ],
       );
@@ -47,10 +45,8 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeRemove: (_, id, __) => calls.add('beforeRemove:$id'),
-              afterRemove: (_, id, __) => calls.add('afterRemove:$id'),
-            ),
+            beforeRemove: (_, id, __) => calls.add('beforeRemove:$id'),
+            afterRemove: (_, id, __) => calls.add('afterRemove:$id'),
           ),
         ],
       );
@@ -70,10 +66,8 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeRemove: (_, id, __) => calls.add('beforeRemove:$id'),
-              afterRemove: (_, id, __) => calls.add('afterRemove:$id'),
-            ),
+            beforeRemove: (_, id, __) => calls.add('beforeRemove:$id'),
+            afterRemove: (_, id, __) => calls.add('afterRemove:$id'),
           ),
         ],
       );
@@ -93,14 +87,12 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeUpdate: (_, id, __) => calls.add('beforeUpdate:$id'),
-              afterUpdate: (_, id, __) => calls.add('afterUpdate:$id'),
-              beforeRemove: (_, id, __) => calls.add('beforeRemove:$id'),
-              afterRemove: (_, id, __) => calls.add('afterRemove:$id'),
-              beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
-              afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
-            ),
+            beforeUpdate: (_, id, __) => calls.add('beforeUpdate:$id'),
+            afterUpdate: (_, id, __) => calls.add('afterUpdate:$id'),
+            beforeRemove: (_, id, __) => calls.add('beforeRemove:$id'),
+            afterRemove: (_, id, __) => calls.add('afterRemove:$id'),
+            beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
+            afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
           ),
         ],
       )..insert({'id': 'old-doc', 'title': 'Old'});
@@ -126,12 +118,10 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeUpsert: (_, id, __) => calls.add('beforeUpsert:$id'),
-              afterUpsert: (_, id, __) => calls.add('afterUpsert:$id'),
-              beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
-              afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
-            ),
+            beforeUpsert: (_, id, __) => calls.add('beforeUpsert:$id'),
+            afterUpsert: (_, id, __) => calls.add('afterUpsert:$id'),
+            beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
+            afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
           ),
         ],
       );
@@ -155,16 +145,14 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeUpsert: (_, id, __) => calls.add('beforeUpsert:$id'),
-              afterUpsert: (_, id, __) => calls.add('afterUpsert:$id'),
-              beforeUpdate: (_, id, __) => calls.add('beforeUpdate:$id'),
-              afterUpdate: (_, id, __) => calls.add('afterUpdate:$id'),
-              beforeRemove: (_, id, __) => calls.add('beforeRemove:$id'),
-              afterRemove: (_, id, __) => calls.add('afterRemove:$id'),
-              beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
-              afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
-            ),
+            beforeUpsert: (_, id, __) => calls.add('beforeUpsert:$id'),
+            afterUpsert: (_, id, __) => calls.add('afterUpsert:$id'),
+            beforeUpdate: (_, id, __) => calls.add('beforeUpdate:$id'),
+            afterUpdate: (_, id, __) => calls.add('afterUpdate:$id'),
+            beforeRemove: (_, id, __) => calls.add('beforeRemove:$id'),
+            afterRemove: (_, id, __) => calls.add('afterRemove:$id'),
+            beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
+            afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
           ),
         ],
       )..insert({'id': 'doc-1', 'title': 'Old'});
@@ -196,11 +184,9 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(
-                beforeInsert: (_, __, ___) async {
-                  sideEffectRan = true;
-                },
-              ),
+              beforeInsert: (_, __, ___) async {
+                sideEffectRan = true;
+              },
             ),
           ],
         );
@@ -234,7 +220,7 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(beforeInsert: futureHook),
+              beforeInsert: futureHook,
             ),
           ],
         );
@@ -265,7 +251,7 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(beforeInsert: syncHook),
+            beforeInsert: syncHook,
           ),
         ],
       );
@@ -287,12 +273,10 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeUpsert: (_, __, ___) {
-                beforeUpsertRan = true;
-              },
-              afterUpdate: (_, __, ___) async {},
-            ),
+            beforeUpsert: (_, __, ___) {
+              beforeUpsertRan = true;
+            },
+            afterUpdate: (_, __, ___) async {},
           ),
         ],
       )..insert({'id': 'doc-1', 'title': 'Old'});

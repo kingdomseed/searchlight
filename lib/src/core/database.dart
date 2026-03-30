@@ -14,6 +14,7 @@ import 'package:searchlight/src/core/search_algorithm.dart';
 import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/extensions/component_ids.dart';
 import 'package:searchlight/src/extensions/components.dart';
+import 'package:searchlight/src/extensions/hook_types.dart';
 import 'package:searchlight/src/extensions/hooks.dart';
 import 'package:searchlight/src/extensions/plugin.dart';
 import 'package:searchlight/src/extensions/resolver.dart';
@@ -483,8 +484,8 @@ final class Searchlight {
   ) {
     final hookSets = <SearchlightHooks>[];
     for (final plugin in resolvedExtensions.plugins) {
-      if (plugin.hooks case final pluginHooks?) {
-        hookSets.add(pluginHooks);
+      if (plugin.hasHooks) {
+        hookSets.add(plugin.toHooks());
       }
     }
     return SearchlightHookRuntime.fromHooks(hookSets);

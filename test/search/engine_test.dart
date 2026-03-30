@@ -416,19 +416,17 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeSearch: (_, params, language) {
-                calls.add('beforeSearch');
-                capturedParams = params;
-                capturedLanguage = language;
-              },
-              afterSearch: (_, params, language, results) {
-                calls.add('afterSearch');
-                capturedParams = params;
-                capturedLanguage = language;
-                capturedResults = results as SearchResult;
-              },
-            ),
+            beforeSearch: (_, params, language) {
+              calls.add('beforeSearch');
+              capturedParams = params;
+              capturedLanguage = language;
+            },
+            afterSearch: (_, params, language, results) {
+              calls.add('afterSearch');
+              capturedParams = params;
+              capturedLanguage = language;
+              capturedResults = results as SearchResult;
+            },
           ),
         ],
       )..insert({
@@ -460,11 +458,9 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeSearch: (_, __, ___) async {
-                sideEffectRan = true;
-              },
-            ),
+            beforeSearch: (_, __, ___) async {
+              sideEffectRan = true;
+            },
           ),
         ],
       )..insert({
@@ -496,14 +492,12 @@ void main() {
           plugins: [
             SearchlightPlugin(
               name: 'hooks',
-              hooks: SearchlightHooks(
-                beforeSearch: (_, __, ___) {
-                  beforeHookRan = true;
-                },
-                afterSearch: (_, __, ___, ____) async {
-                  afterHookRan = true;
-                },
-              ),
+              beforeSearch: (_, __, ___) {
+                beforeHookRan = true;
+              },
+              afterSearch: (_, __, ___, ____) async {
+                afterHookRan = true;
+              },
             ),
           ],
         )..insert({

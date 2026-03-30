@@ -150,10 +150,8 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeLoad: (_, __) => calls.add('beforeLoad'),
-              afterLoad: (_, __) => calls.add('afterLoad'),
-            ),
+            beforeLoad: (_, __) => calls.add('beforeLoad'),
+            afterLoad: (_, __) => calls.add('afterLoad'),
           ),
         ],
       )..insert({'id': 'doc-1', 'title': 'Hello'});
@@ -164,10 +162,8 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeLoad: (_, __) => calls.add('beforeLoad'),
-              afterLoad: (_, __) => calls.add('afterLoad'),
-            ),
+            beforeLoad: (_, __) => calls.add('beforeLoad'),
+            afterLoad: (_, __) => calls.add('afterLoad'),
           ),
         ],
       );
@@ -275,11 +271,9 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeLoad: (_, __) async {
-                sideEffectRan = true;
-              },
-            ),
+            beforeLoad: (_, __) async {
+              sideEffectRan = true;
+            },
           ),
         ],
       )..insert({'id': 'doc-1', 'title': 'Hello'});
@@ -290,11 +284,9 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'hooks',
-            hooks: SearchlightHooks(
-              beforeLoad: (_, __) async {
-                sideEffectRan = true;
-              },
-            ),
+            beforeLoad: (_, __) async {
+              sideEffectRan = true;
+            },
           ),
         ],
       );

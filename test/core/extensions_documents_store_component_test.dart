@@ -227,10 +227,8 @@ void main() {
         plugins: [
           SearchlightPlugin(
             name: 'remove-hooks',
-            hooks: SearchlightHooks(
-              beforeRemove: (_, __, doc) =>
-                  removedTitles.add(doc?['title'] as String?),
-            ),
+            beforeRemove: (_, __, doc) =>
+                removedTitles.add(doc?['title'] as String?),
           ),
         ],
         components: SearchlightComponents(

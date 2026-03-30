@@ -17,11 +17,13 @@ still incomplete.
 - duplicate plugin names are rejected deterministically
 - `SearchlightPlugin.name` is required
 - `SearchlightPlugin.extra` is available as a plugin-owned data bag
-- hook registration is accepted only through top-level `SearchlightPlugin.hooks`
+- lifecycle hooks register through top-level `SearchlightPlugin` fields such
+  as `beforeInsert`, `afterSearch`, and `afterCreate`
+- plugin-owned components register through `getComponents(schema)`
 
 ### Hook surface
 
-`SearchlightHooks` currently exposes these callback shapes:
+`SearchlightPlugin` currently exposes these callback shapes:
 
 - `afterCreate`: `(db) -> FutureOr<void>`
 - single-record hooks:
@@ -134,21 +136,6 @@ Searchlight's pinning component now participates in persistence:
 
 ## Important gaps and non-parity areas
 
-### Component merge semantics still differ
-
-Current Searchlight behavior:
-
-- plugins still contribute replacement components through a static
-  `SearchlightPlugin.components` bag
-- `tokenizer`, `index`, `sorter`, `documentsStore`, `pinning`,
-  `validateSchema`, `getDocumentIndexId`, `getDocumentProperties`, and
-  `formatElapsedTime` now reject duplicate claims across user components and
-  plugins
-
-Orama's runtime collects plugin components through `getComponents(schema)`
-instead of a static `components` field. Searchlight's conflict behavior now
-matches much more closely, but the plugin registration shape still differs.
-
 ### Public hook names that are not fully wired
 
 These hooks are publicly declared but not currently dispatched by Searchlight's
@@ -196,6 +183,7 @@ The current extension system is ready for:
 
 - lifecycle tracing plugins
 - algorithm-style index replacement plugins
+- Orama-style top-level hook registration on plugins
 - controlled sorter replacement
 - controlled documents-store replacement with restore compatibility checks
 - controlled pinning replacement with ordered-result and persistence checks

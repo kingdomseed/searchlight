@@ -36,6 +36,9 @@ intentional divergence or an unresolved gap.
 - create-time extension registration now exists for ordered plugins, named
   plugin metadata, lifecycle hooks, and `index` / `sorter` component
   replacement
+- plugin hooks now register through top-level `SearchlightPlugin` fields, and
+  plugin components now register through `getComponents(schema)` like the
+  current Orama runtime
 - the extension component graph now also supports Orama-style `tokenizer`,
   `validateSchema`, `getDocumentIndexId`, `getDocumentProperties`, and
   `formatElapsedTime` overrides at `Searchlight.create(...)` time
@@ -92,9 +95,6 @@ intentional divergence or an unresolved gap.
 
 ## Remaining gaps before publish-ready parity claims
 
-- component merge semantics still diverge from Orama:
-  Searchlight plugins still use a static `components` field instead of
-  Orama's `getComponents(schema)` registration path
 - `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` are public in the
   Searchlight hook surface but are not currently dispatched because the current
   Orama runtime does not visibly dispatch them either

@@ -1,3 +1,4 @@
+import 'package:searchlight/src/extensions/hook_types.dart';
 import 'package:searchlight/src/extensions/hooks.dart';
 import 'package:searchlight/src/extensions/runtime.dart';
 import 'package:test/test.dart';
