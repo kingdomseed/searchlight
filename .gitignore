@@ -1,4 +1,5 @@
 reference/
+.worktrees/
 .dart_tool/
 .local/
 .DS_Store

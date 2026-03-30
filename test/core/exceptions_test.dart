@@ -35,6 +35,7 @@ void main() {
         SerializationException() => 'serialization',
         StorageException() => 'storage',
         QueryException() => 'query',
+        ExtensionResolutionException() => 'extension',
       };
       expect(result, 'schema');
     });

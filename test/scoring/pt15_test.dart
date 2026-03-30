@@ -1,6 +1,8 @@
+import 'package:searchlight/searchlight.dart';
 import 'package:searchlight/src/scoring/pt15.dart';
-import 'package:searchlight/src/text/tokenizer.dart';
 import 'package:test/test.dart';
+
+import '../helpers/extensions/test_index_plugin.dart';
 
 void main() {
   group('PT15', () {
@@ -382,6 +384,30 @@ void main() {
         final doc1Score = results.firstWhere((r) => r.$1 == 1).$2;
         final doc2Score = results.firstWhere((r) => r.$1 == 2).$2;
         expect(doc1Score, greaterThan(doc2Score));
+      });
+    });
+
+    group('component plugin', () {
+      test('forced PT15 index preserves prefix matching through plugins', () {
+        final db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          plugins: [
+            testIndexPlugin(
+              name: 'pt15-plugin',
+              componentId: 'test.index.pt15',
+              forcedAlgorithm: SearchAlgorithm.pt15,
+            ),
+          ],
+        )..insert({'id': 'doc-1', 'title': 'hello world'});
+        addTearDown(db.dispose);
+
+        final result = db.search(term: 'hel');
+
+        expect(db.indexAlgorithm, SearchAlgorithm.pt15);
+        expect(result.count, 1);
+        expect(result.hits.first.id, 'doc-1');
       });
     });
   });

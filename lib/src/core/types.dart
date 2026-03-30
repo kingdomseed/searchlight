@@ -217,6 +217,28 @@ final class SearchHit {
   final Document document;
 }
 
+/// Elapsed search timing payload.
+///
+/// Matches Orama's `{raw, formatted}` result shape while also exposing a
+/// Dart-friendly [duration] view.
+@immutable
+final class SearchlightElapsedTime {
+  /// Creates an elapsed-time payload from raw nanoseconds and formatted text.
+  const SearchlightElapsedTime({
+    required this.raw,
+    required this.formatted,
+  });
+
+  /// Raw elapsed time in nanoseconds.
+  final int raw;
+
+  /// Human-readable elapsed time string.
+  final String formatted;
+
+  /// Elapsed time as a Dart [Duration].
+  Duration get duration => Duration(microseconds: raw ~/ 1000);
+}
+
 /// A group of search results sharing a common field value.
 ///
 /// Matches Orama's `GroupResult` entries.
@@ -250,7 +272,10 @@ final class SearchResult {
   final int count;
 
   /// Time taken for the search.
-  final Duration elapsed;
+  ///
+  /// Matches Orama's structured elapsed payload while preserving a convenient
+  /// [SearchlightElapsedTime.duration] getter for Dart consumers.
+  final SearchlightElapsedTime elapsed;
 
   /// Facet results keyed by field name, if facets were requested.
   ///
