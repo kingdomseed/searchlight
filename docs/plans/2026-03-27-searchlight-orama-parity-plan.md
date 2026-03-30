@@ -78,17 +78,21 @@ gaps vs Orama are resolved or explicitly accepted.
 - a synchronous `pinning` component now exists with deterministic conflict
   handling, tuple-based persistence, public pin CRUD, and search-time
   application after sort order but before pagination/facets/groups
+- a `formatElapsedTime` function component now exists with deterministic
+  conflict handling, and `SearchResult.elapsed` now carries an Orama-style
+  `{raw, formatted}` payload plus a Dart-friendly `duration` getter
 
 ### Immediate next execution block
 
-1. **Async contract note**
+1. **Extension parity cleanup**
    - keep async plugins/components unsupported unless a source-confirmed Orama
      runtime path emerges
-   - document that this is a deliberate contract choice, not an accidental gap
+   - keep that limitation documented as a deliberate contract choice, not an
+     accidental gap
 
-2. **Elapsed-time component decision**
-   - decide whether `formatElapsedTime` belongs in the public parity surface
-     before publish or should remain an explicit documented gap
+2. **Next remaining runtime gap**
+   - audit whether any source-confirmed extension behavior remains beyond the
+     currently wired component graph and the already-reserved hook names
 
 ### Phase 1: Freeze Publish Scope
 

@@ -273,15 +273,17 @@ void main() {
       expect(result.count, 25);
     });
 
-    test('elapsed in SearchResult is a non-negative Duration', () {
+    test('elapsed in SearchResult is a structured non-negative payload', () {
       db.insert(
         {'id': 'a', 'title': 'hello', 'body': 'x', 'price': 1},
       );
 
       final result = db.search(term: 'hello');
 
-      expect(result.elapsed, isA<Duration>());
-      expect(result.elapsed.inMicroseconds, greaterThanOrEqualTo(0));
+      expect(result.elapsed, isA<SearchlightElapsedTime>());
+      expect(result.elapsed.raw, greaterThanOrEqualTo(0));
+      expect(result.elapsed.formatted, isNotEmpty);
+      expect(result.elapsed.duration, isA<Duration>());
     });
 
     test('after remove, search no longer finds the document', () {

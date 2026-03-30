@@ -45,6 +45,8 @@ ResolvedExtensions resolveExtensions({
       overrides?.getDocumentIndexId ?? defaults.getDocumentIndexId;
   var resolvedGetDocumentProperties =
       overrides?.getDocumentProperties ?? defaults.getDocumentProperties;
+  var resolvedFormatElapsedTime =
+      overrides?.formatElapsedTime ?? defaults.formatElapsedTime;
   String? tokenizerOwner;
   String? indexOwner;
   String? sorterOwner;
@@ -53,6 +55,7 @@ ResolvedExtensions resolveExtensions({
   String? validateSchemaOwner;
   String? documentIndexIdOwner;
   String? documentPropertiesOwner;
+  String? formatElapsedTimeOwner;
 
   if (overrides?.tokenizer != null) {
     tokenizerOwner = 'user components';
@@ -77,6 +80,9 @@ ResolvedExtensions resolveExtensions({
   }
   if (overrides?.getDocumentProperties != null) {
     documentPropertiesOwner = 'user components';
+  }
+  if (overrides?.formatElapsedTime != null) {
+    formatElapsedTimeOwner = 'user components';
   }
 
   for (final plugin in plugins) {
@@ -167,6 +173,17 @@ ResolvedExtensions resolveExtensions({
       resolvedGetDocumentProperties = getDocumentProperties;
       documentPropertiesOwner = 'plugin "${plugin.name}"';
     }
+    if (plugin.components?.formatElapsedTime case final formatElapsedTime?) {
+      if (formatElapsedTimeOwner != null) {
+        throw ExtensionResolutionException(
+          'Component conflict for "formatElapsedTime": already '
+          'provided by $formatElapsedTimeOwner; plugin "${plugin.name}" '
+          'cannot register the same component slot.',
+        );
+      }
+      resolvedFormatElapsedTime = formatElapsedTime;
+      formatElapsedTimeOwner = 'plugin "${plugin.name}"';
+    }
     final pluginHooks = plugin.components?.hooks ?? plugin.hooks;
     if (pluginHooks != null) {
       resolvedHooks = pluginHooks;
@@ -188,6 +205,7 @@ ResolvedExtensions resolveExtensions({
       validateSchema: resolvedValidateSchema,
       getDocumentIndexId: resolvedGetDocumentIndexId,
       getDocumentProperties: resolvedGetDocumentProperties,
+      formatElapsedTime: resolvedFormatElapsedTime,
     ),
   );
 }

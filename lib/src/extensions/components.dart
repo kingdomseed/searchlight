@@ -1,5 +1,6 @@
 import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/core/search_algorithm.dart';
+import 'package:searchlight/src/core/types.dart';
 import 'package:searchlight/src/extensions/hooks.dart';
 import 'package:searchlight/src/indexing/index_manager.dart';
 import 'package:searchlight/src/indexing/sort_index.dart';
@@ -37,6 +38,11 @@ typedef SearchlightDocumentIdResolver = String Function(SearchlightRecord doc);
 typedef SearchlightDocumentPropertiesResolver = Map<String, Object?> Function(
   SearchlightRecord doc,
   List<String> paths,
+);
+
+/// Formats elapsed search time for result payloads.
+typedef SearchlightElapsedTimeFormatter = SearchlightElapsedTime Function(
+  int elapsedNanoseconds,
 );
 
 /// Search index component descriptor with stable identity and factories.
@@ -112,6 +118,7 @@ final class SearchlightComponents {
     this.validateSchema,
     this.getDocumentIndexId,
     this.getDocumentProperties,
+    this.formatElapsedTime,
   });
 
   /// Replaces the database tokenizer at create time.
@@ -140,4 +147,7 @@ final class SearchlightComponents {
 
   /// Replaces property extraction for indexing and sorting.
   final SearchlightDocumentPropertiesResolver? getDocumentProperties;
+
+  /// Replaces the elapsed-time formatter used in search results.
+  final SearchlightElapsedTimeFormatter? formatElapsedTime;
 }

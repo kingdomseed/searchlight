@@ -58,27 +58,57 @@ void main() {
     test(
       'getDocumentProperties can drive indexing from alternate payloads',
       () {
+        final db = Searchlight.create(
+          schema: Schema({
+            'title': const TypedField(SchemaType.string),
+          }),
+          components: SearchlightComponents(
+            getDocumentProperties: (doc, paths) {
+              final payload =
+                  doc['payload'] as Map<String, Object?>? ?? const {};
+              return {
+                for (final path in paths)
+                  path: path == 'title' ? payload['headline'] : doc[path],
+              };
+            },
+          ),
+        );
+        addTearDown(db.dispose);
+
+        db.insert({
+          'id': 'doc-1',
+          'payload': {
+            'headline': 'Ember Lance',
+          },
+        });
+
+        final results = db.search(
+          term: 'ember',
+          properties: const ['title'],
+        );
+
+        expect(results.count, 1);
+        expect(results.hits.single.id, 'doc-1');
+      },
+    );
+
+    test('formatElapsedTime can reshape the search elapsed payload', () {
       final db = Searchlight.create(
         schema: Schema({
           'title': const TypedField(SchemaType.string),
         }),
         components: SearchlightComponents(
-          getDocumentProperties: (doc, paths) {
-            final payload = doc['payload'] as Map<String, Object?>? ?? const {};
-            return {
-              for (final path in paths)
-                path: path == 'title' ? payload['headline'] : doc[path],
-            };
-          },
+          formatElapsedTime: (elapsedNanoseconds) => SearchlightElapsedTime(
+            raw: elapsedNanoseconds,
+            formatted: 'custom:${elapsedNanoseconds >= 0}',
+          ),
         ),
       );
       addTearDown(db.dispose);
 
       db.insert({
         'id': 'doc-1',
-        'payload': {
-          'headline': 'Ember Lance',
-        },
+        'title': 'Ember Lance',
       });
 
       final results = db.search(
@@ -86,9 +116,9 @@ void main() {
         properties: const ['title'],
       );
 
-      expect(results.count, 1);
-      expect(results.hits.single.id, 'doc-1');
-      },
-    );
+      expect(results.elapsed.formatted, 'custom:true');
+      expect(results.elapsed.raw, greaterThanOrEqualTo(0));
+      expect(results.elapsed.duration, isA<Duration>());
+    });
   });
 }

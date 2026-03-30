@@ -1105,6 +1105,40 @@ final class Searchlight {
     };
   }
 
+  SearchlightElapsedTime _formatElapsedTime(int elapsedNanoseconds) {
+    if (_resolvedExtensions.components.formatElapsedTime
+        case final formatElapsedTime?) {
+      return formatElapsedTime(elapsedNanoseconds);
+    }
+    return _defaultFormatElapsedTime(elapsedNanoseconds);
+  }
+
+  static SearchlightElapsedTime _defaultFormatElapsedTime(
+    int elapsedNanoseconds,
+  ) {
+    return SearchlightElapsedTime(
+      raw: elapsedNanoseconds,
+      formatted: _formatNanoseconds(elapsedNanoseconds),
+    );
+  }
+
+  static String _formatNanoseconds(int value) {
+    const nanosecond = 1000;
+    const millisecond = 1000000;
+    const second = 1000000000;
+
+    if (value < nanosecond) {
+      return '${value}ns';
+    }
+    if (value < millisecond) {
+      return '${value ~/ nanosecond}\u03bcs';
+    }
+    if (value < second) {
+      return '${value ~/ millisecond}ms';
+    }
+    return '${value ~/ second}s';
+  }
+
   // ---------------------------------------------------------------------------
   // Validation (Fix 2: iterate schema keys, not document keys)
   // ---------------------------------------------------------------------------
@@ -1762,11 +1796,13 @@ final class Searchlight {
     }
 
     stopwatch.stop();
+    final elapsedNanoseconds =
+        (stopwatch.elapsedTicks * 1000000000) ~/ stopwatch.frequency;
 
     final result = SearchResult(
       hits: hits,
       count: totalCount,
-      elapsed: stopwatch.elapsed,
+      elapsed: _formatElapsedTime(elapsedNanoseconds),
       facets: facetResults,
       groups: groupResults,
     );

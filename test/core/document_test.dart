@@ -86,10 +86,15 @@ void main() {
       const result = SearchResult(
         hits: [],
         count: 0,
-        elapsed: Duration.zero,
+        elapsed: SearchlightElapsedTime(
+          raw: 0,
+          formatted: '0ns',
+        ),
       );
       expect(result.hits, isEmpty);
       expect(result.count, 0);
+      expect(result.elapsed.raw, 0);
+      expect(result.elapsed.formatted, '0ns');
       expect(result.facets, isNull);
       expect(result.groups, isNull);
     });

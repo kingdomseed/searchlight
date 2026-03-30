@@ -138,6 +138,45 @@ void main() {
       );
     });
 
+    test(
+      'plugin formatElapsedTime conflicts with a user formatter component',
+      () {
+        SearchlightElapsedTime overrideFormatter(int elapsedNanoseconds) =>
+            SearchlightElapsedTime(
+              raw: elapsedNanoseconds,
+              formatted: '$elapsedNanoseconds ns',
+            );
+
+        expect(
+          () => resolveExtensions(
+            defaults: defaultSearchlightComponents,
+            overrides: SearchlightComponents(
+              formatElapsedTime: overrideFormatter,
+            ),
+            plugins: [
+              SearchlightPlugin(
+                name: 'plugin-elapsed',
+                components: SearchlightComponents(
+                  formatElapsedTime: (elapsedNanoseconds) =>
+                      SearchlightElapsedTime(
+                    raw: elapsedNanoseconds,
+                    formatted: 'plugin',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          throwsA(
+            isA<ExtensionResolutionException>().having(
+              (error) => error.message,
+              'message',
+              contains('formatElapsedTime'),
+            ),
+          ),
+        );
+      },
+    );
+
     test('user-supplied components conflict with plugin components', () {
       final overrideIndex = SearchlightIndexComponent(
         id: 'test.index.override',

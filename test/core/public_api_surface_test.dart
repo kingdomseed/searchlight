@@ -82,6 +82,51 @@ Searchlight buildDatabase() {
       },
     );
 
+    test(
+      'searchlight barrel exports elapsed formatter types for overrides',
+      () async {
+        final tempDir = Directory(
+          '${Directory.current.path}/test/.tmp_elapsed_component_api_surface',
+        );
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+        await tempDir.create(recursive: true);
+        final source = File('${tempDir.path}/elapsed_component_surface.dart');
+
+        try {
+          source.writeAsStringSync(r'''
+import 'package:searchlight/searchlight.dart';
+
+Searchlight buildDatabase() {
+  return Searchlight.create(
+    schema: Schema({
+      'title': TypedField(SchemaType.string),
+    }),
+    components: SearchlightComponents(
+      formatElapsedTime: (elapsedNanoseconds) => SearchlightElapsedTime(
+        raw: elapsedNanoseconds,
+        formatted: '$elapsedNanoseconds ns',
+      ),
+    ),
+  );
+}
+''');
+
+          final result = await Process.run(
+            'dart',
+            ['analyze', source.path],
+            workingDirectory: Directory.current.path,
+          );
+
+          final output = '${result.stdout}\n${result.stderr}';
+          expect(result.exitCode, 0, reason: output);
+        } finally {
+          await tempDir.delete(recursive: true);
+        }
+      },
+    );
+
     test('searchlight public API exposes upsert methods and hook fields',
         () async {
       final tempDir = Directory(

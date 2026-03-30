@@ -1,6 +1,6 @@
 # Searchlight Extension Status
 
-**Last updated:** 2026-03-29
+**Last updated:** 2026-03-30
 
 This document tracks what the current Searchlight extension system implements,
 where it intentionally differs from Orama, and which hook/component paths are
@@ -63,6 +63,7 @@ still incomplete.
 - `validateSchema`
 - `getDocumentIndexId`
 - `getDocumentProperties`
+- `formatElapsedTime`
 - final resolved `hooks`
 
 The active `index`, `sorter`, `documentsStore`, and `pinning` descriptors
@@ -81,6 +82,8 @@ The extension test suite now proves that:
   snapshots
 - a custom `pinning` store can replace pin persistence and mutate ordered
   search results before pagination, facets, and groups
+- a custom `formatElapsedTime` function can reshape the search-result elapsed
+  payload while the default result stays Orama-style `{raw, formatted}`
 - conflicting `index` / `sorter` registrations are rejected instead of falling
   back to last-writer-wins behavior
 
@@ -131,24 +134,20 @@ Searchlight's pinning component now participates in persistence:
 
 ## Important gaps and non-parity areas
 
-### Component graph is still narrower than Orama
-
-Searchlight still does not expose replacements for these Orama runtime slots:
-
-- `formatElapsedTime`
-
 ### Component merge semantics still differ
 
 Current Searchlight behavior:
 
 - `tokenizer`, `index`, `sorter`, `documentsStore`, `pinning`,
-  `validateSchema`, `getDocumentIndexId`, and `getDocumentProperties` now
-  reject duplicate claims across user components and plugins
+  `validateSchema`, `getDocumentIndexId`, `getDocumentProperties`, and
+  `formatElapsedTime` now reject duplicate claims across user components and
+  plugins
 - `hooks` still use Searchlight-specific final-resolution behavior rather than
   Orama's component graph rules
 
-Orama's runtime applies conflict errors across its wider component graph, not
-just the subset Searchlight currently exposes.
+Orama's runtime applies conflict errors across its component graph, while
+Searchlight still keeps `hooks` on a Searchlight-specific final-resolution
+path.
 
 ### Public hook names that are not fully wired
 
@@ -204,6 +203,7 @@ The current extension system is ready for:
 - custom document ID resolution
 - custom schema validation
 - custom document-property extraction for indexing/sorting
+- custom elapsed-time formatting for search results
 - restore-time compatibility checks for extension-backed snapshots
 
 It is not yet ready to claim full Orama extension parity.
