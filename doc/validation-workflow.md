@@ -70,7 +70,10 @@ The tool:
 3. builds a Searchlight index from those records
 4. writes both a raw corpus JSON file and a persisted snapshot JSON file
 
-Then copy the generated files into `assets/local/` if you want to run
+The generator always writes those files to the package-root `.local/`
+directory, even when you run it from `example/`.
+
+Then copy the generated files into `example/assets/local/` if you want to run
 the Flutter validation app with those local assets.
 
 ## Validate in Tests

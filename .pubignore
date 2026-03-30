@@ -1,7 +1,13 @@
-docs/
-reference/
+# Internal workflow artifacts
+.worktrees/
 .local/
-tools/
+.companions/
+ai_logs/
 findings.md
 progress.md
 task_plan.md
+
+# Internal notes and research
+docs/
+reference/
+tools/

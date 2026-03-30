@@ -1,9 +1,11 @@
 # Searchlight
 
 [![Pub Version](https://img.shields.io/pub/v/searchlight)](https://pub.dev/packages/searchlight)
-[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kingdomseed/searchlight)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![style: very good analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
 [![Repository](https://img.shields.io/badge/repository-kingdomseed%2Fsearchlight-24292f)](https://github.com/kingdomseed/searchlight)
+[![Publisher](https://img.shields.io/badge/publisher-jasonholtdigital.com-2b7cff)](https://pub.dev/publishers/jasonholtdigital.com)
 
 Searchlight is an independent pure Dart reimplementation of Orama's in-memory
 search and indexing model for Dart and Flutter apps. It gives you
@@ -74,6 +76,9 @@ Built-in tokenizer settings round-trip through persistence. Injected
 
 ```bash
 dart pub add searchlight
+
+# or from a Flutter app
+flutter pub add searchlight
 ```
 
 ## Quick Start
@@ -231,9 +236,8 @@ Current limits to know before depending on extensions heavily:
   plugin order and compatible component IDs
 - conflicting component registrations now fail fast instead of using
   last-writer-wins resolution
-- `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` remain reserved but
-  non-dispatched because the current Orama runtime does not visibly dispatch
-  them either
+- hook coverage is intentionally limited to the documented
+  `SearchlightPlugin` fields; there is no broader async initialization surface
 
 Deeper parity notes live in
 `docs/research/searchlight-extension-status.md`.

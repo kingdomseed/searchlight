@@ -14,7 +14,8 @@ To validate the local asset modes with copied content:
 
 1. Generate assets from `example/` with
    `dart run tool/build_validation_assets.dart`.
-2. Copy these files from `.local/`:
+2. Copy these files from the package-root `.local/` directory. If you ran the
+   command from `example/`, that path is `../.local/`:
    `generated_search_corpus.json`
    `generated_search_snapshot.json`
 3. Replace the placeholder files in `assets/local/`.

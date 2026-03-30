@@ -104,11 +104,13 @@ Or, from `example/` directly:
 dart run tool/build_validation_assets.dart
 ```
 
-Copy the generated files from `.local/` into this example app:
+The generator still writes into the package-root `.local/` directory when run
+from `example/`, so copy the generated files from `../.local/` or the
+repository-root `.local/` directory into this example app:
 
-- `.local/generated_search_corpus.json` ->
+- `../.local/generated_search_corpus.json` ->
   `assets/local/generated_search_corpus.json`
-- `.local/generated_search_snapshot.json` ->
+- `../.local/generated_search_snapshot.json` ->
   `assets/local/generated_search_snapshot.json`
 
 If the local files are still placeholders, the app fails with a clear
