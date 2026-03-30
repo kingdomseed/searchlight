@@ -11,8 +11,6 @@ export 'src/core/types.dart';
 export 'src/extensions/components.dart';
 export 'src/extensions/hook_types.dart';
 export 'src/extensions/plugin.dart';
-export 'src/highlight/highlighter.dart';
-export 'src/highlight/positions.dart';
 export 'src/indexing/index_manager.dart' show SearchIndex;
 export 'src/indexing/sort_index.dart' show SortIndex;
 export 'src/persistence/format.dart'

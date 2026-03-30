@@ -110,7 +110,7 @@ The example app can validate:
 - desktop folder indexing from live `.md` files on macOS, Windows, and Linux
 - local generated corpus loading
 - local generated snapshot restore
-- highlighted excerpt rendering over search hits
+- excerpt match computation over search hits through `searchlight_highlight`
 
 See [example/README.md](../example/README.md) for the manual verification
 checklist inside the app.

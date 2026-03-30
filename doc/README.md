@@ -22,10 +22,12 @@ understand intentional differences from Orama.
 - how to choose among BM25, QPS, and PT15
 - how to structure a repository or service layer around Searchlight
 - how to validate behavior with fixture data and local corpora
+- where highlighting now lives in the companion package ecosystem
 - how the current create-time extension surface fits into the core package
 
 ## Out of Scope Today
 
-- source extraction and PDF parsing
+- source extraction and PDF parsing in the core `searchlight` package
+  Companion packages such as `searchlight_parsedoc` can sit above core.
 - Flutter UI widgets
 - full Orama extension parity beyond the documented core extension contract

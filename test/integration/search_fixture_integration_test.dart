@@ -1,4 +1,5 @@
 import 'package:searchlight/searchlight.dart';
+import 'package:searchlight_highlight/searchlight_highlight.dart';
 import 'package:test/test.dart';
 
 import '../helpers/search_fixture_loader.dart';
@@ -56,7 +57,7 @@ void _assertExpectation(Searchlight db, SearchFixtureExpectation query) {
   if (query.assertHighlight) {
     final field = query.highlightField ?? 'content';
     final text = result.hits.first.document.getString(field);
-    final highlighted = const Highlighter().highlight(text, query.term);
+    final highlighted = Highlight().highlight(text, query.term);
     expect(
       highlighted.positions,
       isNotEmpty,

@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
-import 'package:searchlight/searchlight.dart';
+import 'package:searchlight_highlight/searchlight_highlight.dart';
 import 'package:searchlight_example/src/excerpt_spans.dart';
 import 'package:searchlight_example/src/folder_source_loader.dart';
 import 'package:searchlight_example/src/loaded_validation_source.dart';
@@ -90,7 +90,7 @@ class SearchValidationScreen extends StatefulWidget {
 
 class _SearchValidationScreenState extends State<SearchValidationScreen> {
   final TextEditingController _queryController = TextEditingController();
-  final Highlighter _highlighter = const Highlighter();
+  final Highlight _highlighter = Highlight();
   final SearchIndexService _searchIndexService = const SearchIndexService();
 
   LoadedValidationSource? _source;
@@ -496,7 +496,7 @@ class _SearchValidationScreenState extends State<SearchValidationScreen> {
               final query = _queryController.text.trim();
               final excerpt = _excerptFor(result.record.content);
               final positions = query.isEmpty
-                  ? const <HighlightPosition>[]
+                  ? const <Position>[]
                   : _highlighter.highlight(excerpt, query).positions;
 
               return ListTile(

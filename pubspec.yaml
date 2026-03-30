@@ -1,5 +1,5 @@
 name: searchlight
-description: Pure Dart full-text search for structured records with filtering, facets, highlighting, and persisted indexes.
+description: Pure Dart full-text search for structured records with filtering, facets, tokenizer configuration, and persisted indexes.
 version: 0.1.0
 homepage: https://github.com/kingdomseed/searchlight
 repository: https://github.com/kingdomseed/searchlight
@@ -9,7 +9,6 @@ topics:
   - search
   - full-text-search
   - indexing
-  - highlighting
   - tokenization
 
 environment:
@@ -24,5 +23,9 @@ dependencies:
   unorm_dart: ^0.3.2
 
 dev_dependencies:
+  searchlight_highlight:
+    git:
+      url: https://github.com/kingdomseed/searchlight_highlight.git
+      ref: main
   test: ^1.25.0
   very_good_analysis: ^10.0.0

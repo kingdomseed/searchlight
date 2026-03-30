@@ -10,7 +10,6 @@ Searchlight owns:
 - indexing structured records
 - querying those records
 - persistence and restore
-- standalone highlight helpers
 
 Your app owns:
 
@@ -21,6 +20,10 @@ Your app owns:
 
 That separation is intentional. It keeps the core package portable and makes it
 easy to reuse with local assets, remote content, or user-imported files.
+
+If you also want snippets, marked ranges, or HTML `<mark>` output, install the
+companion package `searchlight_highlight`. If you want reusable Markdown or
+HTML extraction, install `searchlight_parsedoc`.
 
 At the `Searchlight` database level, `Searchlight.create()` supports both the
 core database configuration (`schema`, `algorithm`, `language`) and the built-in
@@ -206,15 +209,18 @@ for (final hit in result.hits) {
 }
 ```
 
-If you want snippets or marked ranges, use `Highlighter` after search:
+If you want snippets or marked ranges, use `searchlight_highlight` after
+search:
 
 ```dart
-final highlighter = Highlighter();
+import 'package:searchlight_highlight/searchlight_highlight.dart';
+
+final highlighter = Highlight();
 
 String buildExcerpt(SearchHit hit, String query) {
   final content = hit.document.getString('content');
   final result = highlighter.highlight(content, query);
-  return result.trim(content, 180);
+  return result.trim(180);
 }
 ```
 

@@ -10,7 +10,7 @@ easy to verify:
 - live folder extraction and indexing
 - index build and restore behavior
 - query behavior over `title` and `content`
-- excerpt highlighting in UI
+- excerpt match ranges computed with `searchlight_highlight` and rendered in UI
 
 The core `searchlight` package itself is pure Dart and is not limited to
 Flutter. This example is only a validation harness.
@@ -40,6 +40,11 @@ Supported formats in this example:
 - JSON snapshot assets in local snapshot mode
 
 This example does not currently parse HTML, PDF, CSV, or XML sources.
+
+The example depends on both:
+
+- `searchlight` for indexing and querying
+- `searchlight_highlight` for match positions over excerpt text
 
 ## Run the App
 

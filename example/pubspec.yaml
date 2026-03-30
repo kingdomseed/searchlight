@@ -15,6 +15,10 @@ dependencies:
   path: ^1.9.1
   searchlight:
     path: ..
+  searchlight_highlight:
+    git:
+      url: https://github.com/kingdomseed/searchlight_highlight.git
+      ref: main
 
 dev_dependencies:
   flutter_test:

@@ -193,8 +193,8 @@ Relevant Orama package:
 Why third:
 
 - Orama treats highlighting as a separate reusable package
-- Searchlight already has a core highlighter, but packaging and UX may still
-  deserve a companion package or richer Flutter-facing layer later
+- Searchlight should mirror that split with `searchlight_highlight` instead of
+  keeping highlighting in core
 
 Relevant Orama packages:
 

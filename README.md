@@ -10,7 +10,7 @@
 Searchlight is an independent pure Dart reimplementation of Orama's in-memory
 search and indexing model for Dart and Flutter apps. It gives you
 schema-based indexing, scoring, filtering, facets, persistence, and
-standalone highlighting without requiring a server.
+tokenizer control without requiring a server.
 
 Searchlight is especially useful when your app already has content available
 locally or can download and cache it, and you want fast in-app search over
@@ -19,7 +19,7 @@ that data.
 ## Status
 
 `searchlight` is the core package: indexing, querying, persistence,
-highlighting, and a limited create-time extension surface.
+tokenizer configuration, and a limited create-time extension surface.
 
 Current extension support includes:
 
@@ -40,8 +40,11 @@ path, but it now supports more than index/sorter replacement.
 
 ## Companion Packages
 
-Current companion package:
+Current companion packages:
 
+- [`searchlight_highlight`](https://pub.dev/packages/searchlight_highlight)
+  for Orama-parity text highlighting, excerpts, HTML `<mark>` output, and
+  `Position` match ranges
 - [`searchlight_parsedoc`](https://pub.dev/packages/searchlight_parsedoc) for
   HTML and Markdown extraction plus Orama-style population helpers
 
@@ -69,10 +72,14 @@ platform-channel code or platform-specific subpackages.
 - BM25, QPS, and PT15 ranking algorithms
 - Typed filters, sorting, grouping, and facets
 - JSON and CBOR persistence for cached indexes
-- Standalone highlighter utilities for excerpts and marked ranges
 - Standalone tokenizer utilities with language support, stemming, and optional
   stop words
 - A create-time extension API for lifecycle hooks and component replacement
+
+Install companion packages when you need them:
+
+- `searchlight_highlight` for snippets, marked ranges, and HTML `<mark>` output
+- `searchlight_parsedoc` for Markdown and HTML extraction before indexing
 
 `Searchlight.create()` also exposes tokenizer-related configuration for the
 built-in database tokenizer, including `stemming`, `stemmer`, `stopWords`,
@@ -396,15 +403,19 @@ void example(Searchlight db) {
 
 ## Highlighting and Excerpts
 
-The `Highlighter` is a standalone utility. It does not change how documents are
-indexed. Use it after search to build excerpts or render marked matches.
+Highlighting now lives in the companion package
+[`searchlight_highlight`](https://pub.dev/packages/searchlight_highlight).
+It does not change how documents are indexed. Use it after search to build
+excerpts or render marked matches.
 
 ```dart
+import 'package:searchlight_highlight/searchlight_highlight.dart';
+
 String buildExcerpt(SearchHit hit) {
-  final highlighter = Highlighter();
+  final highlighter = Highlight();
   final text = hit.document.getString('content');
   final highlight = highlighter.highlight(text, 'ember');
-  return highlight.trim(text, 160);
+  return highlight.trim(160);
 }
 ```
 
@@ -425,7 +436,7 @@ Example pattern:
 2. Convert your content into that shape.
 3. Build or restore the index in a repository/service.
 4. Query from your UI layer.
-5. Use `Highlighter` to render excerpts.
+5. Use `searchlight_highlight` to render excerpts.
 
 The package includes a practical reference implementation:
 

@@ -4,6 +4,44 @@ import 'package:test/test.dart';
 
 void main() {
   group('public API surface', () {
+    test('searchlight barrel no longer exports built-in highlight types',
+        () async {
+      final tempDir = Directory(
+        '${Directory.current.path}/test/.tmp_removed_highlighter_surface',
+      );
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+      await tempDir.create(recursive: true);
+      final source = File('${tempDir.path}/removed_highlighter_surface.dart');
+
+      try {
+        source.writeAsStringSync('''
+import 'package:searchlight/searchlight.dart';
+
+void useRemovedHighlightTypes() {
+  final highlighter = Highlighter();
+  final result = highlighter.highlight('hello world', 'hello');
+  final HighlightResult typed = result;
+  final HighlightPosition first = typed.positions.first;
+  final _ = first.start;
+}
+''');
+
+        final result = await Process.run(
+          'dart',
+          ['analyze', source.path],
+          workingDirectory: Directory.current.path,
+        );
+
+        final output = '${result.stdout}\n${result.stderr}';
+        expect(result.exitCode, isNonZero, reason: output);
+        expect(output, isNot(contains('uri_does_not_exist')));
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
     test('searchlight barrel does not export DocumentAdapter', () async {
       final tempDir = Directory(
         '${Directory.current.path}/test/.tmp_public_api_surface',
