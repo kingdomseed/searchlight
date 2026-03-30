@@ -31,10 +31,9 @@ tokenizer configuration (`stemming`, `stemmer`, `stopWords`,
 `useDefaultStopWords`, `allowDuplicates`, `tokenizeSkipProperties`, and
 `stemmerSkipProperties`).
 
-By default, stemming is off, matching Orama's default tokenizer behavior.
-Persisted snapshots can restore those built-in tokenizer settings. Injected
-`Tokenizer` instances and custom stemmer callbacks must be recreated by the
-app instead of serialized.
+By default, stemming is off. Persisted snapshots can restore those built-in
+tokenizer settings. Injected `Tokenizer` instances and custom stemmer
+callbacks must be recreated by the app instead of serialized.
 
 ## Source and File-Type Support
 

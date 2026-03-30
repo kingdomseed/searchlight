@@ -34,19 +34,19 @@ It does not currently include:
 - PDF parsing or rendering
 - Flutter UI widgets
 
-The extension API is intentionally narrower than Orama today. Searchlight does
-not yet expose async plugin initialization or every declared hook dispatch
-path, but it now supports more than index/sorter replacement.
+The extension API is intentionally narrower today. Searchlight does not yet
+expose async plugin initialization or every declared hook dispatch path, but it
+now supports more than index/sorter replacement.
 
 ## Companion Packages
 
 Current companion packages:
 
 - [`searchlight_highlight`](https://pub.dev/packages/searchlight_highlight)
-  for Orama-parity text highlighting, excerpts, HTML `<mark>` output, and
-  `Position` match ranges
+  for text highlighting, excerpts, HTML `<mark>` output, and `Position` match
+  ranges
 - [`searchlight_parsedoc`](https://pub.dev/packages/searchlight_parsedoc) for
-  HTML and Markdown extraction plus Orama-style population helpers
+  HTML and Markdown extraction plus population helpers
 
 PDF extraction, viewer integration, and other source-format-specific ingestion
 still belong in your app or in future companion packages above the core
@@ -86,9 +86,9 @@ built-in database tokenizer, including `stemming`, `stemmer`, `stopWords`,
 `useDefaultStopWords`, `allowDuplicates`, `tokenizeSkipProperties`, and
 `stemmerSkipProperties`.
 
-By default, stemming is off, matching Orama's default tokenizer behavior.
-Built-in tokenizer settings round-trip through persistence. Injected
-`Tokenizer` instances and custom stemmer callbacks do not serialize.
+By default, stemming is off. Built-in tokenizer settings round-trip through
+persistence. Injected `Tokenizer` instances and custom stemmer callbacks do not
+serialize.
 
 ## Installation
 
@@ -228,8 +228,7 @@ Document writes are available through:
 
 ## Extensions
 
-Searchlight exposes a Dart-native extension surface inspired by Orama's
-create-time plugin model:
+Searchlight exposes a Dart-native create-time extension surface:
 
 - `SearchlightPlugin` is the registration unit
 - lifecycle hooks register through top-level `SearchlightPlugin` fields such
