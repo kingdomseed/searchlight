@@ -222,6 +222,23 @@ void main() {
       ]);
     });
 
+    test('upsertMultiple reuses generated IDs for inserted documents', () {
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+      );
+
+      final ids = db.upsertMultiple([
+        {'title': 'First'},
+        {'title': 'Second'},
+      ]);
+
+      expect(ids, <String>['0', '1']);
+      expect(db.getById('0')?.getString('title'), 'First');
+      expect(db.getById('1')?.getString('title'), 'Second');
+    });
+
     test(
       'insertMultiple rejects async multiple hooks before any side effects',
       () {

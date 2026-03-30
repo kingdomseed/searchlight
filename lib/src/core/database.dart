@@ -59,6 +59,7 @@ final class Searchlight {
     required this.schema,
     required this.algorithm,
     required this.language,
+    required SearchlightComponents? userComponents,
     required ResolvedExtensions resolvedExtensions,
     required SearchlightHookRuntime hookRuntime,
     required bool hasCustomStemmer,
@@ -71,6 +72,7 @@ final class Searchlight {
   })  : _index = index,
         _documentsStore = documentsStore,
         _pinningStore = pinningStore,
+        _userComponents = userComponents,
         _resolvedExtensions = resolvedExtensions,
         _hookRuntime = hookRuntime,
         _tokenizer = tokenizer,
@@ -176,6 +178,7 @@ final class Searchlight {
       schema: schema,
       algorithm: algorithm,
       language: resolvedLanguage,
+      userComponents: components,
       resolvedExtensions: resolvedExtensions,
       hookRuntime: _createHookRuntime(resolvedExtensions),
       hasCustomStemmer: stemmer != null,
@@ -344,31 +347,43 @@ final class Searchlight {
       );
     }
 
+    final resolvedIndexComponent =
+        resolvedExtensions.components.index ?? defaultSearchlightIndexComponent;
+    final resolvedSorterComponent = resolvedExtensions.components.sorter ??
+        defaultSearchlightSorterComponent;
+    final resolvedDocumentsStoreComponent =
+        resolvedExtensions.components.documentsStore ??
+            defaultSearchlightDocumentsStoreComponent;
+    final resolvedPinningComponent = resolvedExtensions.components.pinning ??
+        defaultSearchlightPinningComponent;
+    final createdIndex = resolvedIndexComponent.create(
+      schema: schema,
+      algorithm: algorithm,
+    );
+    final createdSortIndex = resolvedSorterComponent.create(
+      language: tokenizerLanguage,
+    );
     final index = hasSerializedIndex
         ? SearchIndex.fromJson(
             _asObjectMap(json['index'], 'Missing or invalid "index" in JSON'),
-            algorithm: algorithm,
+            algorithm: createdIndex.algorithm,
           )
-        : SearchIndex.create(schema: schema, algorithm: algorithm);
+        : createdIndex;
     final sortIndex = hasSerializedSorting
         ? SortIndex.fromJson(
             _asObjectMap(
               json['sorting'],
               'Missing or invalid "sorting" in JSON',
             ),
-            fallbackLanguage: tokenizerLanguage,
+            fallbackLanguage: createdSortIndex.language,
           )
-        : SortIndex(language: tokenizerLanguage);
-    final resolvedDocumentsStoreComponent =
-        resolvedExtensions.components.documentsStore ??
-            defaultSearchlightDocumentsStoreComponent;
-    final resolvedPinningComponent = resolvedExtensions.components.pinning ??
-        defaultSearchlightPinningComponent;
+        : createdSortIndex;
 
     final db = Searchlight._(
       schema: schema,
       algorithm: algorithm,
       language: language,
+      userComponents: components,
       resolvedExtensions: resolvedExtensions,
       hookRuntime: _createHookRuntime(resolvedExtensions),
       hasCustomStemmer: false,
@@ -414,6 +429,7 @@ final class Searchlight {
   /// Resolved extension configuration captured at construction.
   // TODO(extension-runtime): consume retained extension state in hook/runtime wiring.
   final ResolvedExtensions _resolvedExtensions;
+  final SearchlightComponents? _userComponents;
   final SearchlightHookRuntime _hookRuntime;
 
   /// The search index managing per-field trees and scoring data.
@@ -999,11 +1015,18 @@ final class Searchlight {
   /// Throws [DocumentValidationException] if the document does not conform
   /// to the schema, or if a document with the same external ID already exists.
   String insert(Map<String, Object?> data) {
+    return _insertDocument(data);
+  }
+
+  String _insertDocument(
+    Map<String, Object?> data, {
+    String? resolvedExternalId,
+  }) {
     _validateDocument(data, schema.fields, '');
     _preflightInsertLifecycleHooks();
 
     // Determine external ID (Fix 1)
-    final externalId = _getDocumentIndexId(data);
+    final externalId = resolvedExternalId ?? _getDocumentIndexId(data);
     _runSingleLifecycleHooks(
       _hookRuntime.beforeInsert,
       id: externalId,
@@ -1018,17 +1041,19 @@ final class Searchlight {
       );
     }
 
-    // Map external -> internal
-    final internalId = DocId(_nextInternalId++);
-    _externalToInternal[externalId] = internalId;
-    _internalToExternal[internalId] = externalId;
-
+    final internalId = DocId(_nextInternalId);
     final document = Document(data);
-    _documentsStore.store(
+    final stored = _documentsStore.store(
       internalId: internalId,
       externalId: externalId,
       document: document,
     );
+    if (!stored) {
+      throw StorageException('Document store rejected document: $externalId');
+    }
+    _nextInternalId++;
+    _externalToInternal[externalId] = internalId;
+    _internalToExternal[internalId] = externalId;
     final extractedProperties = _getDocumentProperties(
       data,
       _index.searchableProperties,
@@ -1265,11 +1290,22 @@ final class Searchlight {
     List<Map<String, Object?>> documents, {
     int batchSize = 1000,
   }) {
+    return _insertMultipleDocuments(documents);
+  }
+
+  List<String> _insertMultipleDocuments(
+    List<Map<String, Object?>> documents, {
+    List<String>? resolvedExternalIds,
+  }) {
     _preflightInsertMultipleLifecycleHooks();
     final ids = <String>[];
 
-    for (final doc in documents) {
-      final id = insert(doc);
+    for (var index = 0; index < documents.length; index++) {
+      final doc = documents[index];
+      final id = _insertDocument(
+        doc,
+        resolvedExternalId: resolvedExternalIds?[index],
+      );
       ids.add(id);
     }
     _runMultipleDocsLifecycleHooks(
@@ -1454,8 +1490,9 @@ final class Searchlight {
     final id = _getDocumentIndexId(data);
     _runSingleLifecycleHooks(_hookRuntime.beforeUpsert, id: id, doc: data);
 
-    final resultId =
-        _externalToInternal.containsKey(id) ? update(id, data) : insert(data);
+    final resultId = _externalToInternal.containsKey(id)
+        ? update(id, data)
+        : _insertDocument(data, resolvedExternalId: id);
 
     _runSingleLifecycleHooks(
       _hookRuntime.afterUpsert,
@@ -1486,6 +1523,7 @@ final class Searchlight {
     }
 
     final docsToInsert = <Map<String, Object?>>[];
+    final idsToInsert = <String>[];
     final docsToUpdate = <Map<String, Object?>>[];
     final idsToUpdate = <String>[];
 
@@ -1496,6 +1534,7 @@ final class Searchlight {
         idsToUpdate.add(id);
       } else {
         docsToInsert.add(doc);
+        idsToInsert.add(id);
       }
     }
 
@@ -1511,9 +1550,9 @@ final class Searchlight {
     }
     if (docsToInsert.isNotEmpty) {
       resultIds.addAll(
-        insertMultiple(
+        _insertMultipleDocuments(
           docsToInsert,
-          batchSize: batchSize,
+          resolvedExternalIds: idsToInsert,
         ),
       );
     }
@@ -1982,7 +2021,7 @@ final class Searchlight {
       tokenizeSkipProperties: _tokenizer.tokenizeSkipProperties,
       stemmerSkipProperties: _tokenizer.stemmerSkipProperties,
       plugins: _resolvedExtensions.plugins,
-      components: _resolvedExtensions.components,
+      components: _userComponents,
     );
 
     // Re-insert all documents from the current instance

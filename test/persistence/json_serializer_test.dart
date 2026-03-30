@@ -7,6 +7,8 @@ import 'dart:convert';
 import 'package:searchlight/searchlight.dart';
 import 'package:test/test.dart';
 
+import '../helpers/extensions/test_index_plugin.dart';
+
 SearchlightIndexComponent _testIndexComponent(String id) {
   return SearchlightIndexComponent(
     id: id,
@@ -199,6 +201,43 @@ void main() {
 
       expect(restored.count, 1);
       expect(restored.getById('doc-1'), isNotNull);
+    });
+
+    test('fromJson preserves plugin-provided index algorithm and search', () {
+      final plugin = testIndexPlugin(
+        name: 'plugin-index',
+        componentId: 'test.index.plugin',
+        forcedAlgorithm: SearchAlgorithm.pt15,
+      );
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [plugin],
+      )
+        ..insert({'id': 'doc-1', 'title': 'Ember Lance'})
+        ..insert({'id': 'doc-2', 'title': 'Iron Boar'});
+
+      expect(db.algorithm, SearchAlgorithm.bm25);
+      expect(db.indexAlgorithm, SearchAlgorithm.pt15);
+
+      final restored = Searchlight.fromJson(
+        db.toJson(),
+        plugins: [
+          testIndexPlugin(
+            name: 'plugin-index',
+            componentId: 'test.index.plugin',
+            forcedAlgorithm: SearchAlgorithm.pt15,
+          ),
+        ],
+      );
+
+      expect(restored.indexAlgorithm, SearchAlgorithm.pt15);
+      final results = restored.search(
+        term: 'ember',
+        properties: const ['title'],
+      );
+      expect(results.hits.single.id, 'doc-1');
     });
 
     test('fromJson rejects mismatched plugin order clearly', () {

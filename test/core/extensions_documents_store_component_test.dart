@@ -173,6 +173,51 @@ final class _TransformingDocumentsStore implements SearchlightDocumentsStore {
   }
 }
 
+final class _RejectingDocumentsStore implements SearchlightDocumentsStore {
+  int storeCalls = 0;
+
+  @override
+  int get count => 0;
+
+  @override
+  bool containsExternalId(String externalId) => false;
+
+  @override
+  Iterable<DocId> get internalIds => const <DocId>[];
+
+  @override
+  String? getExternalId(DocId internalId) => null;
+
+  @override
+  Document? getByExternalId(String externalId) => null;
+
+  @override
+  Document? getByInternalId(DocId internalId) => null;
+
+  @override
+  bool removeByExternalId(String externalId) => false;
+
+  @override
+  Map<String, Object?> save() => const <String, Object?>{};
+
+  @override
+  bool store({
+    required DocId internalId,
+    required String externalId,
+    required Document document,
+  }) {
+    storeCalls++;
+    return false;
+  }
+
+  @override
+  void restore({
+    required DocId internalId,
+    required String externalId,
+    required Document document,
+  }) {}
+}
+
 void main() {
   group('extension documentsStore component', () {
     test('database uses the resolved documentsStore for reads and hydration',
@@ -249,6 +294,40 @@ void main() {
       expect(removedTitles, ['Ember Lance [stored]']);
       expect(store.removeCalls, 1);
       expect(db.getById('doc-1'), isNull);
+    });
+
+    test('insert fails fast when the documentsStore rejects the write', () {
+      final store = _RejectingDocumentsStore();
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        components: SearchlightComponents(
+          documentsStore: SearchlightDocumentsStoreComponent(
+            id: 'test.documents.rejecting',
+            create: () => store,
+          ),
+        ),
+      );
+      addTearDown(db.dispose);
+
+      expect(
+        () => db.insert({
+          'id': 'doc-1',
+          'title': 'Ember Lance',
+        }),
+        throwsA(isA<StorageException>()),
+      );
+      expect(store.storeCalls, 1);
+      expect(db.count, 0);
+      expect(db.getById('doc-1'), isNull);
+      expect(
+        db.search(
+          term: 'ember',
+          properties: const ['title'],
+        ).count,
+        0,
+      );
     });
 
     test('facets and groups use store-backed documents', () {

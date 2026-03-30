@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:async';
+
 import 'package:searchlight/searchlight.dart';
 import 'package:test/test.dart';
 
@@ -445,6 +447,53 @@ void main() {
       expect(capturedLanguage, 'en');
       expect(capturedResults.count, result.count);
       expect(capturedResults.hits.first.id, result.hits.first.id);
+    });
+
+    test('search accepts named synchronous FutureOr<void> hooks', () {
+      final calls = <String>[];
+
+      FutureOr<void> beforeHook(
+        Object _,
+        SearchlightSearchParams __,
+        String ___,
+      ) {
+        calls.add('beforeSearch');
+      }
+
+      FutureOr<void> afterHook(
+        Object _,
+        SearchlightSearchParams __,
+        String ___,
+        Object ____,
+      ) {
+        calls.add('afterSearch');
+      }
+
+      final hookedDb = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'body': const TypedField(SchemaType.string),
+          'price': const TypedField(SchemaType.number),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            beforeSearch: beforeHook,
+            afterSearch: afterHook,
+          ),
+        ],
+      )..insert({
+          'id': 'doc-1',
+          'title': 'hello world',
+          'body': 'x',
+          'price': 1,
+        });
+      addTearDown(hookedDb.dispose);
+
+      final result = hookedDb.search(term: 'hello');
+
+      expect(result.hits.single.id, 'doc-1');
+      expect(calls, <String>['beforeSearch', 'afterSearch']);
     });
 
     test('search rejects async beforeSearch hook before invocation', () {

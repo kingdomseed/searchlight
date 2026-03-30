@@ -3,6 +3,8 @@ import 'package:searchlight/src/extensions/component_ids.dart';
 import 'package:searchlight/src/extensions/resolver.dart';
 import 'package:test/test.dart';
 
+import '../helpers/extensions/test_index_plugin.dart';
+
 void main() {
   group('extension components', () {
     final schema = Schema({
@@ -376,6 +378,31 @@ void main() {
         plugins: [buildPlugin()],
       );
       addTearDown(db.dispose);
+    });
+
+    test('reindex preserves plugin-provided index components', () {
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          testIndexPlugin(
+            name: 'plugin-index',
+            componentId: 'test.index.plugin',
+            forcedAlgorithm: SearchAlgorithm.pt15,
+          ),
+        ],
+      )..insert({
+          'id': 'doc-1',
+          'title': 'Ember Lance',
+        });
+      addTearDown(db.dispose);
+
+      final reindexed = db.reindex(algorithm: SearchAlgorithm.qps);
+      addTearDown(reindexed.dispose);
+
+      expect(reindexed.indexAlgorithm, SearchAlgorithm.pt15);
+      expect(reindexed.getById('doc-1'), isNotNull);
     });
   });
 }

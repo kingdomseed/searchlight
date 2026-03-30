@@ -173,6 +173,34 @@ void main() {
       ]);
     });
 
+    test('upsert reuses one generated ID across hooks and insert', () {
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            beforeUpsert: (_, id, __) => calls.add('beforeUpsert:$id'),
+            afterUpsert: (_, id, __) => calls.add('afterUpsert:$id'),
+            beforeInsert: (_, id, __) => calls.add('beforeInsert:$id'),
+            afterInsert: (_, id, __) => calls.add('afterInsert:$id'),
+          ),
+        ],
+      );
+
+      final id = db.upsert({'title': 'Hello'});
+
+      expect(id, '0');
+      expect(calls, <String>[
+        'beforeUpsert:0',
+        'beforeInsert:0',
+        'afterInsert:0',
+        'afterUpsert:0',
+      ]);
+      expect(db.getById('0')?.getString('title'), 'Hello');
+    });
+
     test(
       'insert rejects async single-record hooks before any side effect runs',
       () {
@@ -260,6 +288,34 @@ void main() {
 
       expect(id, 'doc-3');
       expect(sideEffectRan, isTrue);
+      expect(db.count, 1);
+    });
+
+    test('insert accepts named synchronous FutureOr<void> hooks', () {
+      FutureOr<void> syncHook(
+        Object _,
+        String id,
+        SearchlightRecord? __,
+      ) {
+        calls.add('beforeInsert:$id');
+      }
+
+      db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+        }),
+        plugins: [
+          SearchlightPlugin(
+            name: 'hooks',
+            beforeInsert: syncHook,
+          ),
+        ],
+      );
+
+      final id = db.insert({'id': 'doc-4', 'title': 'Hello'});
+
+      expect(id, 'doc-4');
+      expect(calls, <String>['beforeInsert:doc-4']);
       expect(db.count, 1);
     });
 
