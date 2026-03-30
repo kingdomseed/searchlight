@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:searchlight/searchlight.dart';
 import 'package:searchlight_example/main.dart';
 
 void main() {
@@ -54,6 +55,35 @@ void main() {
   );
 
   testWidgets(
+    'local snapshot mode restores a real snapshot and returns search hits',
+    (tester) async {
+      await tester.pumpWidget(
+        SearchValidationApp(
+          bundle: _TestAssetBundle(
+            overrides: <String, String>{
+              'assets/local/generated_search_snapshot.json':
+                  _buildValidSnapshotAsset(),
+            },
+          ),
+        ),
+      );
+      await _pumpLoaded(tester);
+
+      await tester.tap(find.byType(DropdownButton<ValidationSourceMode>));
+      await tester.pump();
+      await tester.tap(find.text('Local snapshot asset').last);
+      await _pumpLoaded(tester);
+
+      await tester.enterText(find.byType(TextField), 'phoenix');
+      await tester.pump();
+
+      expect(find.text('Snapshot Phoenix'), findsWidgets);
+      expect(find.textContaining('/snapshot/phoenix'), findsWidgets);
+      expect(find.textContaining('not configured'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'local snapshot mode shows configuration error on placeholder asset',
     (tester) async {
       await tester.pumpWidget(SearchValidationApp(bundle: _TestAssetBundle()));
@@ -84,7 +114,16 @@ Future<void> _pumpLoaded(WidgetTester tester) async {
 }
 
 final class _TestAssetBundle extends CachingAssetBundle {
-  static const Map<String, String> _assets = {
+  _TestAssetBundle({
+    Map<String, String> overrides = const <String, String>{},
+  }) : _assets = <String, String>{
+         ..._defaultAssets,
+         ...overrides,
+       };
+
+  final Map<String, String> _assets;
+
+  static const Map<String, String> _defaultAssets = {
     'assets/search_corpus.json': '''
 [
   {
@@ -129,4 +168,29 @@ final class _TestAssetBundle extends CachingAssetBundle {
     final bytes = Uint8List.fromList(utf8.encode(value));
     return ByteData.sublistView(bytes);
   }
+}
+
+String _buildValidSnapshotAsset() {
+  final db = Searchlight.create(
+    schema: Schema({
+      'pathLabel': const TypedField(SchemaType.string),
+      'title': const TypedField(SchemaType.string),
+      'content': const TypedField(SchemaType.string),
+      'type': const TypedField(SchemaType.enumType),
+      'group': const TypedField(SchemaType.enumType),
+      'sourcePath': const TypedField(SchemaType.string),
+      'displayBody': const TypedField(SchemaType.string),
+    }),
+  )..insert({
+      'pathLabel': '/snapshot/phoenix',
+      'title': 'Snapshot Phoenix',
+      'content': 'A reborn firebird preserved in archived snapshot data.',
+      'type': 'record',
+      'group': 'archive',
+      'sourcePath': '/tmp/snapshot.md',
+      'displayBody':
+          '# Snapshot Phoenix\n\nA reborn firebird preserved in archived snapshot data.',
+    });
+
+  return jsonEncode(db.toJson());
 }
