@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-03-30
+
+### Changed
+
+- Removed a final round of extraneous README wording for the package-family
+  documentation refresh.
+
 ## [0.2.1] - 2026-03-30
 
 ### Changed
