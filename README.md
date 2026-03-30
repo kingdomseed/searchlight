@@ -38,6 +38,18 @@ The extension API is intentionally narrower than Orama today. Searchlight does
 not yet expose async plugin initialization or every declared hook dispatch
 path, but it now supports more than index/sorter replacement.
 
+## Companion Packages
+
+Published companions built on top of `searchlight`:
+
+- [`searchlight_parsedoc` on pub.dev](https://pub.dev/packages/searchlight_parsedoc)
+  for HTML and Markdown extraction plus Orama-style population helpers
+- [`searchlight_parsedoc` on GitHub](https://github.com/kingdomseed/searchlight_parsedoc)
+
+PDF extraction, viewer integration, and other source-format-specific ingestion
+still belong in your app or in future companion packages above the core
+library.
+
 ## Platform Support
 
 `searchlight` is a pure Dart package. It works anywhere Dart runs, including
@@ -424,14 +436,6 @@ The package includes a practical reference implementation:
   extraction-to-index flow used by the example
 
 For a fuller walkthrough, see [doc/app-integration.md](doc/app-integration.md).
-
-## PDF Support
-
-`searchlight` is the core indexing engine. It does not currently parse PDF
-files. To search PDFs in an app today, you need an extraction step that turns
-PDF text into searchable records before inserting them into Searchlight.
-If you also need viewer integration or PDF-specific metadata handling, keep
-that in your app or in a companion package above the core library.
 
 ## Validation Example
 
