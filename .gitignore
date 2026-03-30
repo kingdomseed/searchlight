@@ -16,3 +16,7 @@ docs/plans/*
 !docs/plans/2026-03-27-search-validation-design.md
 !docs/plans/2026-03-27-search-validation-implementation.md
 !docs/plans/2026-03-27-searchlight-orama-parity-plan.md
+!docs/plans/2026-03-30-searchlight-parsedoc-implementation.md
+!docs/plans/2026-03-30-searchlight-post-merge-roadmap.md
+!docs/plans/2026-03-30-searchlight-pubdev-design.md
+!docs/plans/2026-03-30-searchlight-pubdev-implementation.md
