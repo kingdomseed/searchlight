@@ -111,6 +111,7 @@ final class Searchlight {
     SearchlightComponents? components,
   }) {
     final resolvedExtensions = resolveExtensions(
+      schema: schema,
       defaults: defaultSearchlightComponents,
       plugins: plugins,
       overrides: components,
@@ -285,6 +286,7 @@ final class Searchlight {
     }
     final schema = schemaFromJson(schemaJson);
     final resolvedExtensions = resolveExtensions(
+      schema: schema,
       defaults: defaultSearchlightComponents,
       plugins: plugins,
       overrides: components,

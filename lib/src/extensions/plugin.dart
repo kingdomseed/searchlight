@@ -1,5 +1,11 @@
+import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/extensions/components.dart';
 import 'package:searchlight/src/extensions/hooks.dart';
+
+/// Produces plugin-owned component contributions for a schema.
+typedef SearchlightPluginComponentsFactory = SearchlightComponents Function(
+  Schema schema,
+);
 
 /// A create-time extension unit for Searchlight.
 final class SearchlightPlugin<TExtra extends Object?> {
@@ -8,7 +14,7 @@ final class SearchlightPlugin<TExtra extends Object?> {
     required this.name,
     this.extra,
     this.hooks,
-    this.components,
+    this.getComponents,
   });
 
   /// Human-readable plugin name used in diagnostics and conflict errors.
@@ -20,6 +26,6 @@ final class SearchlightPlugin<TExtra extends Object?> {
   /// Hook contributions registered by this plugin.
   final SearchlightHooks? hooks;
 
-  /// Component overrides contributed by this plugin.
-  final SearchlightComponents? components;
+  /// Component overrides contributed by this plugin for a specific schema.
+  final SearchlightPluginComponentsFactory? getComponents;
 }

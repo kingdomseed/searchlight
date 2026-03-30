@@ -23,7 +23,7 @@ SearchlightPlugin<Object?> testIndexPlugin({
 }) {
   return SearchlightPlugin(
     name: name,
-    components: SearchlightComponents(
+    getComponents: (_) => SearchlightComponents(
       index: testIndexComponent(
         id: componentId,
         forcedAlgorithm: forcedAlgorithm,

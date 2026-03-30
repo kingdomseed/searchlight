@@ -5,8 +5,13 @@ import 'package:test/test.dart';
 
 void main() {
   group('extension components', () {
+    final schema = Schema({
+      'title': const TypedField(SchemaType.string),
+    });
+
     test('default component identities are stable', () {
       final resolved = resolveExtensions(
+        schema: schema,
         defaults: defaultSearchlightComponents,
       );
 
@@ -39,6 +44,7 @@ void main() {
       );
 
       final resolved = resolveExtensions(
+        schema: schema,
         defaults: defaultSearchlightComponents,
         overrides: SearchlightComponents(index: overrideIndex),
       );
@@ -53,12 +59,13 @@ void main() {
     test('plugin tokenizer conflicts with a user tokenizer component', () {
       expect(
         () => resolveExtensions(
+          schema: schema,
           defaults: defaultSearchlightComponents,
           overrides: SearchlightComponents(tokenizer: Tokenizer()),
           plugins: [
             SearchlightPlugin(
               name: 'plugin-tokenizer',
-              components: SearchlightComponents(
+              getComponents: (_) => SearchlightComponents(
                 tokenizer: Tokenizer(stopWords: ['the']),
               ),
             ),
@@ -82,12 +89,13 @@ void main() {
 
       expect(
         () => resolveExtensions(
+          schema: schema,
           defaults: defaultSearchlightComponents,
           overrides: SearchlightComponents(documentsStore: overrideStore),
           plugins: [
             SearchlightPlugin(
               name: 'plugin-docs',
-              components: SearchlightComponents(
+              getComponents: (_) => SearchlightComponents(
                 documentsStore: SearchlightDocumentsStoreComponent(
                   id: 'test.docs.plugin',
                   create: () => throw UnimplementedError(),
@@ -114,17 +122,13 @@ void main() {
 
       expect(
         () => resolveExtensions(
+          schema: schema,
           defaults: defaultSearchlightComponents,
           overrides: const SearchlightComponents(pinning: overridePinning),
           plugins: [
             const SearchlightPlugin(
               name: 'plugin-pinning',
-              components: SearchlightComponents(
-                pinning: SearchlightPinningComponent(
-                  id: 'test.pinning.plugin',
-                  create: InMemorySearchlightPinningStore.new,
-                ),
-              ),
+              getComponents: _pinningPluginComponents,
             ),
           ],
         ),
@@ -149,6 +153,7 @@ void main() {
 
         expect(
           () => resolveExtensions(
+            schema: schema,
             defaults: defaultSearchlightComponents,
             overrides: SearchlightComponents(
               formatElapsedTime: overrideFormatter,
@@ -156,7 +161,7 @@ void main() {
             plugins: [
               SearchlightPlugin(
                 name: 'plugin-elapsed',
-                components: SearchlightComponents(
+                getComponents: (_) => SearchlightComponents(
                   formatElapsedTime: (elapsedNanoseconds) =>
                       SearchlightElapsedTime(
                     raw: elapsedNanoseconds,
@@ -197,12 +202,13 @@ void main() {
 
       expect(
         () => resolveExtensions(
+          schema: schema,
           defaults: defaultSearchlightComponents,
           overrides: SearchlightComponents(index: overrideIndex),
           plugins: [
             SearchlightPlugin(
               name: 'plugin-index',
-              components: SearchlightComponents(index: pluginIndex),
+              getComponents: (_) => SearchlightComponents(index: pluginIndex),
             ),
           ],
         ),
@@ -236,15 +242,16 @@ void main() {
 
       expect(
         () => resolveExtensions(
+          schema: schema,
           defaults: defaultSearchlightComponents,
           plugins: [
             SearchlightPlugin(
               name: 'first-plugin',
-              components: SearchlightComponents(index: firstIndex),
+              getComponents: (_) => SearchlightComponents(index: firstIndex),
             ),
             SearchlightPlugin(
               name: 'second-plugin',
-              components: SearchlightComponents(index: secondIndex),
+              getComponents: (_) => SearchlightComponents(index: secondIndex),
             ),
           ],
         ),
@@ -344,5 +351,39 @@ void main() {
       expect(reindexed.indexAlgorithm, SearchAlgorithm.qps);
       expect(reindexed.getById('doc-1'), isNotNull);
     });
+
+    test('plugin getComponents receives the active schema', () {
+      SearchlightPlugin<Object?> buildPlugin() {
+        return SearchlightPlugin(
+          name: 'schema-aware',
+          getComponents: (schema) {
+            expect(
+              schema.fieldPaths,
+              containsAll(<String>['title', 'meta.rank']),
+            );
+            return const SearchlightComponents();
+          },
+        );
+      }
+
+      final db = Searchlight.create(
+        schema: Schema({
+          'title': const TypedField(SchemaType.string),
+          'meta': const NestedField({
+            'rank': TypedField(SchemaType.number),
+          }),
+        }),
+        plugins: [buildPlugin()],
+      );
+      addTearDown(db.dispose);
+    });
   });
 }
+
+SearchlightComponents _pinningPluginComponents(Schema _) =>
+    const SearchlightComponents(
+      pinning: SearchlightPinningComponent(
+        id: 'test.pinning.plugin',
+        create: InMemorySearchlightPinningStore.new,
+      ),
+    );

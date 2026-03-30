@@ -83,6 +83,52 @@ Searchlight buildDatabase() {
     );
 
     test(
+      'searchlight plugins accept getComponents callbacks',
+      () async {
+        final tempDir = Directory(
+          '${Directory.current.path}/test/.tmp_plugin_get_components_surface',
+        );
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+        await tempDir.create(recursive: true);
+        final source = File('${tempDir.path}/plugin_get_components_surface.dart');
+
+        try {
+          source.writeAsStringSync(r'''
+import 'package:searchlight/searchlight.dart';
+
+SearchlightPlugin<Object?> buildPlugin() {
+  return SearchlightPlugin(
+    name: 'plugin',
+    getComponents: (schema) {
+      final _ = schema.fieldPaths;
+      return SearchlightComponents(
+        formatElapsedTime: (elapsedNanoseconds) => SearchlightElapsedTime(
+          raw: elapsedNanoseconds,
+          formatted: '$elapsedNanoseconds ns',
+        ),
+      );
+    },
+  );
+}
+''');
+
+          final result = await Process.run(
+            'dart',
+            ['analyze', source.path],
+            workingDirectory: Directory.current.path,
+          );
+
+          final output = '${result.stdout}\n${result.stderr}';
+          expect(result.exitCode, 0, reason: output);
+        } finally {
+          await tempDir.delete(recursive: true);
+        }
+      },
+    );
+
+    test(
       'searchlight barrel exports elapsed formatter types for overrides',
       () async {
         final tempDir = Directory(
@@ -315,6 +361,42 @@ final class _MemoryPinningStore implements SearchlightPinningStore {
 
         final output = '${result.stdout}\n${result.stderr}';
         expect(result.exitCode, 0, reason: output);
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('searchlight plugins do not accept static component bags', () async {
+      final tempDir = Directory(
+        '${Directory.current.path}/test/.tmp_plugin_components_surface',
+      );
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+      await tempDir.create(recursive: true);
+      final source = File('${tempDir.path}/plugin_components_surface.dart');
+
+      try {
+        source.writeAsStringSync('''
+import 'package:searchlight/searchlight.dart';
+
+void buildPlugin() {
+  SearchlightPlugin(
+    name: 'plugin',
+    components: const SearchlightComponents(),
+  );
+}
+''');
+
+        final result = await Process.run(
+          'dart',
+          ['analyze', source.path],
+          workingDirectory: Directory.current.path,
+        );
+
+        final output = '${result.stdout}\n${result.stderr}';
+        expect(result.exitCode, isNonZero, reason: output);
+        expect(output, contains('undefined_named_parameter'));
       } finally {
         await tempDir.delete(recursive: true);
       }

@@ -1,4 +1,5 @@
 import 'package:searchlight/src/core/exceptions.dart';
+import 'package:searchlight/src/core/schema.dart';
 import 'package:searchlight/src/extensions/components.dart';
 import 'package:searchlight/src/extensions/plugin.dart';
 
@@ -19,6 +20,7 @@ final class ResolvedExtensions {
 
 /// Resolves plugin and component inputs into a deterministic final shape.
 ResolvedExtensions resolveExtensions({
+  required Schema schema,
   required SearchlightComponents defaults,
   List<SearchlightPlugin<Object?>> plugins = const [],
   SearchlightComponents? overrides,
@@ -85,7 +87,8 @@ ResolvedExtensions resolveExtensions({
   }
 
   for (final plugin in plugins) {
-    if (plugin.components?.tokenizer case final tokenizer?) {
+    final pluginComponents = plugin.getComponents?.call(schema);
+    if (pluginComponents?.tokenizer case final tokenizer?) {
       if (tokenizerOwner != null) {
         throw ExtensionResolutionException(
           'Component conflict for "tokenizer": already provided by '
@@ -96,7 +99,7 @@ ResolvedExtensions resolveExtensions({
       resolvedTokenizer = tokenizer;
       tokenizerOwner = 'plugin "${plugin.name}"';
     }
-    if (plugin.components?.index case final index?) {
+    if (pluginComponents?.index case final index?) {
       if (indexOwner != null) {
         throw ExtensionResolutionException(
           'Component conflict for "index": already provided by $indexOwner; '
@@ -106,7 +109,7 @@ ResolvedExtensions resolveExtensions({
       resolvedIndex = index;
       indexOwner = 'plugin "${plugin.name}"';
     }
-    if (plugin.components?.sorter case final sorter?) {
+    if (pluginComponents?.sorter case final sorter?) {
       if (sorterOwner != null) {
         throw ExtensionResolutionException(
           'Component conflict for "sorter": already provided by $sorterOwner; '
@@ -116,7 +119,7 @@ ResolvedExtensions resolveExtensions({
       resolvedSorter = sorter;
       sorterOwner = 'plugin "${plugin.name}"';
     }
-    if (plugin.components?.documentsStore case final documentsStore?) {
+    if (pluginComponents?.documentsStore case final documentsStore?) {
       if (documentsStoreOwner != null) {
         throw ExtensionResolutionException(
           'Component conflict for "documentsStore": already provided by '
@@ -127,7 +130,7 @@ ResolvedExtensions resolveExtensions({
       resolvedDocumentsStore = documentsStore;
       documentsStoreOwner = 'plugin "${plugin.name}"';
     }
-    if (plugin.components?.pinning case final pinning?) {
+    if (pluginComponents?.pinning case final pinning?) {
       if (pinningOwner != null) {
         throw ExtensionResolutionException(
           'Component conflict for "pinning": already provided by '
@@ -138,7 +141,7 @@ ResolvedExtensions resolveExtensions({
       resolvedPinning = pinning;
       pinningOwner = 'plugin "${plugin.name}"';
     }
-    if (plugin.components?.validateSchema case final validateSchema?) {
+    if (pluginComponents?.validateSchema case final validateSchema?) {
       if (validateSchemaOwner != null) {
         throw ExtensionResolutionException(
           'Component conflict for "validateSchema": already provided by '
@@ -149,7 +152,7 @@ ResolvedExtensions resolveExtensions({
       resolvedValidateSchema = validateSchema;
       validateSchemaOwner = 'plugin "${plugin.name}"';
     }
-    if (plugin.components?.getDocumentIndexId case final getDocumentIndexId?) {
+    if (pluginComponents?.getDocumentIndexId case final getDocumentIndexId?) {
       if (documentIndexIdOwner != null) {
         throw ExtensionResolutionException(
           'Component conflict for "getDocumentIndexId": already provided by '
@@ -160,7 +163,7 @@ ResolvedExtensions resolveExtensions({
       resolvedGetDocumentIndexId = getDocumentIndexId;
       documentIndexIdOwner = 'plugin "${plugin.name}"';
     }
-    if (plugin.components?.getDocumentProperties
+    if (pluginComponents?.getDocumentProperties
         case final getDocumentProperties?) {
       if (documentPropertiesOwner != null) {
         throw ExtensionResolutionException(
@@ -172,7 +175,7 @@ ResolvedExtensions resolveExtensions({
       resolvedGetDocumentProperties = getDocumentProperties;
       documentPropertiesOwner = 'plugin "${plugin.name}"';
     }
-    if (plugin.components?.formatElapsedTime case final formatElapsedTime?) {
+    if (pluginComponents?.formatElapsedTime case final formatElapsedTime?) {
       if (formatElapsedTimeOwner != null) {
         throw ExtensionResolutionException(
           'Component conflict for "formatElapsedTime": already '
