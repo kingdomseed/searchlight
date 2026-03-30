@@ -46,8 +46,8 @@ platform-channel code or platform-specific subpackages.
 
 - Read [doc/app-integration.md](doc/app-integration.md) for the recommended
   app architecture.
-- Read [doc/validation-workflow.md](doc/validation-workflow.md) for the local
-  validation loop.
+- Read [doc/validation-workflow.md](doc/validation-workflow.md) for the
+  canonical repository validation sequence.
 - Open [example/README.md](example/README.md) for the Flutter validation app.
 
 ## What It Provides
@@ -186,6 +186,15 @@ There are two common integration modes:
 
 The package supports both paths directly.
 
+The repository validation workflow exercises both:
+
+- public fixture corpus -> build in memory -> search
+- generated local corpus -> build in memory -> search
+- generated local snapshot -> restore persisted index -> search
+
+For the exact command sequence, see
+[doc/validation-workflow.md](doc/validation-workflow.md).
+
 Document writes are available through:
 
 - `insert()` / `insertMultiple()`
@@ -213,7 +222,13 @@ path rather than through the top-level `algorithm` flag alone.
 
 Current limits to know before depending on extensions heavily:
 
+- registration unit: `SearchlightPlugin`
+- supported replacement surface: `tokenizer`, `index`, `sorter`,
+  `documentsStore`, `pinning`, `validateSchema`, `getDocumentIndexId`,
+  `getDocumentProperties`, and `formatElapsedTime`
 - hooks are sync-only in core operations; async hooks fail fast
+- restore contract: extension-backed snapshots must be restored with matching
+  plugin order and compatible component IDs
 - conflicting component registrations now fail fast instead of using
   last-writer-wins resolution
 - `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` remain reserved but

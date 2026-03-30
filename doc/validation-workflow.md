@@ -3,6 +3,29 @@
 Searchlight includes a lightweight validation workflow for checking search
 behavior against realistic corpora without committing private source material.
 
+## Canonical Validation Sequence
+
+From the repository root:
+
+```bash
+dart analyze
+dart test
+dart pub publish --dry-run
+```
+
+From `example/`:
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter build web
+flutter build macos
+```
+
+Use that sequence as the canonical validation pass before major refactors,
+publish work, or companion-package extraction.
+
 ## Public and Private Validation Data
 
 Committed public-safe data:
@@ -17,6 +40,19 @@ Local private data:
 - `.local/generated_search_snapshot.json`
 
 Only public-safe fixture data should be committed.
+
+## What Each Validation Path Proves
+
+- public fixture corpus:
+  committed safe records that prove the default in-memory indexing path
+- local generated corpus:
+  generated extracted records that prove your extraction output before
+  persistence
+- local generated snapshot:
+  generated persisted index data that proves the restore path you will usually
+  prefer in production
+
+The example app is designed to make those three paths easy to compare.
 
 ## Generate Local Validation Assets
 
@@ -72,6 +108,9 @@ The example app can validate:
 - local generated corpus loading
 - local generated snapshot restore
 - highlighted excerpt rendering over search hits
+
+See [example/README.md](../example/README.md) for the manual verification
+checklist inside the app.
 
 For desktop folder validation on macOS:
 

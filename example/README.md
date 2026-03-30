@@ -61,6 +61,7 @@ flutter run -d macos
 From `example/`:
 
 ```bash
+flutter analyze
 flutter test
 flutter build web
 ```
@@ -70,6 +71,24 @@ Desktop smoke validation:
 ```bash
 flutter build macos
 ```
+
+Manual verification checklist:
+
+- `Public fixture`
+  - search `ember`
+  - expect `Ember Lance`
+- `Public fixture`
+  - search `creatures`
+  - expect no `Iron Boar`, because default search validates `title` and
+    `content`, not URL-only matches
+- `Local snapshot asset`
+  - load a real generated snapshot
+  - search a known term from that snapshot
+  - expect a real hit, not the placeholder configuration error
+- `Desktop folder`
+  - choose a folder containing live `.md` files
+  - expect the indexed count to match discovered markdown records
+  - expect searchable hits from extracted markdown content
 
 ## Local Asset Workflow
 
@@ -104,6 +123,11 @@ use during development or local import flows.
 
 `Local snapshot asset` validates the persisted-index path that a production app
 would usually prefer for faster startup.
+
+That split is intentional:
+
+- corpus modes prove record generation and in-memory indexing
+- snapshot mode proves persisted-index restore and runtime search
 
 ## Related Docs
 
