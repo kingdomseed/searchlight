@@ -403,10 +403,10 @@ void example(Searchlight db) {
 
 ## Highlighting and Excerpts
 
-Highlighting now lives in the companion package
-[`searchlight_highlight`](https://pub.dev/packages/searchlight_highlight).
-It does not change how documents are indexed. Use it after search to build
-excerpts or render marked matches.
+Use the companion package
+[`searchlight_highlight`](https://pub.dev/packages/searchlight_highlight)
+after search to build excerpts or render marked matches. It does not change
+how documents are indexed.
 
 ```dart
 import 'package:searchlight_highlight/searchlight_highlight.dart';
