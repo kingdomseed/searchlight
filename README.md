@@ -40,11 +40,10 @@ path, but it now supports more than index/sorter replacement.
 
 ## Companion Packages
 
-Published companions built on top of `searchlight`:
+Current companion package:
 
-- [`searchlight_parsedoc` on pub.dev](https://pub.dev/packages/searchlight_parsedoc)
-  for HTML and Markdown extraction plus Orama-style population helpers
-- [`searchlight_parsedoc` on GitHub](https://github.com/kingdomseed/searchlight_parsedoc)
+- [`searchlight_parsedoc`](https://pub.dev/packages/searchlight_parsedoc) for
+  HTML and Markdown extraction plus Orama-style population helpers
 
 PDF extraction, viewer integration, and other source-format-specific ingestion
 still belong in your app or in future companion packages above the core
