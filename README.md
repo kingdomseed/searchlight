@@ -22,8 +22,8 @@ highlighting, and a limited create-time extension surface.
 Current extension support includes:
 
 - ordered `SearchlightPlugin` registration
-- lifecycle hooks via `SearchlightHooks`
-- `index` and `sorter` component replacement via `SearchlightComponents`
+- lifecycle hooks via top-level `SearchlightPlugin` fields
+- component replacement via `SearchlightComponents`
 - restore-time validation that a persisted snapshot is loaded with a
   compatible plugin/component graph
 
@@ -33,8 +33,8 @@ It does not currently include:
 - Flutter UI widgets
 
 The extension API is intentionally narrower than Orama today. Searchlight does
-not yet expose Orama's full component graph, async plugin initialization, or
-every declared hook path.
+not yet expose async plugin initialization or every declared hook dispatch
+path, but it now supports more than index/sorter replacement.
 
 ## Platform Support
 
@@ -59,8 +59,7 @@ platform-channel code or platform-specific subpackages.
 - Standalone highlighter utilities for excerpts and marked ranges
 - Standalone tokenizer utilities with language support, stemming, and optional
   stop words
-- A limited create-time extension API for lifecycle hooks and index/sorter
-  replacement
+- A create-time extension API for lifecycle hooks and component replacement
 
 `Searchlight.create()` also exposes tokenizer-related configuration for the
 built-in database tokenizer, including `stemming`, `stemmer`, `stopWords`,
@@ -201,8 +200,12 @@ Searchlight exposes a Dart-native extension surface inspired by Orama's
 create-time plugin model:
 
 - `SearchlightPlugin` is the registration unit
-- `SearchlightHooks` provides lifecycle callbacks
-- `SearchlightComponents` can replace the active `index` or `sorter`
+- lifecycle hooks register through top-level `SearchlightPlugin` fields such
+  as `beforeInsert`, `afterSearch`, and `afterCreate`
+- `SearchlightComponents` can replace the active `tokenizer`, `index`,
+  `sorter`, `documentsStore`, or `pinning`, and can override
+  `validateSchema`, `getDocumentIndexId`, `getDocumentProperties`, and
+  `formatElapsedTime`
 
 This is enough to prove real component replacement. The test suite includes
 plugin-driven index swaps that force PT15 and QPS behavior through the plugin
@@ -211,8 +214,7 @@ path rather than through the top-level `algorithm` flag alone.
 Current limits to know before depending on extensions heavily:
 
 - hooks are sync-only in core operations; async hooks fail fast
-- component replacement is currently limited to `index` and `sorter`
-- conflicting `index` / `sorter` registrations now fail fast instead of using
+- conflicting component registrations now fail fast instead of using
   last-writer-wins resolution
 - `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` remain reserved but
   non-dispatched because the current Orama runtime does not visibly dispatch
