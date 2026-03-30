@@ -93,8 +93,8 @@ intentional divergence or an unresolved gap.
 ## Remaining gaps before publish-ready parity claims
 
 - component merge semantics still diverge from Orama:
-  Searchlight still keeps `hooks` on a Searchlight-specific final-resolution
-  path instead of mirroring Orama's broader component typing story
+  Searchlight plugins still use a static `components` field instead of
+  Orama's `getComponents(schema)` registration path
 - `beforeInsertMultiple`, `beforeLoad`, and `afterLoad` are public in the
   Searchlight hook surface but are not currently dispatched because the current
   Orama runtime does not visibly dispatch them either

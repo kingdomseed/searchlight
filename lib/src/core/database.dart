@@ -481,15 +481,9 @@ final class Searchlight {
   ) {
     final hookSets = <SearchlightHooks>[];
     for (final plugin in resolvedExtensions.plugins) {
-      final pluginHooks = plugin.components?.hooks ?? plugin.hooks;
-      if (pluginHooks != null) {
+      if (plugin.hooks case final pluginHooks?) {
         hookSets.add(pluginHooks);
       }
-    }
-    final finalHooks = resolvedExtensions.components.hooks;
-    if (finalHooks != null &&
-        (hookSets.isEmpty || !identical(hookSets.last, finalHooks))) {
-      hookSets.add(finalHooks);
     }
     return SearchlightHookRuntime.fromHooks(hookSets);
   }

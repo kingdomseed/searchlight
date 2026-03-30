@@ -114,7 +114,6 @@ final class SearchlightComponents {
     this.sorter,
     this.documentsStore,
     this.pinning,
-    this.hooks,
     this.validateSchema,
     this.getDocumentIndexId,
     this.getDocumentProperties,
@@ -135,9 +134,6 @@ final class SearchlightComponents {
 
   /// Replaces the pinning implementation.
   final SearchlightPinningComponent? pinning;
-
-  /// Overrides the final resolved hook set.
-  final SearchlightHooks? hooks;
 
   /// Replaces schema validation for insert/update/upsert operations.
   final SearchlightSchemaValidator? validateSchema;

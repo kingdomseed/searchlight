@@ -81,6 +81,9 @@ gaps vs Orama are resolved or explicitly accepted.
 - a `formatElapsedTime` function component now exists with deterministic
   conflict handling, and `SearchResult.elapsed` now carries an Orama-style
   `{raw, formatted}` payload plus a Dart-friendly `duration` getter
+- hook registration now matches Orama's runtime path more closely:
+  hooks register through top-level plugin fields, not through
+  `SearchlightComponents`
 
 ### Immediate next execution block
 
@@ -91,8 +94,8 @@ gaps vs Orama are resolved or explicitly accepted.
      accidental gap
 
 2. **Next remaining runtime gap**
-   - audit whether any source-confirmed extension behavior remains beyond the
-     currently wired component graph and the already-reserved hook names
+   - align plugin component registration with Orama's `getComponents(schema)`
+     path instead of Searchlight's static `components` bag
 
 ### Phase 1: Freeze Publish Scope
 

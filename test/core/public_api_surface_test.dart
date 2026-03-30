@@ -320,6 +320,47 @@ final class _MemoryPinningStore implements SearchlightPinningStore {
       }
     });
 
+    test('searchlight components do not accept hook registration', () async {
+      final tempDir = Directory(
+        '${Directory.current.path}/test/.tmp_component_hooks_surface',
+      );
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+      await tempDir.create(recursive: true);
+      final source = File('${tempDir.path}/component_hooks_surface.dart');
+
+      try {
+        source.writeAsStringSync('''
+import 'package:searchlight/searchlight.dart';
+
+void buildComponents() {
+  const SearchlightComponents(
+    hooks: SearchlightHooks(
+      afterCreate: _afterCreate,
+    ),
+  );
+}
+
+void _afterCreate(Object db) {
+  final _ = db;
+}
+''');
+
+        final result = await Process.run(
+          'dart',
+          ['analyze', source.path],
+          workingDirectory: Directory.current.path,
+        );
+
+        final output = '${result.stdout}\n${result.stderr}';
+        expect(result.exitCode, isNonZero, reason: output);
+        expect(output, contains('undefined_named_parameter'));
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
     test('searchlight does not expose internal resolved extension state',
         () async {
       final tempDir = Directory(

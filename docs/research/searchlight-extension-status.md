@@ -17,6 +17,7 @@ still incomplete.
 - duplicate plugin names are rejected deterministically
 - `SearchlightPlugin.name` is required
 - `SearchlightPlugin.extra` is available as a plugin-owned data bag
+- hook registration is accepted only through top-level `SearchlightPlugin.hooks`
 
 ### Hook surface
 
@@ -64,7 +65,6 @@ still incomplete.
 - `getDocumentIndexId`
 - `getDocumentProperties`
 - `formatElapsedTime`
-- final resolved `hooks`
 
 The active `index`, `sorter`, `documentsStore`, and `pinning` descriptors
 carry stable IDs. Those IDs are serialized into snapshots and checked during
@@ -138,16 +138,16 @@ Searchlight's pinning component now participates in persistence:
 
 Current Searchlight behavior:
 
+- plugins still contribute replacement components through a static
+  `SearchlightPlugin.components` bag
 - `tokenizer`, `index`, `sorter`, `documentsStore`, `pinning`,
   `validateSchema`, `getDocumentIndexId`, `getDocumentProperties`, and
   `formatElapsedTime` now reject duplicate claims across user components and
   plugins
-- `hooks` still use Searchlight-specific final-resolution behavior rather than
-  Orama's component graph rules
 
-Orama's runtime applies conflict errors across its component graph, while
-Searchlight still keeps `hooks` on a Searchlight-specific final-resolution
-path.
+Orama's runtime collects plugin components through `getComponents(schema)`
+instead of a static `components` field. Searchlight's conflict behavior now
+matches much more closely, but the plugin registration shape still differs.
 
 ### Public hook names that are not fully wired
 

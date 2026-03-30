@@ -32,7 +32,6 @@ ResolvedExtensions resolveExtensions({
     }
   }
 
-  var resolvedHooks = defaults.hooks;
   var resolvedTokenizer = overrides?.tokenizer ?? defaults.tokenizer;
   var resolvedIndex = overrides?.index ?? defaults.index;
   var resolvedSorter = overrides?.sorter ?? defaults.sorter;
@@ -184,13 +183,6 @@ ResolvedExtensions resolveExtensions({
       resolvedFormatElapsedTime = formatElapsedTime;
       formatElapsedTimeOwner = 'plugin "${plugin.name}"';
     }
-    final pluginHooks = plugin.components?.hooks ?? plugin.hooks;
-    if (pluginHooks != null) {
-      resolvedHooks = pluginHooks;
-    }
-  }
-  if (overrides?.hooks case final overrideHooks?) {
-    resolvedHooks = overrideHooks;
   }
 
   return ResolvedExtensions(
@@ -201,7 +193,6 @@ ResolvedExtensions resolveExtensions({
       sorter: resolvedSorter,
       documentsStore: resolvedDocumentsStore,
       pinning: resolvedPinning,
-      hooks: resolvedHooks,
       validateSchema: resolvedValidateSchema,
       getDocumentIndexId: resolvedGetDocumentIndexId,
       getDocumentProperties: resolvedGetDocumentProperties,
