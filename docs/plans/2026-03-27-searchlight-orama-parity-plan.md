@@ -29,7 +29,7 @@ gaps vs Orama are resolved or explicitly accepted.
 
 ## Plan
 
-## Current Status -- 2026-03-27
+## Current Status -- 2026-03-30
 
 ### Completed since this plan was created
 
@@ -86,14 +86,34 @@ gaps vs Orama are resolved or explicitly accepted.
   `SearchlightComponents`
 - plugin component registration now matches the current Orama runtime path:
   plugins contribute schema-aware components through `getComponents(schema)`
+- the public barrel now exports hook callback typedefs without exporting the
+  internal `SearchlightHooks` bundle type
+
+### Current checkpoint
+
+- core extension-system parity is complete enough to unblock real plugin work
+- the only remaining source-pinned runtime gap is the reserved hook trio:
+  `beforeInsertMultiple`, `beforeLoad`, and `afterLoad`
+- those hooks remain publicly named but intentionally non-dispatched because
+  the current Orama runtime does not visibly dispatch them either
+- async plugins and async component factories remain intentionally unsupported
+  until a source-confirmed runtime contract exists
+- the next useful validation step is no longer core refactoring; it is to
+  build a real plugin against this API and pressure-test ergonomics
 
 ### Immediate next execution block
 
-1. **Extension parity cleanup**
-   - keep async plugins/components unsupported unless a source-confirmed Orama
-     runtime path emerges
-   - keep that limitation documented as a deliberate contract choice, not an
-     accidental gap
+1. **Plugin proof**
+   - implement the first real plugin package against the current extension API
+   - use that package to verify that plugin authoring feels clean without
+     reopening core contracts unnecessarily
+
+2. **Recommended order**
+   - first: highlight plugin
+   - second: parsedoc
+   - third: PDF-specific work
+   - only reopen the core extension system if real plugin implementation
+     exposes a concrete API or runtime mismatch
 
 ### Phase 1: Freeze Publish Scope
 
@@ -120,6 +140,7 @@ gaps vs Orama are resolved or explicitly accepted.
 ### Phase 3: Extension Surface Decision
 
 - **Goal**: decide and implement public extension architecture parity
+- **Status**: complete for the current parity target
 - [ ] `reference/orama/packages/orama/src/` - pin exact Orama create/components/hooks/plugins contract to match
 - [ ] `packages/searchlight/test/core/` - add failing tests for the chosen public extension surface
 - [ ] `packages/searchlight/lib/src/core/` - add hook/plugin/component config types
@@ -133,6 +154,8 @@ gaps vs Orama are resolved or explicitly accepted.
 ### Phase 4: Persistence Public-Surface Parity
 
 - **Goal**: align save/load/restore contract closely enough for public claims
+- **Status**: complete enough for current parity target; compatibility rules are
+  now explicit and tested
 - [ ] `packages/searchlight/test/persistence/` - add failing parity tests before implementation
 - [ ] `packages/searchlight/lib/src/core/database.dart` - separate public save/load payload behavior from current reinsertion shortcut if parity requires it
 - [ ] `packages/searchlight/lib/src/persistence/` - add format-symmetric persist/restore API if retained in public surface
