@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-04-04
+
+### Added
+
+- Added a repository benchmark helper, `tool/memory_benchmark.dart`, for
+  measuring whole-process RSS, serialize/restore peak memory, and JSON/CBOR
+  snapshot sizes against an explicit corpus path.
+
+### Changed
+
+- Documented the benchmark helper and its caveats in the repository docs,
+  including explicit corpus-path input, supported text extensions, and the
+  distinction between whole-process RSS and isolated index memory.
+
 ## [0.2.2] - 2026-03-30
 
 ### Changed

@@ -443,6 +443,8 @@ The package includes a practical reference implementation:
   desktop-folder indexing flows
 - `example/tool/build_validation_assets.dart` shows a simple
   extraction-to-index flow used by the example
+- `tool/memory_benchmark.dart` benchmarks whole-process RSS and snapshot sizes
+  against an explicit corpus path
 
 For a fuller walkthrough, see [doc/app-integration.md](doc/app-integration.md).
 
@@ -461,6 +463,12 @@ See:
 - [test/fixtures/README.md](test/fixtures/README.md)
 - [doc/README.md](doc/README.md)
 - [doc/validation-workflow.md](doc/validation-workflow.md)
+
+## Benchmark Memory
+
+This repository also includes `tool/memory_benchmark.dart` for sizing
+Searchlight against a real corpus from a clone of the repository. For usage and
+caveats, see [doc/validation-workflow.md](doc/validation-workflow.md).
 
 ## License
 

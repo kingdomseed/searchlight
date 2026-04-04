@@ -26,6 +26,37 @@ flutter build macos
 Use that sequence as the canonical validation pass before major refactors,
 publish work, or companion-package extraction.
 
+## Optional Memory Benchmark
+
+When you want a rough sizing check for a real corpus, run the benchmark helper
+from the repository root:
+
+```bash
+dart run tool/memory_benchmark.dart /path/to/corpus
+```
+
+The source path is required and can be:
+
+- a directory of `.md`, `.markdown`, and `.txt` files
+- a JSON corpus file containing a top-level array of records
+
+Optional arguments:
+
+```bash
+dart run tool/memory_benchmark.dart /path/to/corpus 1 3000
+```
+
+- argument 2: repeat count (defaults to `1`)
+- argument 3: per-record content cap in characters (defaults to `3000`)
+
+Use the benchmark output carefully:
+
+- RSS values are whole-process measurements, not isolated index memory
+- `peak_whole_process_rss_*` values are temporary peaks during
+  serialize/restore, not steady-state runtime memory
+- repeat counts above `1` use repeated seed clones and are best treated as
+  posting-growth checks rather than realistic unique-corpus scaling
+
 ## Public and Private Validation Data
 
 Committed public-safe data:

@@ -21,6 +21,7 @@ understand intentional differences.
 - how to choose among BM25, QPS, and PT15
 - how to structure a repository or service layer around Searchlight
 - how to validate behavior with fixture data and local corpora
+- how to benchmark whole-process memory and snapshot size against real corpora
 - where highlighting now lives in the companion package ecosystem
 - how the current create-time extension surface fits into the core package
 
