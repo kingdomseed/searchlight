@@ -42,7 +42,15 @@ String _formatBytes(int bytes) {
 int _rss() => ProcessInfo.currentRss;
 
 Future<void> main(List<String> args) async {
-  final sourcePath = args.isNotEmpty ? args.first : null;
+  if (args.isEmpty || args.contains('--help') || args.contains('-h')) {
+    stdout.writeln(_usage);
+    if (args.isEmpty) {
+      exitCode = 64;
+    }
+    return;
+  }
+
+  final sourcePath = args.first;
   final repeatCount = args.length > 1 ? int.parse(args[1]) : 1;
   final contentCap =
       args.length > 2 ? int.parse(args[2]) : _defaultContentCap;
@@ -137,19 +145,32 @@ Future<void> main(List<String> args) async {
 }
 
 Future<BenchmarkSourceData> _loadSeedRecords(
-  String? sourcePath, {
+  String sourcePath, {
   required int contentCap,
 }) async {
-  if (sourcePath == null) {
-    final sourceFile = File('example/assets/search_corpus.json');
+  final sourceFile = File(sourcePath);
+  if (sourceFile.existsSync()) {
+    if (_extensionForPath(sourcePath) != 'json') {
+      throw FileSystemException(
+        'File source must be a JSON corpus file',
+        sourcePath,
+      );
+    }
+
     final raw = await sourceFile.readAsString();
-    final seedRecords =
-        (jsonDecode(raw) as List<Object?>).cast<Map<String, Object?>>();
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) {
+      throw FileSystemException(
+        'JSON corpus must decode to a top-level list',
+        sourcePath,
+      );
+    }
+    final seedRecords = decoded.cast<Map<String, Object?>>();
     return BenchmarkSourceData(
       seedRecords: seedRecords,
       includedSourceFiles: seedRecords.length,
       skippedFilesByExtension: const {},
-      sourceMode: 'json-seed',
+      sourceMode: 'json-corpus-file',
     );
   }
 
@@ -329,6 +350,21 @@ String _extensionForPath(String path) {
   }
   return fileName.substring(dotIndex + 1);
 }
+
+const _usage = '''
+Usage: dart run tool/memory_benchmark.dart <source-path> [repeat-count] [content-cap]
+
+Arguments:
+  <source-path>   Required. Either:
+                  - a directory containing .md/.markdown/.txt files, or
+                  - a JSON corpus file containing a top-level array of records
+  [repeat-count]  Optional. Defaults to 1.
+  [content-cap]   Optional. Defaults to 3000 characters per record.
+
+Notes:
+  - RSS values are whole-process measurements, not isolated index memory.
+  - Repeat counts above 1 use repeated seed clones and understate unique-corpus growth.
+''';
 
 String? _segmentAfter(List<String> segments, int index) {
   final next = index + 1;
